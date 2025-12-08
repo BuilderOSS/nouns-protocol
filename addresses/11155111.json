@@ -9,5 +9,6 @@
   "Token": "0x44D9FD02e6d8d96ca9c2bBD26C232024977674C5",
   "MetadataRenderer": "0xec23ce6407ef841adf52e7232d3df5a44cb38041",
   "Treasury": "0x5daabe9382158c3f133b360a5f0b46ca5a7f6e86",
-  "Governor": "0xaa21AFD73e6Fd5f69C87A6839D0beEDEE075e9a3"
+  "Governor": "0xaa21AFD73e6Fd5f69C87A6839D0beEDEE075e9a3",
+  "ERC721RedeemMinter": "0xaefd4a9ea072abb12f043f5b2b2d845b7600c503"
 }
