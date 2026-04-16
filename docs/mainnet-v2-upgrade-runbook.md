@@ -11,6 +11,7 @@ This runbook covers:
 
 ## Current Mainnet Baseline
 
+- Last verified on: `2026-04-16`
 - Manager proxy: `0xd310a3041dfcf14def5ccbc508668974b5da7174`
 - Current manager owner: `0xDC9b96Ea4966d063Dd5c8dbaf08fe59062091B6D`
 - Current canonical impls in `addresses/1.json`:
@@ -19,6 +20,33 @@ This runbook covers:
   - Governor: `0x46eA3fd17DEb7B291AeA60E67E5cB3a104FEa11D`
   - MetadataRenderer: `0x5a28EEF0eD8cCe44CDa9d7097ecCE041bb51B9D4` (keep)
   - Treasury: `0x3bdAFE0D299168F6ebB6e1B4E1e9702A30F6364D` (keep)
+
+Re-derive immediately before any upgrade action:
+
+```bash
+RPC_ALIAS=mainnet
+MANAGER_PROXY=0xd310a3041dfcf14def5ccbc508668974b5da7174
+
+# Manager owner
+cast call $MANAGER_PROXY "owner()(address)" --rpc-url $RPC_ALIAS
+
+# Current canonical impls from manager
+cast call $MANAGER_PROXY "tokenImpl()(address)" --rpc-url $RPC_ALIAS
+cast call $MANAGER_PROXY "auctionImpl()(address)" --rpc-url $RPC_ALIAS
+cast call $MANAGER_PROXY "governorImpl()(address)" --rpc-url $RPC_ALIAS
+cast call $MANAGER_PROXY "metadataImpl()(address)" --rpc-url $RPC_ALIAS
+cast call $MANAGER_PROXY "treasuryImpl()(address)" --rpc-url $RPC_ALIAS
+
+# Optional: manager proxy implementation slot (EIP-1967)
+cast storage $MANAGER_PROXY 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
+
+# Optional: verify DAO proxy implementation slots against addresses/1.json values
+cast storage 0xAeD75D1e5c1821E2EC29D5d24b794b13C34c5d63 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
+cast storage 0x785708d09b89C470aD7B5b3f8ac804cE72B6b282 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
+cast storage 0x46eA3fd17DEb7B291AeA60E67E5cB3a104FEa11D 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
+```
+
+Run these checks right before deployment/proposal execution so the listed owner and implementation values are confirmed live.
 
 ## Preflight
 
@@ -111,7 +139,7 @@ Required call sequence per DAO:
 
 Notes:
 
-- `Auction` upgrade requires paused state (`whenPaused` in `_authorizeUpgrade`).
+- `Auction` upgrade requires the contract to be paused (`whenPaused` in `_authorizeUpgrade`).
 - `MetadataRenderer` and `Treasury` are intentionally unchanged in this rollout.
 
 ## New DAOs After Manager Update

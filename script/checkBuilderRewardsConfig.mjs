@@ -51,10 +51,18 @@ function parseArgs(argv) {
 }
 
 function castCall(address, signature, rpcAlias) {
-  return execFileSync("cast", ["call", address, signature, "--rpc-url", rpcAlias], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+  try {
+    return execFileSync("cast", ["call", address, signature, "--rpc-url", rpcAlias], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30000,
+    }).trim();
+  } catch (error) {
+    const details = error?.stderr?.toString()?.trim() || error?.message || "unknown error";
+    throw new Error(
+      `cast call failed (address=${address}, signature=${signature}, rpcAlias=${rpcAlias}): ${details}`
+    );
+  }
 }
 
 function getBuilderRewardsRecipient(manager, rpcAlias) {
@@ -128,15 +136,19 @@ function run() {
         writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
         changed++;
       }
-    } catch {
+    } catch (error) {
       recipientStatus = "UNAVAILABLE";
+      console.log(
+        `[${chainId}] ${cfg.label}: builderRewardsRecipient unavailable (${error.message})`
+      );
     }
 
     try {
       const bps = getBps(auctionImpl, cfg.alias);
       bpsOutput = `${bps.builder}/${bps.referral}`;
-    } catch {
+    } catch (error) {
       bpsOutput = "N/A";
+      console.log(`[${chainId}] ${cfg.label}: reward BPS unavailable (${error.message})`);
     }
 
     checked++;

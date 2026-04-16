@@ -104,6 +104,11 @@ Recommended keys:
 - `ManagerOwnerLastUpdatedBlock`
 - `ManagerOwnerLastUpdatedTx`
 
+Automation note:
+
+- `script/updateManagerOwner.mjs` only auto-syncs `ManagerOwner`.
+- `ManagerPendingOwner`, `ManagerOwnerLastUpdatedBlock`, and `ManagerOwnerLastUpdatedTx` must be maintained manually by operators.
+
 Example:
 
 ```json

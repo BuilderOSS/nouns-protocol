@@ -12,6 +12,7 @@ import { ITreasury, Treasury } from "../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
 import { MetadataRendererTypesV1 } from "../src/token/metadata/types/MetadataRendererTypesV1.sol";
 import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
+import { Constants } from "./Constants.sol";
 
 contract DeployContracts is Script {
     using Strings for uint256;
@@ -58,9 +59,6 @@ contract DeployContracts is Script {
         address builderRewardsRecipient,
         uint256 chainID
     ) private {
-        uint16 builderRewardsValue = 250;
-        uint16 referralRewardsValue = 250;
-
         console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
         console2.log(chainID);
 
@@ -83,10 +81,10 @@ contract DeployContracts is Script {
         console2.logAddress(builderRewardsRecipient);
 
         console2.log("~~~~~~~~~~ BUILDER REWARDS VALUE ~~~~~~~~~~~");
-        console2.logUint(builderRewardsValue);
+        console2.logUint(Constants.REWARD_BUILDER_BPS);
 
         console2.log("~~~~~~~~~~ REFERRAL REWARDS VALUE ~~~~~~~~~~~");
-        console2.logUint(referralRewardsValue);
+        console2.logUint(Constants.REWARD_REFERRAL_BPS);
         console2.log("");
 
         vm.startBroadcast(deployerAddress);
@@ -95,7 +93,15 @@ contract DeployContracts is Script {
         address tokenImpl = address(new Token(managerProxy));
 
         // Deploy auction house implementation
-        address auctionImpl = address(new Auction(managerProxy, protocolRewards, weth, builderRewardsValue, referralRewardsValue));
+        address auctionImpl = address(
+            new Auction(
+                managerProxy,
+                protocolRewards,
+                weth,
+                Constants.REWARD_BUILDER_BPS,
+                Constants.REWARD_REFERRAL_BPS
+            )
+        );
 
         // Deploy governor implementation
         address governorImpl = address(new Governor(managerProxy));

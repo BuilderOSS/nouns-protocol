@@ -114,12 +114,10 @@ source .env && node script/checkBuilderRewardsConfig.mjs --write --chain-ids 1,8
 
 Current policy in this repo:
 
-- Deploy scripts write deployment outputs to `deploys/<chainid>.*.txt`.
-- Deploy scripts use `block.chainid` to resolve `addresses/<chainid>.json` and output file names.
-- Deploy scripts do not auto-write new contract addresses into `addresses/<chainid>.json`.
-- `addresses/<chainid>.json` updates for deployed contract fields remain manual.
-- `ManagerOwner` can be synced via `script/updateManagerOwner.mjs`.
-- `BuilderRewardsRecipient` can be synced via `script/checkBuilderRewardsConfig.mjs` when onchain values are available.
+- Scripts use `block.chainid` to resolve `addresses/<chainid>.json` and write outputs to `deploys/<chainid>.*.txt`.
+- Contract address fields in `addresses/<chainid>.json` are updated manually from deployment output files.
+- The single automatic sync is `ManagerOwner` via `script/updateManagerOwner.mjs`.
+- `BuilderRewardsRecipient` is operator-managed; `script/checkBuilderRewardsConfig.mjs` provides check/sync utilities when the onchain getter is available.
 
 Recommended post-deploy sequence:
 

@@ -54,6 +54,7 @@ function getOwner(manager, rpcAlias) {
   const out = execFileSync("cast", ["call", manager, "owner()(address)", "--rpc-url", rpcAlias], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30000,
   }).trim();
 
   if (!ADDRESS_RE.test(out)) {
@@ -97,7 +98,17 @@ function run() {
       continue;
     }
 
-    const owner = getOwner(manager, cfg.alias);
+    let owner;
+    try {
+      owner = getOwner(manager, cfg.alias);
+    } catch (error) {
+      const details = error?.stderr?.toString()?.trim() || error?.message || "unknown error";
+      console.log(
+        `[${chainId}] ${cfg.label}: failed to read owner (manager=${manager}, rpcAlias=${cfg.alias}): ${details}`
+      );
+      continue;
+    }
+
     checked++;
 
     const previous = parsed.ManagerOwner;
