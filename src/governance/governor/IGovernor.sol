@@ -39,7 +39,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @notice Emitted when a proposal is vetoed
     event ProposalVetoed(bytes32 proposalId);
 
-    /// @notice Emitted when a vote is casted for a proposal
+    /// @notice Emitted when a vote is cast for a proposal
     event VoteCast(address voter, bytes32 proposalId, uint256 support, uint256 weight, string reason);
 
     /// @notice Emitted when the governor's voting delay is updated
@@ -100,7 +100,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @dev Reverts if the proposer's voting weight is below the proposal threshold
     error BELOW_PROPOSAL_THRESHOLD();
 
-    /// @dev Reverts if a vote was prematurely casted
+    /// @dev Reverts if a vote was prematurely cast
     error VOTING_NOT_STARTED();
 
     /// @dev Reverts if the caller wasn't the vetoer
@@ -112,7 +112,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @dev Reverts if a proposal was attempted to be canceled incorrectly
     error INVALID_CANCEL();
 
-    /// @dev Reverts if a vote was attempted to be casted incorrectly
+    /// @dev Reverts if a vote was attempted to be cast incorrectly
     error INVALID_VOTE();
 
     /// @dev Reverts if a proposal was attempted to be created before expiration or all tokens have been claimed
@@ -304,7 +304,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     function updateDelayedGovernanceExpirationTimestamp(uint256 _newDelayedTimestamp) external;
 
     /// @notice Updates the vetoer
-    /// @param newVetoer The new vetoer addresss
+    /// @param newVetoer The new vetoer address
     function updateVetoer(address newVetoer) external;
 
     /// @notice Burns the vetoer
