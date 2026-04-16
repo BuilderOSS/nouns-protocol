@@ -6,9 +6,14 @@ import { MetadataRendererTypesV1 } from "../src/token/metadata/types/MetadataRen
 import { MetadataRendererTypesV2 } from "../src/token/metadata/types/MetadataRendererTypesV2.sol";
 
 import { Base64URIDecoder } from "./utils/Base64URIDecoder.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import "forge-std/console2.sol";
 
 contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
+    function _tokenAddressString() internal view returns (string memory) {
+        return Strings.toHexString(uint160(address(metadataRenderer)), 20);
+    }
+
     function setUp() public virtual override {
         super.setUp();
 
@@ -217,7 +222,11 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
 
         assertEq(
             json,
-            '{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=0xb5795e66c5af21ad8e42e91a375f8c10e2f64cfa&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json","properties": {"mock-property": "mock-item"},"testing": "HELLO","participationAgreement": "This is a JSON quoted participation agreement."}'
+            string.concat(
+                '{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=',
+                _tokenAddressString(),
+                '&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json","properties": {"mock-property": "mock-item"},"testing": "HELLO","participationAgreement": "This is a JSON quoted participation agreement."}'
+            )
         );
     }
 
@@ -259,7 +268,11 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
         // Ensure no additional properties are sent
         assertEq(
             json,
-            '{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=0xb5795e66c5af21ad8e42e91a375f8c10e2f64cfa&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json","properties": {"mock-property": "mock-item"}}'
+            string.concat(
+                '{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=',
+                _tokenAddressString(),
+                '&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json","properties": {"mock-property": "mock-item"}}'
+            )
         );
 
         assertTrue(keccak256(bytes(withAdditionalTokenProperties)) != keccak256(bytes(token.tokenURI(0))));
@@ -315,7 +328,11 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
 
         assertEq(
             json,
-            unicode'{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=0xb5795e66c5af21ad8e42e91a375f8c10e2f64cfa&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-%e2%8c%90%20%e2%97%a8-%e2%97%a8-.%e2%88%86property%2f%20%e2%8c%90%e2%97%a8-%e2%97%a8%20.json","properties": {"mock-⌐ ◨-◨-.∆property": " ⌐◨-◨ "}}'
+            string.concat(
+                unicode'{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=',
+                _tokenAddressString(),
+                unicode'&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-%e2%8c%90%20%e2%97%a8-%e2%97%a8-.%e2%88%86property%2f%20%e2%8c%90%e2%97%a8-%e2%97%a8%20.json","properties": {"mock-⌐ ◨-◨-.∆property": " ⌐◨-◨ "}}'
+            )
         );
 
         assertTrue(keccak256(bytes(withAdditionalTokenProperties)) != keccak256(bytes(token.tokenURI(0))));
@@ -354,7 +371,11 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
 
         assertEq(
             json,
-            '{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=0xb5795e66c5af21ad8e42e91a375f8c10e2f64cfa&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json","properties": {"mock-property": "mock-item"}}'
+            string.concat(
+                '{"name": "Mock Token #0","description": "This is a mock token","image": "http://localhost:5000/render?contractAddress=',
+                _tokenAddressString(),
+                '&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json","properties": {"mock-property": "mock-item"}}'
+            )
         );
     }
 }

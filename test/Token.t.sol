@@ -58,10 +58,9 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         address f2Wallet = address(0x2);
         address f3Wallet = address(0x3);
 
-        vm.assume(f1Percentage > 0 && f1Percentage < 100);
-        vm.assume(f2Percentage > 0 && f2Percentage < 100);
-        vm.assume(f3Percentage > 0 && f3Percentage < 100);
-        vm.assume(f1Percentage + f2Percentage + f3Percentage < 99);
+        f1Percentage = bound(f1Percentage, 1, 32);
+        f2Percentage = bound(f2Percentage, 1, 32);
+        f3Percentage = bound(f3Percentage, 1, 32);
 
         address[] memory founders = new address[](3);
         uint256[] memory percents = new uint256[](3);
@@ -656,10 +655,9 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         address f2Wallet = address(0x2);
         address f3Wallet = address(0x3);
 
-        vm.assume(f1Percentage > 0 && f1Percentage < 100);
-        vm.assume(f2Percentage > 0 && f2Percentage < 100);
-        vm.assume(f3Percentage > 0 && f3Percentage < 100);
-        vm.assume(f1Percentage + f2Percentage + f3Percentage < 99);
+        f1Percentage = bound(f1Percentage, 1, 32);
+        f2Percentage = bound(f2Percentage, 1, 32);
+        f3Percentage = bound(f3Percentage, 1, 32);
 
         address[] memory founders = new address[](3);
         uint256[] memory percents = new uint256[](3);
@@ -867,10 +865,13 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
     }
 
     function test_SingleMintCannotMintReserves(address _minter, uint256 _reservedUntilTokenId) public {
-        deployAltMock(_reservedUntilTokenId);
+        _reservedUntilTokenId = bound(_reservedUntilTokenId, 1, 255);
+        _minter = address(uint160(bound(uint160(_minter), 1, type(uint160).max)));
+        if (_minter == founder || _minter == address(auction)) {
+            _minter = address(uint160(_minter) + 1);
+        }
 
-        vm.assume(_minter != founder && _minter != address(0) && _minter != address(auction));
-        vm.assume(_reservedUntilTokenId > 0 && _reservedUntilTokenId < 4000);
+        deployAltMock(_reservedUntilTokenId);
 
         TokenTypesV2.MinterParams[] memory minters = new TokenTypesV2.MinterParams[](1);
         TokenTypesV2.MinterParams memory p1 = TokenTypesV2.MinterParams({ minter: _minter, allowed: true });
@@ -891,10 +892,14 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
     }
 
     function test_BatchMintCannotMintReserves(address _minter, uint256 _reservedUntilTokenId, uint256 _amount) public {
-        deployAltMock(_reservedUntilTokenId);
+        _reservedUntilTokenId = bound(_reservedUntilTokenId, 1, 255);
+        _amount = bound(_amount, 1, 19);
+        _minter = address(uint160(bound(uint160(_minter), 1, type(uint160).max)));
+        if (_minter == founder || _minter == address(auction)) {
+            _minter = address(uint160(_minter) + 1);
+        }
 
-        vm.assume(_minter != founder && _minter != address(0) && _minter != address(auction));
-        vm.assume(_reservedUntilTokenId > 0 && _reservedUntilTokenId < 4000 && _amount > 0 && _amount < 20);
+        deployAltMock(_reservedUntilTokenId);
 
         TokenTypesV2.MinterParams[] memory minters = new TokenTypesV2.MinterParams[](1);
         TokenTypesV2.MinterParams memory p1 = TokenTypesV2.MinterParams({ minter: _minter, allowed: true });
