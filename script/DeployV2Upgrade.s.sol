@@ -31,11 +31,20 @@ contract DeployContracts is Script {
         address weth = _getKey("WETH");
         address managerProxy = _getKey("Manager");
         address protocolRewards = _getKey("ProtocolRewards");
-        address builderDAO = _getKey("BuilderDAO");
+        address builderRewardsRecipient = _getKey("BuilderRewardsRecipient");
         address treasuryImpl = _getKey("Treasury");
         address metadataImpl = _getKey("MetadataRenderer");
 
-        _deployUpgrade(deployerAddress, managerProxy, protocolRewards, weth, metadataImpl, treasuryImpl, builderDAO, chainID);
+        _deployUpgrade(
+            deployerAddress,
+            managerProxy,
+            protocolRewards,
+            weth,
+            metadataImpl,
+            treasuryImpl,
+            builderRewardsRecipient,
+            chainID
+        );
     }
 
     // workaround for stack too deep
@@ -46,7 +55,7 @@ contract DeployContracts is Script {
         address weth,
         address metadataImpl,
         address treasuryImpl,
-        address builderDAO,
+        address builderRewardsRecipient,
         uint256 chainID
     ) private {
         uint16 builderRewardsValue = 250;
@@ -70,8 +79,8 @@ contract DeployContracts is Script {
         console2.log("~~~~~~~~~~ PROTOCOL REWARDS ~~~~~~~~~~~");
         console2.logAddress(protocolRewards);
 
-        console2.log("~~~~~~~~~~ BUILDER DAO ~~~~~~~~~~~");
-        console2.logAddress(builderDAO);
+        console2.log("~~~~~~~~~~ BUILDER REWARDS RECIPIENT ~~~~~~~~~~~");
+        console2.logAddress(builderRewardsRecipient);
 
         console2.log("~~~~~~~~~~ BUILDER REWARDS VALUE ~~~~~~~~~~~");
         console2.logUint(builderRewardsValue);
@@ -92,7 +101,8 @@ contract DeployContracts is Script {
         address governorImpl = address(new Governor(managerProxy));
 
         // Deploy v2 manager implementation
-        address managerImpl = address(new Manager(tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderDAO));
+        address managerImpl =
+            address(new Manager(tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderRewardsRecipient));
 
         vm.stopBroadcast();
 

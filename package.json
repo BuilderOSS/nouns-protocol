@@ -47,6 +47,8 @@
     "deploy:zora": "source .env && forge script script/DeployV2New.s.sol:DeployContracts --private-key $PRIVATE_KEY --rpc-url $NETWORK --broadcast --verify --verifier blockscout --verifier-url https://explorer.zora.energy/api? -vvvv",
     "addresses:check-manager-owner": "source .env && node script/updateManagerOwner.mjs",
     "addresses:sync-manager-owner": "source .env && node script/updateManagerOwner.mjs --write",
+    "addresses:check-builder-rewards": "source .env && node script/checkBuilderRewardsConfig.mjs",
+    "addresses:sync-builder-rewards": "source .env && node script/checkBuilderRewardsConfig.mjs --write",
     "test": "echo 'temporarily skipping metadata tests, remove this when fixed' && forge test --no-match-test 'WithAddress' -vvv",
     "typechain": "typechain --target=ethers-v5 'dist/artifacts/*/*.json' --out-dir dist/typechain",
     "storage-inspect:check": "./script/storage-check.sh check Manager Auction Governor Treasury Token",

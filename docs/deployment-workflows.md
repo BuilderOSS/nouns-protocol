@@ -56,7 +56,7 @@ Common env variables used by those sections:
   - Deploy only new v2 upgrade impls for existing manager deployments.
   - Deploys: Token, Auction, Governor, Manager impl.
   - Auction implementation is configured with `builderRewardsBPS=250` and `referralRewardsBPS=250`.
-  - Reuses Metadata/Treasury/WETH addresses from `addresses/<chainid>.json`.
+  - Reuses Metadata/Treasury/WETH/BuilderRewardsRecipient addresses from `addresses/<chainid>.json`.
   - Output file: `deploys/<chainid>.version2_upgrade.txt`.
 
 - `yarn deploy:v2-new`
@@ -88,12 +88,26 @@ Common env variables used by those sections:
   - Non-zero exit when drift exists.
 
 - `yarn addresses:sync-manager-owner`
+
   - Same as check, but writes updates to `addresses/*.json`.
+
+- `yarn addresses:check-builder-rewards`
+
+  - Reads live `manager.builderRewardsRecipient()` where available.
+  - Compares against `BuilderRewardsRecipient` in `addresses/*.json`.
+  - Prints current Auction `builderRewardsBPS/referralRewardsBPS` for each network when callable.
+
+- `yarn addresses:sync-builder-rewards`
+  - Same as check, but writes `BuilderRewardsRecipient` updates when onchain value is available.
 
 Optional scoped run:
 
 ```bash
 source .env && node script/updateManagerOwner.mjs --write --chain-ids 1,8453
+```
+
+```bash
+source .env && node script/checkBuilderRewardsConfig.mjs --write --chain-ids 1,8453
 ```
 
 ## Address Book Update Policy
@@ -104,13 +118,14 @@ Current policy in this repo:
 - Deploy scripts use `block.chainid` to resolve `addresses/<chainid>.json` and output file names.
 - Deploy scripts do not auto-write new contract addresses into `addresses/<chainid>.json`.
 - `addresses/<chainid>.json` updates for deployed contract fields remain manual.
-- `ManagerOwner` is the only field currently synced automatically via `script/updateManagerOwner.mjs`.
+- `ManagerOwner` can be synced via `script/updateManagerOwner.mjs`.
+- `BuilderRewardsRecipient` can be synced via `script/checkBuilderRewardsConfig.mjs` when onchain values are available.
 
 Recommended post-deploy sequence:
 
 1. Run deploy command and capture generated `deploys/*.txt` output.
 2. Manually update `addresses/<chainid>.json` contract address fields.
-3. Run `yarn addresses:sync-manager-owner` to refresh `ManagerOwner`.
+3. Run `yarn addresses:sync-manager-owner` and `yarn addresses:sync-builder-rewards`.
 4. Commit `deploys/*` and `addresses/*` changes together.
 
 ## Example Upgrade Flow

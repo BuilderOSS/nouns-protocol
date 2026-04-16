@@ -22,7 +22,7 @@ This runbook covers:
 
 ## Preflight
 
-1. Update `addresses/1.json` with the intended `BuilderDAO` recipient used by the new `Manager` constructor.
+1. Update `addresses/1.json` with the intended `BuilderRewardsRecipient` used by the new `Manager` constructor.
 2. Export env vars:
 
 ```bash
