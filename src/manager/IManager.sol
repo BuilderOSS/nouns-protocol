@@ -82,7 +82,7 @@ interface IManager is IUUPS, IOwnable {
     /// @param reservePrice The reserve price of each auction
     /// @param duration The duration of each auction
     /// @param founderRewardRecipent The address to send founder rewards to
-    /// @param founderRewardBps Percent of the auction bid in BPS to send to the founder recipent
+    /// @param founderRewardBps Percent of the auction bid in BPS to send to the founder recipient
     struct AuctionParams {
         uint256 reservePrice;
         uint256 duration;
