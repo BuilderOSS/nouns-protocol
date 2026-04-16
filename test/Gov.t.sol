@@ -530,17 +530,16 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         governor.updateProposal(proposalId, targets, values, updatedCalldatas, "new desc", "try update without sig");
     }
 
-    function testFail_MismatchingHashesFromIncorrectProposer() public {
+    function test_ProposalHashDiffersFromIncorrectProposer() public {
         deployMock();
 
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
 
-        vm.prank(voter1);
-        bytes32 proposalId = governor.propose(targets, values, calldatas, "");
+        bytes32 proposalId = governor.hashProposal(targets, values, calldatas, keccak256(bytes("")), voter1);
 
         bytes32 incorrectProposalId = governor.hashProposal(targets, values, calldatas, keccak256(bytes("")), address(this));
 
-        assertEq(proposalId, incorrectProposalId);
+        assertTrue(proposalId != incorrectProposalId);
     }
 
     function testRevert_NoTarget() public {
@@ -1343,23 +1342,26 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertEq(mock1155.balanceOfBatch(accounts, tokenIds), amounts);
     }
 
-    function testFail_GovernorCannotReceive721SafeTransfer() public {
+    function testRevert_GovernorCannotReceive721SafeTransfer() public {
         deployMock();
 
         mock721.mint(address(this), 1);
 
+        vm.expectRevert();
         mock721.safeTransferFrom(address(this), address(governor), 1);
     }
 
-    function testFail_GovernorCannotReceive1155SingleTransfer(uint256 _tokenId, uint256 _amount) public {
+    function testRevert_GovernorCannotReceive1155SingleTransfer(uint256 _tokenId, uint256 _amount) public {
         deployMock();
 
+        vm.expectRevert();
         mock1155.mint(address(governor), _tokenId, _amount);
     }
 
-    function testFail_GovernorCannotReceive1155BatchTransfer(uint256[] memory _tokenIds, uint256[] memory _amounts) public {
+    function testRevert_GovernorCannotReceive1155BatchTransfer(uint256[] memory _tokenIds, uint256[] memory _amounts) public {
         deployMock();
 
+        vm.expectRevert();
         mock1155.mintBatch(address(governor), _tokenIds, _amounts);
     }
 
