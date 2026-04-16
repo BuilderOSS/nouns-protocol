@@ -12,6 +12,10 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
     uint256 internal constant AGAINST = 0;
     uint256 internal constant FOR = 1;
     uint256 internal constant ABSTAIN = 2;
+    bytes32 internal constant PROPOSAL_TYPEHASH =
+        keccak256("Proposal(address proposer,bytes32 txsHash,uint256 nonce,uint256 deadline)");
+    bytes32 internal constant UPDATE_PROPOSAL_TYPEHASH =
+        keccak256("UpdateProposal(bytes32 proposalId,address proposer,bytes32 txsHash,uint256 nonce,uint256 deadline)");
 
     address internal voter1;
     uint256 internal voter1PK;
@@ -123,6 +127,74 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         voter2 = vm.addr(voter2PK);
 
         vm.deal(voter2, 100 ether);
+    }
+
+    function _encodeSignature(uint8 v, bytes32 r, bytes32 s) internal pure returns (bytes memory) {
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _txsHash(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(targets, values, calldatas));
+    }
+
+    function _buildProposeSignature(
+        uint256 signerPk,
+        address signer,
+        address proposer,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (ProposerSignature memory) {
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(PROPOSAL_TYPEHASH, proposer, _txsHash(targets, values, calldatas), nonce, deadline))
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        return ProposerSignature({ signer: signer, nonce: nonce, deadline: deadline, sig: _encodeSignature(v, r, s) });
+    }
+
+    function _buildUpdateSignature(
+        uint256 signerPk,
+        address signer,
+        bytes32 proposalId,
+        address proposer,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (ProposerSignature memory) {
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        UPDATE_PROPOSAL_TYPEHASH,
+                        proposalId,
+                        proposer,
+                        _txsHash(targets, values, calldatas),
+                        nonce,
+                        deadline
+                    )
+                )
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        return ProposerSignature({ signer: signer, nonce: nonce, deadline: deadline, sig: _encodeSignature(v, r, s) });
     }
 
     function mintVoter1() internal {
@@ -332,6 +404,132 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertEq(proposalId, governor.hashProposal(targets, values, calldatas, keccak256(bytes("")), voter1));
     }
 
+    function test_ProposalState_UpdatableToPendingToActive() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "");
+
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Updatable));
+
+        vm.warp(block.timestamp + 1 days);
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Pending));
+
+        vm.warp(block.timestamp + governor.votingDelay() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Active));
+    }
+
+    function test_ProposeBySigs() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+
+        Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.proposer, voter2);
+        assertEq(proposal.txsHash, _txsHash(targets, values, calldatas));
+    }
+
+    function test_UpdateProposalBySigs() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        updateSignatures[0] = _buildUpdateSignature(
+            voter1PK,
+            voter1,
+            proposalId,
+            voter2,
+            targets,
+            values,
+            updatedCalldatas,
+            1,
+            block.timestamp + 1 days
+        );
+
+        vm.prank(voter2);
+        bytes32 updatedProposalId = governor.updateProposalBySigs(
+            proposalId,
+            updateSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated signed proposal",
+            "minor tx update"
+        );
+
+        assertTrue(updatedProposalId != proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
+
+        Proposal memory updatedProposal = governor.getProposal(updatedProposalId);
+        assertEq(updatedProposal.txsHash, _txsHash(targets, values, updatedCalldatas));
+    }
+
+    function testRevert_UpdateProposalTxsWithoutSignersOnSignedProposal() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        vm.expectRevert(abi.encodeWithSignature("PROPOSER_CANNOT_UPDATE_TXS_WITH_SIGNERS()"));
+        vm.prank(voter2);
+        governor.updateProposal(proposalId, targets, values, updatedCalldatas, "new desc", "try update without sig");
+    }
+
     function testFail_MismatchingHashesFromIncorrectProposer() public {
         deployMock();
 
@@ -506,7 +704,8 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PK, digest);
-        governor.castVoteBySig(voter1, proposalId, FOR, deadline, v, r, s);
+        bytes memory sig = abi.encodePacked(r, s, v);
+        governor.castVoteBySig(voter1, proposalId, FOR, voterNonce, deadline, sig);
 
         (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
 
@@ -579,9 +778,10 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xF, digest);
+        bytes memory sig = abi.encodePacked(r, s, v);
 
         vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE()"));
-        governor.castVoteBySig(voter1, proposalId, FOR, deadline, v, r, s);
+        governor.castVoteBySig(voter1, proposalId, FOR, voterNonce, deadline, sig);
     }
 
     function testRevert_InvalidVoteNonce() public {
@@ -604,9 +804,10 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PK, digest);
+        bytes memory sig = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE()"));
-        governor.castVoteBySig(voter1, proposalId, FOR, deadline, v, r, s);
+        vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_NONCE()"));
+        governor.castVoteBySig(voter1, proposalId, FOR, voterNonce + 1, deadline, sig);
     }
 
     function testRevert_InvalidVoteExpired() public {
@@ -629,11 +830,12 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PK, digest);
+        bytes memory sig = abi.encodePacked(r, s, v);
 
         vm.warp(deadline + 1 seconds);
 
         vm.expectRevert(abi.encodeWithSignature("EXPIRED_SIGNATURE()"));
-        governor.castVoteBySig(voter1, proposalId, FOR, deadline, v, r, s);
+        governor.castVoteBySig(voter1, proposalId, FOR, voterNonce, deadline, sig);
     }
 
     function test_QueueProposal() public {

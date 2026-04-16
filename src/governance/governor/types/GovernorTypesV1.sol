@@ -42,6 +42,7 @@ interface GovernorTypesV1 {
     struct Proposal {
         address proposer;
         uint32 timeCreated;
+        uint32 updatePeriodEnd;
         uint32 againstVotes;
         uint32 forVotes;
         uint32 abstainVotes;
@@ -49,13 +50,22 @@ interface GovernorTypesV1 {
         uint32 voteEnd;
         uint32 proposalThreshold;
         uint32 quorumVotes;
+        bytes32 txsHash;
         bool executed;
         bool canceled;
         bool vetoed;
     }
 
+    struct ProposerSignature {
+        address signer;
+        uint256 nonce;
+        uint256 deadline;
+        bytes sig;
+    }
+
     /// @notice The proposal state type
     enum ProposalState {
+        Updatable,
         Pending,
         Active,
         Canceled,

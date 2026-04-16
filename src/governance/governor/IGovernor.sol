@@ -26,6 +26,23 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
         Proposal proposal
     );
 
+    /// @notice Emitted when a proposal is updated and replaced with a new id
+    event ProposalUpdated(
+        bytes32 oldProposalId,
+        bytes32 newProposalId,
+        address[] targets,
+        uint256[] values,
+        bytes[] calldatas,
+        string description,
+        string updateMessage
+    );
+
+    /// @notice Emitted when proposal signers are set on signed proposal creation
+    event ProposalSignersSet(bytes32 proposalId, address[] signers);
+
+    /// @notice Emitted when a previously signed message is cancelled
+    event SignatureCancelled(address signer, bytes signature);
+
     /// @notice Emitted when a proposal is queued
     event ProposalQueued(bytes32 proposalId, uint256 eta);
 
@@ -59,6 +76,9 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     /// @notice Emitted when the governor's delay is updated
     event DelayedGovernanceExpirationTimestampUpdated(uint256 prevTimestamp, uint256 newTimestamp);
+
+    /// @notice Emitted when proposal updatable period is updated
+    event ProposalUpdatablePeriodUpdated(uint256 prevProposalUpdatablePeriod, uint256 newProposalUpdatablePeriod);
 
     ///                                                          ///
     ///                            ERRORS                        ///
@@ -127,6 +147,26 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @dev Reverts if the caller was not the contract manager
     error ONLY_MANAGER();
 
+    error INVALID_PROPOSAL_UPDATABLE_PERIOD();
+
+    error CAN_ONLY_EDIT_UPDATABLE_PROPOSALS();
+
+    error ONLY_PROPOSER_CAN_EDIT();
+
+    error PROPOSER_CANNOT_UPDATE_TXS_WITH_SIGNERS();
+
+    error MUST_PROVIDE_SIGNATURES();
+
+    error SIGNER_COUNT_MISMATCH();
+
+    error VOTES_BELOW_PROPOSAL_THRESHOLD();
+
+    error SIGNATURE_CANCELLED();
+
+    error INVALID_SIGNATURE_ORDER();
+
+    error INVALID_SIGNATURE_NONCE();
+
     ///                                                          ///
     ///                          FUNCTIONS                       ///
     ///                                                          ///
@@ -161,6 +201,36 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
         string memory description
     ) external returns (bytes32);
 
+    /// @notice Creates a proposal backed by offchain signatures
+    function proposeBySigs(
+        ProposerSignature[] memory proposerSignatures,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) external returns (bytes32);
+
+    /// @notice Updates an existing proposal during updatable period
+    function updateProposal(
+        bytes32 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description,
+        string memory updateMessage
+    ) external returns (bytes32);
+
+    /// @notice Updates a signed proposal with signer approvals
+    function updateProposalBySigs(
+        bytes32 proposalId,
+        ProposerSignature[] memory proposerSignatures,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description,
+        string memory updateMessage
+    ) external returns (bytes32);
+
     /// @notice Casts a vote
     /// @param proposalId The proposal id
     /// @param support The support value (0 = Against, 1 = For, 2 = Abstain)
@@ -180,19 +250,20 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @param voter The voter address
     /// @param proposalId The proposal id
     /// @param support The support value (0 = Against, 1 = For, 2 = Abstain)
+    /// @param nonce The expected vote signature nonce
     /// @param deadline The signature deadline
-    /// @param v The 129th byte and chain id of the signature
-    /// @param r The first 64 bytes of the signature
-    /// @param s Bytes 64-128 of the signature
+    /// @param sig The EIP-712 signature bytes
     function castVoteBySig(
         address voter,
         bytes32 proposalId,
         uint256 support,
+        uint256 nonce,
         uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes calldata sig
     ) external returns (uint256);
+
+    /// @notice Cancels a signature so it cannot be reused
+    function cancelSig(bytes calldata sig) external;
 
     /// @notice Queues a proposal
     /// @param proposalId The proposal id
@@ -274,6 +345,13 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @notice The amount of time to vote on a proposal
     function votingPeriod() external view returns (uint256);
 
+    /// @notice The amount of time a proposal is editable after creation
+    function proposalUpdatablePeriod() external view returns (uint256);
+
+    /// @notice The current proposal-signature nonce for an account
+    /// @param account The signer address
+    function proposeSignatureNonce(address account) external view returns (uint256);
+
     /// @notice The address eligible to veto any proposal (address(0) if burned)
     function vetoer() external view returns (address);
 
@@ -290,6 +368,10 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @notice Updates the voting period
     /// @param newVotingPeriod The new voting period
     function updateVotingPeriod(uint256 newVotingPeriod) external;
+
+    /// @notice Updates the proposal updatable period
+    /// @param newProposalUpdatablePeriod The new proposal updatable period
+    function updateProposalUpdatablePeriod(uint256 newProposalUpdatablePeriod) external;
 
     /// @notice Updates the minimum proposal threshold
     /// @param newProposalThresholdBps The new proposal threshold basis points

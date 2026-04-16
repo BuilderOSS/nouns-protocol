@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.16;
+
+/// @title GovernorStorageV3
+/// @notice Additional Governor storage for signed proposal flows and updates
+contract GovernorStorageV3 {
+    /// @notice The amount of time proposals remain updatable after creation
+    uint48 internal _proposalUpdatablePeriod;
+
+    /// @notice Nonce used for propose/update signatures
+    mapping(address => uint256) internal proposeSigNonces;
+
+    /// @notice Sender-canceled signatures by hash
+    mapping(address => mapping(bytes32 => bool)) internal cancelledSigs;
+
+    /// @notice Signers that sponsored a signed proposal
+    mapping(bytes32 => address[]) internal proposalSigners;
+
+    /// @notice Mapping from previous proposal id to replacement id created by update
+    mapping(bytes32 => bytes32) public proposalIdReplacedBy;
+
+    /// @notice Reverse mapping for replacement proposal ids
+    mapping(bytes32 => bytes32) public proposalIdReplaces;
+}
