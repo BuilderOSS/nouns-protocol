@@ -4,19 +4,9 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
+import { SUPPORTED_NETWORKS } from "./networkConfig.mjs";
 
 dotenv.config({ quiet: true });
-
-const CHAIN_CONFIG = {
-  1: { alias: "mainnet", label: "ethereum-mainnet" },
-  10: { alias: "optimism", label: "optimism-mainnet" },
-  8453: { alias: "base", label: "base-mainnet" },
-  11155111: { alias: "sepolia", label: "ethereum-sepolia" },
-  11155420: { alias: "optimism_sepolia", label: "optimism-sepolia" },
-  84532: { alias: "base_sepolia", label: "base-sepolia" },
-  7777777: { alias: "zora", label: "zora-mainnet" },
-  999999999: { alias: "zora_sepolia", label: "zora-sepolia" },
-};
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
@@ -72,10 +62,12 @@ function run() {
   const repoRoot = process.cwd();
   const addressesDir = path.join(repoRoot, "addresses");
 
-  const selectedChains = (chainIds.length ? chainIds : Object.keys(CHAIN_CONFIG)).filter(
-    (id) => CHAIN_CONFIG[id]
-  );
-  const skipped = chainIds.filter((id) => !CHAIN_CONFIG[id]);
+  const configByChainId = Object.fromEntries(SUPPORTED_NETWORKS.map((n) => [n.chainId, n]));
+
+  const selectedChains = chainIds.length
+    ? chainIds.filter((id) => configByChainId[id])
+    : SUPPORTED_NETWORKS.map((n) => n.chainId);
+  const skipped = chainIds.filter((id) => !configByChainId[id]);
 
   if (skipped.length > 0) {
     console.log(`Skipping unsupported chain ids: ${skipped.join(", ")}`);
@@ -85,7 +77,7 @@ function run() {
   let checked = 0;
 
   for (const chainId of selectedChains) {
-    const cfg = CHAIN_CONFIG[chainId];
+    const cfg = configByChainId[chainId];
     const filePath = path.join(addressesDir, `${chainId}.json`);
 
     if (!existsSync(filePath)) {

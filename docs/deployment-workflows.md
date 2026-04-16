@@ -98,7 +98,15 @@ Common env variables used by those sections:
   - Prints current Auction `builderRewardsBPS/referralRewardsBPS` for each network when callable.
 
 - `yarn addresses:sync-builder-rewards`
+
   - Same as check, but writes `BuilderRewardsRecipient` updates when onchain value is available.
+
+- `yarn upgrade:check-status`
+
+  - Prints manager owner/latest implementation/version status.
+  - Checks registered upgrades against known legacy base impls (mainnet matrix).
+  - Uses upgrade targets from `addresses/<chainid>.json`.
+  - Select network via `NETWORK` (defaults to `mainnet`).
 
 Optional scoped run:
 
