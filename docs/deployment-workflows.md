@@ -103,11 +103,11 @@ Common env variables used by those sections:
 Optional scoped run:
 
 ```bash
-source .env && node script/updateManagerOwner.mjs --write --chain-ids 1,8453
+node script/updateManagerOwner.mjs --write --chain-ids 1,8453
 ```
 
 ```bash
-source .env && node script/checkBuilderRewardsConfig.mjs --write --chain-ids 1,8453
+node script/checkBuilderRewardsConfig.mjs --write --chain-ids 1,8453
 ```
 
 ## Address Book Update Policy

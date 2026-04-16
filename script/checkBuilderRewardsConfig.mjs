@@ -3,16 +3,23 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import dotenv from "dotenv";
+
+dotenv.config({ quiet: true });
 
 const CHAIN_CONFIG = {
-  1: { alias: "mainnet", label: "ethereum-mainnet" },
-  10: { alias: "optimism", label: "optimism-mainnet" },
-  8453: { alias: "base", label: "base-mainnet" },
-  11155111: { alias: "sepolia", label: "ethereum-sepolia" },
-  11155420: { alias: "optimism_sepolia", label: "optimism-sepolia" },
-  84532: { alias: "base_sepolia", label: "base-sepolia" },
-  7777777: { alias: "zora", label: "zora-mainnet" },
-  999999999: { alias: "zora_sepolia", label: "zora-sepolia" },
+  1: { alias: "mainnet", label: "ethereum-mainnet", rpcEnv: "MAINNET_RPC_URL" },
+  10: { alias: "optimism", label: "optimism-mainnet", rpcEnv: "OPTIMISM_RPC_URL" },
+  8453: { alias: "base", label: "base-mainnet", rpcEnv: "BASE_RPC_URL" },
+  11155111: { alias: "sepolia", label: "ethereum-sepolia", rpcEnv: "SEPOLIA_RPC_URL" },
+  11155420: {
+    alias: "optimism_sepolia",
+    label: "optimism-sepolia",
+    rpcEnv: "OPTIMISM_SEPOLIA_RPC_URL",
+  },
+  84532: { alias: "base_sepolia", label: "base-sepolia", rpcEnv: "BASE_SEPOLIA_RPC_URL" },
+  7777777: { alias: "zora", label: "zora-mainnet", rpcEnv: "ZORA_RPC_URL" },
+  999999999: { alias: "zora_sepolia", label: "zora-sepolia", rpcEnv: "ZORA_SEPOLIA_RPC_URL" },
 };
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -87,18 +94,25 @@ function run() {
   const selectedChains = (chainIds.length ? chainIds : Object.keys(CHAIN_CONFIG)).filter(
     (id) => CHAIN_CONFIG[id]
   );
-  const skipped = chainIds.filter((id) => !CHAIN_CONFIG[id]);
+  const unsupportedChainIds = chainIds.filter((id) => !CHAIN_CONFIG[id]);
 
-  if (skipped.length > 0) {
-    console.log(`Skipping unsupported chain ids: ${skipped.join(", ")}`);
+  if (unsupportedChainIds.length > 0) {
+    console.log(`Skipping unsupported chain ids: ${unsupportedChainIds.join(", ")}`);
   }
 
   let checked = 0;
   let changed = 0;
+  let skipped = 0;
 
   for (const chainId of selectedChains) {
     const cfg = CHAIN_CONFIG[chainId];
     const filePath = path.join(addressesDir, `${chainId}.json`);
+
+    if (!process.env[cfg.rpcEnv]) {
+      skipped++;
+      console.log(`[${chainId}] ${cfg.label}: skipped (missing ${cfg.rpcEnv})`);
+      continue;
+    }
 
     if (!existsSync(filePath)) {
       console.log(`[${chainId}] ${cfg.label}: addresses file not found, skipping`);
@@ -121,7 +135,9 @@ function run() {
 
     let onchainRecipient = null;
     let recipientStatus = "UNAVAILABLE";
+    let recipientReason = "";
     let bpsOutput = "N/A";
+    let bpsReason = "";
 
     try {
       onchainRecipient = getBuilderRewardsRecipient(manager, cfg.alias);
@@ -138,9 +154,10 @@ function run() {
       }
     } catch (error) {
       recipientStatus = "UNAVAILABLE";
-      console.log(
-        `[${chainId}] ${cfg.label}: builderRewardsRecipient unavailable (${error.message})`
-      );
+      const msg = error.message || "unknown error";
+      recipientReason = msg.includes("execution reverted")
+        ? "legacy or not exposed on current manager"
+        : msg;
     }
 
     try {
@@ -148,18 +165,25 @@ function run() {
       bpsOutput = `${bps.builder}/${bps.referral}`;
     } catch (error) {
       bpsOutput = "N/A";
-      console.log(`[${chainId}] ${cfg.label}: reward BPS unavailable (${error.message})`);
+      const msg = error.message || "unknown error";
+      bpsReason = msg.includes("execution reverted")
+        ? "legacy or not exposed on current auction"
+        : msg;
     }
 
     checked++;
     console.log(
       `[${chainId}] ${cfg.label}: recipient=${configuredRecipient || "<missing>"} onchain=${
         onchainRecipient || "<unavailable>"
-      } status=${recipientStatus} bps(builder/referral)=${bpsOutput}`
+      } status=${recipientStatus}${
+        recipientReason ? ` (${recipientReason})` : ""
+      } bps(builder/referral)=${bpsOutput}${bpsReason ? ` (${bpsReason})` : ""}`
     );
   }
 
-  console.log(`\nChecked ${checked} chain(s), ${changed} file(s) updated.`);
+  console.log(
+    `\nChecked ${checked} chain(s), skipped ${skipped} chain(s), ${changed} file(s) updated.`
+  );
   if (!write && changed > 0) {
     process.exitCode = 1;
   }

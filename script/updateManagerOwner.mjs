@@ -3,6 +3,9 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import dotenv from "dotenv";
+
+dotenv.config({ quiet: true });
 
 const CHAIN_CONFIG = {
   1: { alias: "mainnet", label: "ethereum-mainnet" },
