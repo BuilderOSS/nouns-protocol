@@ -12,6 +12,7 @@ import { ITreasury, Treasury } from "../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
 import { MetadataRendererTypesV1 } from "../src/token/metadata/types/MetadataRendererTypesV1.sol";
 import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
+import { Constants } from "./Constants.sol";
 
 contract DeployContracts is Script {
     using Strings for uint256;
@@ -23,16 +24,13 @@ contract DeployContracts is Script {
     }
 
     function run() public {
-        uint256 chainID = vm.envUint("CHAIN_ID");
+        uint256 chainID = block.chainid;
         uint256 key = vm.envUint("PRIVATE_KEY");
-        address weth = vm.envAddress("WETH_ADDRESS");
 
         configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
+        address weth = _getKey("WETH");
 
         address deployerAddress = vm.addr(key);
-
-        uint16 BUILDER_REWARDS = chainID == 1 || chainID == 5 ? 0 : 250;
-        uint16 REFERRAL_REWARDS = chainID == 1 || chainID == 5 ? 0 : 250;
 
         console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
         console2.log(chainID);
@@ -53,7 +51,15 @@ contract DeployContracts is Script {
         address metadataRendererImpl = address(new MetadataRenderer(address(manager)));
 
         // Deploy auction house implementation
-        address auctionImpl = address(new Auction(address(manager), _getKey("ProtocolRewards"), weth, BUILDER_REWARDS, REFERRAL_REWARDS));
+        address auctionImpl = address(
+            new Auction(
+                address(manager),
+                _getKey("ProtocolRewards"),
+                weth,
+                Constants.REWARD_BUILDER_BPS,
+                Constants.REWARD_REFERRAL_BPS
+            )
+        );
 
         // Deploy treasury implementation
         address treasuryImpl = address(new Treasury(address(manager)));
@@ -61,7 +67,9 @@ contract DeployContracts is Script {
         // Deploy governor implementation
         address governorImpl = address(new Governor(address(manager)));
 
-        address managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, _getKey("BuilderDAO")));
+        address managerImpl = address(
+            new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, _getKey("BuilderRewardsRecipient"))
+        );
 
         manager.upgradeTo(managerImpl);
 
