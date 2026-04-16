@@ -7,7 +7,9 @@ import { ERC721TokenReceiver, ERC1155TokenReceiver } from "../../lib/utils/Token
 import { SafeCast } from "../../lib/utils/SafeCast.sol";
 
 import { TreasuryStorageV1 } from "./storage/TreasuryStorageV1.sol";
+import { TreasuryStorageV2 } from "./storage/TreasuryStorageV2.sol";
 import { ITreasury } from "./ITreasury.sol";
+import { IGovernorSafeModule } from "./interfaces/IGovernorSafeModule.sol";
 import { ProposalHasher } from "../governor/ProposalHasher.sol";
 import { IManager } from "../../manager/IManager.sol";
 import { VersionedContract } from "../../VersionedContract.sol";
@@ -19,13 +21,16 @@ import { VersionedContract } from "../../VersionedContract.sol";
 /// Modified from:
 /// - OpenZeppelin Contracts v4.7.3 (governance/TimelockController.sol)
 /// - NounsDAOExecutor.sol commit 2cbe6c7 - licensed under the BSD-3-Clause license.
-contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher, TreasuryStorageV1 {
+contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher, TreasuryStorageV1, TreasuryStorageV2 {
     ///                                                          ///
     ///                         CONSTANTS                        ///
     ///                                                          ///
 
     /// @notice The default grace period setting
     uint128 private constant INITIAL_GRACE_PERIOD = 2 weeks;
+
+    /// @notice Safe operation mode for CALL
+    uint8 private constant SAFE_OP_CALL = 0;
 
     ///                                                          ///
     ///                         IMMUTABLES                       ///
@@ -67,6 +72,25 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         settings.gracePeriod = INITIAL_GRACE_PERIOD;
 
         emit DelayUpdated(0, _delay);
+    }
+
+    /// @notice Initializes v2 safe routing support
+    function initializeV2(
+        address _mainSafe,
+        address _mainSafeModule,
+        address _mainSafePolicy,
+        bytes32 _mainSafePolicyHash,
+        address _globalPolicy,
+        bytes32 _globalPolicyHash,
+        bool _enforceGlobalPolicy
+    ) external reinitializer(2) {
+        if (_mainSafe == address(0)) revert ADDRESS_ZERO();
+        if (_mainSafeModule == address(0)) revert INVALID_MODULE();
+
+        if (msg.sender != owner() && msg.sender != address(manager)) revert ONLY_MANAGER();
+
+        _registerSafe(_mainSafe, _mainSafeModule, _mainSafePolicy, _mainSafePolicyHash, true);
+        _setGlobalPolicy(_globalPolicy, _globalPolicyHash, _enforceGlobalPolicy);
     }
 
     ///                                                          ///
@@ -223,6 +247,117 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         settings.gracePeriod = SafeCast.toUint128(_newGracePeriod);
     }
 
+    /// @notice Registers a treasury safe
+    function registerSafe(address _safe, address _execModule, address _policy, bytes32 _policyHash, bool _setAsMain) external {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+        _registerSafe(_safe, _execModule, _policy, _policyHash, _setAsMain);
+    }
+
+    /// @notice Updates an existing treasury safe
+    function updateSafe(uint32 _safeId, bool _active, address _execModule, address _policy, bytes32 _policyHash) external {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+        if (_execModule == address(0)) revert INVALID_MODULE();
+
+        SafeConfigV2 storage cfg = safes[_safeId];
+        if (cfg.safe == address(0)) revert SAFE_NOT_REGISTERED();
+
+        cfg.active = _active;
+        cfg.execModule = _execModule;
+        cfg.policy = _policy;
+        cfg.policyHash = _policyHash;
+
+        emit SafeUpdated(_safeId, _active, _execModule, _policy, _policyHash);
+    }
+
+    /// @notice Sets which registered safe is the main safe
+    function setMainSafe(uint32 _safeId) external {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+
+        SafeConfigV2 storage newMain = safes[_safeId];
+        if (newMain.safe == address(0)) revert SAFE_NOT_REGISTERED();
+        if (!newMain.active) revert SAFE_INACTIVE();
+
+        uint32 prevMainId = _mainSafeId;
+        if (prevMainId != 0) {
+            safes[prevMainId].isMain = false;
+        }
+
+        newMain.isMain = true;
+        _mainSafeId = _safeId;
+
+        emit MainSafeUpdated(prevMainId, _safeId);
+    }
+
+    /// @notice Sets global policy metadata
+    function setGlobalPolicy(address _policy, bytes32 _policyHash, bool _enforce) external {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+        _setGlobalPolicy(_policy, _policyHash, _enforce);
+    }
+
+    /// @notice Executes through a registered safe module
+    /// @dev Callable only by this treasury during proposal execution
+    function execOnSafe(uint32 _safeId, address _target, uint256 _value, bytes calldata _data, uint8 _operation)
+        external
+        returns (bytes memory returnData)
+    {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+        if (_operation != SAFE_OP_CALL) revert INVALID_OPERATION();
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+
+        SafeConfigV2 storage cfg = safes[_safeId];
+        if (cfg.safe == address(0)) revert SAFE_NOT_REGISTERED();
+        if (!cfg.active) revert SAFE_INACTIVE();
+
+        try IGovernorSafeModule(cfg.execModule).execTransactionFromModule(cfg.safe, _target, _value, _data, _operation) returns (
+            bytes memory _returnData
+        ) {
+            emit SafeExecution(_safeId, cfg.safe, _target, _value, _operation, _data, _returnData);
+            return _returnData;
+        } catch {
+            revert SAFE_EXECUTION_FAILED();
+        }
+    }
+
+    /// @notice Gets safe config for a safe id
+    function getSafe(uint32 _safeId) external view returns (ITreasury.SafeConfig memory) {
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+        SafeConfigV2 memory cfg = safes[_safeId];
+        return ITreasury.SafeConfig({
+            safe: cfg.safe,
+            execModule: cfg.execModule,
+            policy: cfg.policy,
+            policyHash: cfg.policyHash,
+            active: cfg.active,
+            isMain: cfg.isMain
+        });
+    }
+
+    /// @notice Gets global policy metadata
+    function getGlobalPolicy() external view returns (ITreasury.GlobalPolicy memory) {
+        return ITreasury.GlobalPolicy({
+            policy: globalPolicy.policy,
+            policyHash: globalPolicy.policyHash,
+            enforce: globalPolicy.enforce
+        });
+    }
+
+    /// @notice The current main safe id
+    function mainSafeId() external view returns (uint32) {
+        return _mainSafeId;
+    }
+
+    /// @notice Number of registered safes
+    function safeCount() external view returns (uint32) {
+        return _safeCount;
+    }
+
+    /// @notice Returns the safe id for a safe address
+    function getSafeIdByAddress(address _safe) external view returns (uint32) {
+        return safeIds[_safe];
+    }
+
     ///                                                          ///
     ///                        RECEIVE TOKENS                    ///
     ///                                                          ///
@@ -261,6 +396,49 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
 
     /// @dev Accepts ETH transfers
     receive() external payable {}
+
+    /// @dev Registers a safe config
+    function _registerSafe(address _safe, address _execModule, address _policy, bytes32 _policyHash, bool _setAsMain) internal {
+        if (_safe == address(0)) revert ADDRESS_ZERO();
+        if (_execModule == address(0)) revert INVALID_MODULE();
+        if (safeIds[_safe] != 0) revert SAFE_ALREADY_REGISTERED();
+
+        unchecked {
+            _safeCount++;
+        }
+
+        uint32 newId = _safeCount;
+
+        safes[newId] = SafeConfigV2({
+            safe: _safe,
+            execModule: _execModule,
+            policy: _policy,
+            policyHash: _policyHash,
+            active: true,
+            isMain: false
+        });
+        safeIds[_safe] = newId;
+
+        emit SafeRegistered(newId, _safe, false, _execModule, _policy, _policyHash);
+
+        if (_setAsMain || _mainSafeId == 0) {
+            uint32 prevMainId = _mainSafeId;
+            if (prevMainId != 0) {
+                safes[prevMainId].isMain = false;
+            }
+
+            safes[newId].isMain = true;
+            _mainSafeId = newId;
+
+            emit MainSafeUpdated(prevMainId, newId);
+        }
+    }
+
+    /// @dev Sets global policy metadata
+    function _setGlobalPolicy(address _policy, bytes32 _policyHash, bool _enforce) internal {
+        globalPolicy = GlobalPolicyV2({ policy: _policy, policyHash: _policyHash, enforce: _enforce });
+        emit GlobalPolicyUpdated(_policy, _policyHash, _enforce);
+    }
 
     ///                                                          ///
     ///                       TREASURY UPGRADE                   ///

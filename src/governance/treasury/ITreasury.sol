@@ -8,6 +8,23 @@ import { IUUPS } from "../../lib/interfaces/IUUPS.sol";
 /// @author Rohan Kulkarni
 /// @notice The external Treasury events, errors and functions
 interface ITreasury is IUUPS, IOwnable {
+    /// @notice Safe-level treasury execution configuration
+    struct SafeConfig {
+        address safe;
+        address execModule;
+        address policy;
+        bytes32 policyHash;
+        bool active;
+        bool isMain;
+    }
+
+    /// @notice Optional global policy baseline metadata
+    struct GlobalPolicy {
+        address policy;
+        bytes32 policyHash;
+        bool enforce;
+    }
+
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
@@ -26,6 +43,36 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @notice Emitted when the grace period is updated
     event GracePeriodUpdated(uint256 prevGracePeriod, uint256 newGracePeriod);
+
+    /// @notice Emitted when a safe is registered
+    event SafeRegistered(
+        uint32 indexed safeId,
+        address indexed safe,
+        bool isMain,
+        address execModule,
+        address policy,
+        bytes32 policyHash
+    );
+
+    /// @notice Emitted when a safe is updated
+    event SafeUpdated(uint32 indexed safeId, bool active, address execModule, address policy, bytes32 policyHash);
+
+    /// @notice Emitted when the main safe changes
+    event MainSafeUpdated(uint32 indexed prevSafeId, uint32 indexed newSafeId);
+
+    /// @notice Emitted when global policy metadata is updated
+    event GlobalPolicyUpdated(address indexed policy, bytes32 policyHash, bool enforce);
+
+    /// @notice Emitted when execution is routed through a safe
+    event SafeExecution(
+        uint32 indexed safeId,
+        address indexed safe,
+        address indexed target,
+        uint256 value,
+        uint8 operation,
+        bytes data,
+        bytes returnData
+    );
 
     ///                                                          ///
     ///                            ERRORS                        ///
@@ -54,6 +101,27 @@ interface ITreasury is IUUPS, IOwnable {
     /// @dev Reverts if the caller was not the contract manager
     error ONLY_MANAGER();
 
+    /// @dev Reverts if a safe id does not exist
+    error INVALID_SAFE_ID();
+
+    /// @dev Reverts if a safe is inactive
+    error SAFE_INACTIVE();
+
+    /// @dev Reverts if safe is already registered
+    error SAFE_ALREADY_REGISTERED();
+
+    /// @dev Reverts if safe does not exist for an update
+    error SAFE_NOT_REGISTERED();
+
+    /// @dev Reverts if module address is invalid
+    error INVALID_MODULE();
+
+    /// @dev Reverts if operation type is invalid
+    error INVALID_OPERATION();
+
+    /// @dev Reverts if safe module execution failed
+    error SAFE_EXECUTION_FAILED();
+
     ///                                                          ///
     ///                          FUNCTIONS                       ///
     ///                                                          ///
@@ -62,6 +130,24 @@ interface ITreasury is IUUPS, IOwnable {
     /// @param governor The governor address
     /// @param timelockDelay The time delay to execute a queued transaction
     function initialize(address governor, uint256 timelockDelay) external;
+
+    /// @notice Initializes safe execution support for treasury v2
+    /// @param mainSafe The safe treated as the primary treasury
+    /// @param mainSafeModule The module used by treasury to execute from the safe
+    /// @param mainSafePolicy Optional policy reference for the main safe
+    /// @param mainSafePolicyHash Policy config hash for offchain auditing
+    /// @param globalPolicy Optional global policy reference
+    /// @param globalPolicyHash Global policy config hash for offchain auditing
+    /// @param enforceGlobalPolicy If true, global policy is enforced as baseline
+    function initializeV2(
+        address mainSafe,
+        address mainSafeModule,
+        address mainSafePolicy,
+        bytes32 mainSafePolicyHash,
+        address globalPolicy,
+        bytes32 globalPolicyHash,
+        bool enforceGlobalPolicy
+    ) external;
 
     /// @notice The timestamp that a proposal is valid to execute
     /// @param proposalId The proposal id
@@ -114,4 +200,57 @@ interface ITreasury is IUUPS, IOwnable {
     /// @notice Updates the grace period
     /// @param newGracePeriod The grace period
     function updateGracePeriod(uint256 newGracePeriod) external;
+
+    /// @notice Registers a new treasury safe
+    /// @param safe The safe address
+    /// @param execModule The safe module address used for execution routing
+    /// @param policy Optional policy reference for this safe
+    /// @param policyHash Policy configuration hash
+    /// @param setAsMain If true, this safe becomes the main safe
+    function registerSafe(address safe, address execModule, address policy, bytes32 policyHash, bool setAsMain) external;
+
+    /// @notice Updates an existing safe config
+    /// @param safeId The safe id
+    /// @param active Whether the safe is active
+    /// @param execModule Updated module address
+    /// @param policy Updated policy reference
+    /// @param policyHash Updated policy config hash
+    function updateSafe(uint32 safeId, bool active, address execModule, address policy, bytes32 policyHash) external;
+
+    /// @notice Sets the main safe id
+    /// @param safeId The safe id to set as main
+    function setMainSafe(uint32 safeId) external;
+
+    /// @notice Sets global policy metadata
+    /// @param policy Policy contract address
+    /// @param policyHash Policy configuration hash
+    /// @param enforce If true, global policy is enforced as baseline
+    function setGlobalPolicy(address policy, bytes32 policyHash, bool enforce) external;
+
+    /// @notice Executes an action through a registered safe
+    /// @param safeId The safe id to route execution through
+    /// @param target The call target
+    /// @param value The call value
+    /// @param data The call data
+    /// @param operation Safe operation (0 = call)
+    function execOnSafe(uint32 safeId, address target, uint256 value, bytes calldata data, uint8 operation)
+        external
+        returns (bytes memory returnData);
+
+    /// @notice Gets a safe config
+    /// @param safeId The safe id
+    function getSafe(uint32 safeId) external view returns (SafeConfig memory);
+
+    /// @notice Gets global policy metadata
+    function getGlobalPolicy() external view returns (GlobalPolicy memory);
+
+    /// @notice Gets the id of the main safe
+    function mainSafeId() external view returns (uint32);
+
+    /// @notice Gets number of registered safes
+    function safeCount() external view returns (uint32);
+
+    /// @notice Gets the safe id for an address
+    /// @param safe The safe address
+    function getSafeIdByAddress(address safe) external view returns (uint32);
 }

@@ -2,7 +2,7 @@
 pragma solidity 0.8.16;
 
 import { Token } from "../../../token/Token.sol";
-import { Treasury } from "../../treasury/Treasury.sol";
+import { ITreasury } from "../../treasury/ITreasury.sol";
 
 /// @title GovernorTypesV1
 /// @author Rohan Kulkarni
@@ -20,7 +20,7 @@ interface GovernorTypesV1 {
         Token token;
         uint16 proposalThresholdBps;
         uint16 quorumThresholdBps;
-        Treasury treasury;
+        ITreasury treasury;
         uint48 votingDelay;
         uint48 votingPeriod;
         address vetoer;
