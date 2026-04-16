@@ -8,6 +8,7 @@ import { SUPPORTED_NETWORKS, byAlias } from "./networkConfig.mjs";
 
 dotenv.config({ quiet: true });
 
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const NETWORK = process.env.NETWORK || "mainnet";
 
 // Known legacy bases for explicit registration checks.
@@ -72,15 +73,41 @@ function main() {
 
   const rpcAlias = NETWORK;
   const chainId = getChainId(rpcAlias);
+
+  if (chainId !== cfg.chainId) {
+    console.error(
+      `Chain mismatch: NETWORK=${NETWORK} expects chain ${cfg.chainId} but RPC alias '${rpcAlias}' resolved to chain ${chainId}. Aborting to prevent cross-chain report.`
+    );
+    process.exit(1);
+  }
+
   const addressesPath = path.join(process.cwd(), "addresses", `${chainId}.json`);
   const addrs = JSON.parse(readFileSync(addressesPath, "utf8"));
 
   const manager = addrs.Manager;
-
-  // Use latest implementations from addresses/<chain>.json.
   const tokenUpgradeImpl = addrs.Token;
   const auctionUpgradeImpl = addrs.Auction;
   const governorUpgradeImpl = addrs.Governor;
+
+  const missingKeys = [];
+  for (const [key, val] of [
+    ["Manager", manager],
+    ["Token", tokenUpgradeImpl],
+    ["Auction", auctionUpgradeImpl],
+    ["Governor", governorUpgradeImpl],
+  ]) {
+    if (!ADDRESS_RE.test(val || "")) {
+      missingKeys.push(key);
+    }
+  }
+  if (missingKeys.length > 0) {
+    console.error(
+      `Config error in addresses/${chainId}.json: missing or invalid fields: ${missingKeys.join(
+        ", "
+      )}.`
+    );
+    process.exit(1);
+  }
 
   console.log(`Network: ${cfg.label} (${chainId})`);
   console.log(`RPC alias: ${rpcAlias}`);

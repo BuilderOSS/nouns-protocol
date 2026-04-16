@@ -99,7 +99,7 @@ Common env variables used by those sections:
 
 - `yarn addresses:sync-builder-rewards`
 
-  - Same as check, but writes `BuilderRewardsRecipient` updates when onchain value is available.
+  - Same as check, but writes `BuilderRewardsRecipient` updates when on-chain value is available.
 
 - `yarn upgrade:check-status`
 
@@ -125,7 +125,7 @@ Current policy in this repo:
 - Scripts use `block.chainid` to resolve `addresses/<chainid>.json` and write outputs to `deploys/<chainid>.*.txt`.
 - Contract address fields in `addresses/<chainid>.json` are updated manually from deployment output files.
 - The single automatic sync is `ManagerOwner` via `script/updateManagerOwner.mjs`.
-- `BuilderRewardsRecipient` is operator-managed; `script/checkBuilderRewardsConfig.mjs` provides check/sync utilities when the onchain getter is available.
+- `BuilderRewardsRecipient` is operator-managed; `script/checkBuilderRewardsConfig.mjs` provides check/sync utilities when the on-chain getter is available.
 
 Recommended post-deploy sequence:
 

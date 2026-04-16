@@ -78,6 +78,7 @@ function run() {
   const addressesDir = path.join(repoRoot, "addresses");
 
   const configByChainId = Object.fromEntries(SUPPORTED_NETWORKS.map((n) => [n.chainId, n]));
+  const configByAlias = Object.fromEntries(SUPPORTED_NETWORKS.map((n) => [n.alias, n]));
 
   const selectedChains = chainIds.length
     ? chainIds.filter((id) => configByChainId[id])
@@ -93,6 +94,13 @@ function run() {
 
   for (const chainId of selectedChains) {
     const cfg = configByChainId[chainId];
+    const aliasChain = configByAlias[cfg.alias];
+    if (aliasChain.chainId !== chainId) {
+      console.error(
+        `[${chainId}] ${cfg.label}: RPC alias '${cfg.alias}' resolves to chain ${aliasChain.chainId} — skipping to prevent wrong-chain write.`
+      );
+      continue;
+    }
     const filePath = path.join(addressesDir, `${chainId}.json`);
 
     if (!existsSync(filePath)) {
@@ -128,10 +136,12 @@ function run() {
           ? "MATCH"
           : "MISMATCH";
 
-      if (write && recipientStatus === "MISMATCH") {
-        parsed.BuilderRewardsRecipient = onchainRecipient;
-        writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+      if (recipientStatus === "MISMATCH") {
         changed++;
+        if (write) {
+          parsed.BuilderRewardsRecipient = onchainRecipient;
+          writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+        }
       }
     } catch (error) {
       recipientStatus = "UNAVAILABLE";

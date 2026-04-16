@@ -39,11 +39,6 @@ cast call $MANAGER_PROXY "treasuryImpl()(address)" --rpc-url $RPC_ALIAS
 
 # Optional: manager proxy implementation slot (EIP-1967)
 cast storage $MANAGER_PROXY 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
-
-# Optional: verify DAO proxy implementation slots against addresses/1.json values
-cast storage 0xAeD75D1e5c1821E2EC29D5d24b794b13C34c5d63 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
-cast storage 0x785708d09b89C470aD7B5b3f8ac804cE72B6b282 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
-cast storage 0x46eA3fd17DEb7B291AeA60E67E5cB3a104FEa11D 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url $RPC_ALIAS
 ```
 
 Run these checks right before deployment/proposal execution so the listed owner and implementation values are confirmed live.
