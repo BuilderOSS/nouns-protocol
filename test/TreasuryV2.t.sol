@@ -8,52 +8,87 @@ import { MockGnosisSafe } from "./utils/mocks/MockGnosisSafe.sol";
 import { MockSafeExecutionTarget } from "./utils/mocks/MockSafeExecutionTarget.sol";
 
 contract TreasuryV2Test is NounsBuilderTest {
-    MockGnosisSafe internal mainSafe;
-    GovernorSafeModule internal mainModule;
+    MockGnosisSafe internal primarySafe;
+    GovernorSafeModule internal primaryModule;
 
     function setUp() public override {
         super.setUp();
         deployMock();
 
-        mainSafe = new MockGnosisSafe();
-        mainModule = new GovernorSafeModule(address(treasury));
-        mainSafe.enableModule(address(mainModule));
+        primarySafe = new MockGnosisSafe();
+        primaryModule = new GovernorSafeModule(address(treasury));
+        primarySafe.enableModule(address(primaryModule));
     }
 
-    function test_InitializeV2() public {
-        vm.prank(address(manager));
-        treasury.initializeV2(address(mainSafe), address(mainModule), address(0), bytes32(0), address(0), bytes32(0), false);
+    function test_RegisterSafe() public {
+        vm.prank(address(treasury));
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
 
         assertEq(treasury.safeCount(), 1);
-        assertEq(treasury.mainSafeId(), 1);
 
         ITreasury.SafeConfig memory safeConfig = treasury.getSafe(1);
-        assertEq(safeConfig.safe, address(mainSafe));
-        assertEq(safeConfig.execModule, address(mainModule));
-        assertEq(safeConfig.isMain, true);
+        assertEq(safeConfig.safe, address(primarySafe));
+        assertEq(safeConfig.execModule, address(primaryModule));
+        assertEq(safeConfig.active, true);
     }
 
     function test_RegisterSafe_OnlyTreasury() public {
-        vm.prank(address(manager));
-        treasury.initializeV2(address(mainSafe), address(mainModule), address(0), bytes32(0), address(0), bytes32(0), false);
-
         MockGnosisSafe secondarySafe = new MockGnosisSafe();
         GovernorSafeModule secondaryModule = new GovernorSafeModule(address(treasury));
         secondarySafe.enableModule(address(secondaryModule));
 
         vm.expectRevert();
-        treasury.registerSafe(address(secondarySafe), address(secondaryModule), address(0), bytes32(0), false);
+        treasury.registerSafe(address(secondarySafe), address(secondaryModule), address(0), bytes32(0));
 
         vm.prank(address(treasury));
-        treasury.registerSafe(address(secondarySafe), address(secondaryModule), address(0), bytes32(0), false);
+        treasury.registerSafe(address(secondarySafe), address(secondaryModule), address(0), bytes32(0));
 
-        assertEq(treasury.safeCount(), 2);
-        assertEq(treasury.getSafeIdByAddress(address(secondarySafe)), 2);
+        assertEq(treasury.safeCount(), 1);
+        assertEq(treasury.getSafeIdByAddress(address(secondarySafe)), 1);
+    }
+
+    function testRevert_RegisterSafe_DuplicateSafe() public {
+        vm.prank(address(treasury));
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
+
+        vm.prank(address(treasury));
+        vm.expectRevert();
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
+    }
+
+    function test_SetGlobalPolicy() public {
+        address policy = makeAddr("policy");
+        bytes32 policyHash = keccak256("global-policy-v1");
+
+        vm.prank(address(treasury));
+        treasury.setGlobalPolicy(policy, policyHash, true);
+
+        ITreasury.GlobalPolicy memory globalPolicy = treasury.getGlobalPolicy();
+        assertEq(globalPolicy.policy, policy);
+        assertEq(globalPolicy.policyHash, policyHash);
+        assertEq(globalPolicy.enforce, true);
+    }
+
+    function test_UpdateSafe() public {
+        vm.prank(address(treasury));
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
+
+        GovernorSafeModule newModule = new GovernorSafeModule(address(treasury));
+        primarySafe.enableModule(address(newModule));
+
+        vm.prank(address(treasury));
+        treasury.updateSafe(1, false, address(newModule), address(1234), keccak256("policy"));
+
+        ITreasury.SafeConfig memory safeConfig = treasury.getSafe(1);
+        assertEq(safeConfig.active, false);
+        assertEq(safeConfig.execModule, address(newModule));
+        assertEq(safeConfig.policy, address(1234));
+        assertEq(safeConfig.policyHash, keccak256("policy"));
     }
 
     function test_ExecOnSafe() public {
-        vm.prank(address(manager));
-        treasury.initializeV2(address(mainSafe), address(mainModule), address(0), bytes32(0), address(0), bytes32(0), false);
+        vm.prank(address(treasury));
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
 
         MockSafeExecutionTarget target = new MockSafeExecutionTarget();
         bytes memory data = abi.encodeWithSelector(target.setNumber.selector, 42);
@@ -62,12 +97,12 @@ contract TreasuryV2Test is NounsBuilderTest {
         treasury.execOnSafe(1, address(target), 0, data, 0);
 
         assertEq(target.number(), 42);
-        assertEq(target.caller(), address(mainSafe));
+        assertEq(target.caller(), address(primarySafe));
     }
 
     function test_ExecOnSafe_InvalidOperation() public {
-        vm.prank(address(manager));
-        treasury.initializeV2(address(mainSafe), address(mainModule), address(0), bytes32(0), address(0), bytes32(0), false);
+        vm.prank(address(treasury));
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
 
         MockSafeExecutionTarget target = new MockSafeExecutionTarget();
         bytes memory data = abi.encodeWithSelector(target.setNumber.selector, 42);
@@ -75,5 +110,20 @@ contract TreasuryV2Test is NounsBuilderTest {
         vm.prank(address(treasury));
         vm.expectRevert();
         treasury.execOnSafe(1, address(target), 0, data, 1);
+    }
+
+    function testRevert_ExecOnSafe_InactiveSafe() public {
+        vm.prank(address(treasury));
+        treasury.registerSafe(address(primarySafe), address(primaryModule), address(0), bytes32(0));
+
+        vm.prank(address(treasury));
+        treasury.updateSafe(1, false, address(primaryModule), address(0), bytes32(0));
+
+        MockSafeExecutionTarget target = new MockSafeExecutionTarget();
+        bytes memory data = abi.encodeWithSelector(target.setNumber.selector, 42);
+
+        vm.prank(address(treasury));
+        vm.expectRevert();
+        treasury.execOnSafe(1, address(target), 0, data, 0);
     }
 }
