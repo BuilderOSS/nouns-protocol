@@ -7,9 +7,6 @@ import { TreasuryTypesV2 } from "../types/TreasuryTypesV2.sol";
 /// @author Nouns Builder
 /// @notice Append-only treasury storage for safe routing
 contract TreasuryStorageV2 is TreasuryTypesV2 {
-    /// @notice The id of the main safe
-    uint32 internal _mainSafeId;
-
     /// @notice Number of safes registered
     uint32 internal _safeCount;
 

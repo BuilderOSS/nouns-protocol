@@ -15,7 +15,6 @@ interface ITreasury is IUUPS, IOwnable {
         address policy;
         bytes32 policyHash;
         bool active;
-        bool isMain;
     }
 
     /// @notice Optional global policy baseline metadata
@@ -48,7 +47,6 @@ interface ITreasury is IUUPS, IOwnable {
     event SafeRegistered(
         uint32 indexed safeId,
         address indexed safe,
-        bool isMain,
         address execModule,
         address policy,
         bytes32 policyHash
@@ -56,9 +54,6 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @notice Emitted when a safe is updated
     event SafeUpdated(uint32 indexed safeId, bool active, address execModule, address policy, bytes32 policyHash);
-
-    /// @notice Emitted when the main safe changes
-    event MainSafeUpdated(uint32 indexed prevSafeId, uint32 indexed newSafeId);
 
     /// @notice Emitted when global policy metadata is updated
     event GlobalPolicyUpdated(address indexed policy, bytes32 policyHash, bool enforce);
@@ -131,24 +126,6 @@ interface ITreasury is IUUPS, IOwnable {
     /// @param timelockDelay The time delay to execute a queued transaction
     function initialize(address governor, uint256 timelockDelay) external;
 
-    /// @notice Initializes safe execution support for treasury v2
-    /// @param mainSafe The safe treated as the primary treasury
-    /// @param mainSafeModule The module used by treasury to execute from the safe
-    /// @param mainSafePolicy Optional policy reference for the main safe
-    /// @param mainSafePolicyHash Policy config hash for offchain auditing
-    /// @param globalPolicy Optional global policy reference
-    /// @param globalPolicyHash Global policy config hash for offchain auditing
-    /// @param enforceGlobalPolicy If true, global policy is enforced as baseline
-    function initializeV2(
-        address mainSafe,
-        address mainSafeModule,
-        address mainSafePolicy,
-        bytes32 mainSafePolicyHash,
-        address globalPolicy,
-        bytes32 globalPolicyHash,
-        bool enforceGlobalPolicy
-    ) external;
-
     /// @notice The timestamp that a proposal is valid to execute
     /// @param proposalId The proposal id
     function timestamp(bytes32 proposalId) external view returns (uint256);
@@ -206,8 +183,7 @@ interface ITreasury is IUUPS, IOwnable {
     /// @param execModule The safe module address used for execution routing
     /// @param policy Optional policy reference for this safe
     /// @param policyHash Policy configuration hash
-    /// @param setAsMain If true, this safe becomes the main safe
-    function registerSafe(address safe, address execModule, address policy, bytes32 policyHash, bool setAsMain) external;
+    function registerSafe(address safe, address execModule, address policy, bytes32 policyHash) external;
 
     /// @notice Updates an existing safe config
     /// @param safeId The safe id
@@ -216,10 +192,6 @@ interface ITreasury is IUUPS, IOwnable {
     /// @param policy Updated policy reference
     /// @param policyHash Updated policy config hash
     function updateSafe(uint32 safeId, bool active, address execModule, address policy, bytes32 policyHash) external;
-
-    /// @notice Sets the main safe id
-    /// @param safeId The safe id to set as main
-    function setMainSafe(uint32 safeId) external;
 
     /// @notice Sets global policy metadata
     /// @param policy Policy contract address
@@ -243,9 +215,6 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @notice Gets global policy metadata
     function getGlobalPolicy() external view returns (GlobalPolicy memory);
-
-    /// @notice Gets the id of the main safe
-    function mainSafeId() external view returns (uint32);
 
     /// @notice Gets number of registered safes
     function safeCount() external view returns (uint32);

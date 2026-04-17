@@ -14,7 +14,6 @@ contract TreasuryTypesV2 is TreasuryTypesV1 {
         address policy;
         bytes32 policyHash;
         bool active;
-        bool isMain;
     }
 
     /// @notice Optional global policy baseline metadata

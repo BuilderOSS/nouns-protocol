@@ -74,25 +74,6 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         emit DelayUpdated(0, _delay);
     }
 
-    /// @notice Initializes v2 safe routing support
-    function initializeV2(
-        address _mainSafe,
-        address _mainSafeModule,
-        address _mainSafePolicy,
-        bytes32 _mainSafePolicyHash,
-        address _globalPolicy,
-        bytes32 _globalPolicyHash,
-        bool _enforceGlobalPolicy
-    ) external reinitializer(2) {
-        if (_mainSafe == address(0)) revert ADDRESS_ZERO();
-        if (_mainSafeModule == address(0)) revert INVALID_MODULE();
-
-        if (msg.sender != owner() && msg.sender != address(manager)) revert ONLY_MANAGER();
-
-        _registerSafe(_mainSafe, _mainSafeModule, _mainSafePolicy, _mainSafePolicyHash, true);
-        _setGlobalPolicy(_globalPolicy, _globalPolicyHash, _enforceGlobalPolicy);
-    }
-
     ///                                                          ///
     ///                      TRANSACTION STATE                   ///
     ///                                                          ///
@@ -248,9 +229,9 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
     }
 
     /// @notice Registers a treasury safe
-    function registerSafe(address _safe, address _execModule, address _policy, bytes32 _policyHash, bool _setAsMain) external {
+    function registerSafe(address _safe, address _execModule, address _policy, bytes32 _policyHash) external {
         if (msg.sender != address(this)) revert ONLY_TREASURY();
-        _registerSafe(_safe, _execModule, _policy, _policyHash, _setAsMain);
+        _registerSafe(_safe, _execModule, _policy, _policyHash);
     }
 
     /// @notice Updates an existing treasury safe
@@ -268,26 +249,6 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         cfg.policyHash = _policyHash;
 
         emit SafeUpdated(_safeId, _active, _execModule, _policy, _policyHash);
-    }
-
-    /// @notice Sets which registered safe is the main safe
-    function setMainSafe(uint32 _safeId) external {
-        if (msg.sender != address(this)) revert ONLY_TREASURY();
-        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
-
-        SafeConfigV2 storage newMain = safes[_safeId];
-        if (newMain.safe == address(0)) revert SAFE_NOT_REGISTERED();
-        if (!newMain.active) revert SAFE_INACTIVE();
-
-        uint32 prevMainId = _mainSafeId;
-        if (prevMainId != 0) {
-            safes[prevMainId].isMain = false;
-        }
-
-        newMain.isMain = true;
-        _mainSafeId = _safeId;
-
-        emit MainSafeUpdated(prevMainId, _safeId);
     }
 
     /// @notice Sets global policy metadata
@@ -329,8 +290,7 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
             execModule: cfg.execModule,
             policy: cfg.policy,
             policyHash: cfg.policyHash,
-            active: cfg.active,
-            isMain: cfg.isMain
+            active: cfg.active
         });
     }
 
@@ -341,11 +301,6 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
             policyHash: globalPolicy.policyHash,
             enforce: globalPolicy.enforce
         });
-    }
-
-    /// @notice The current main safe id
-    function mainSafeId() external view returns (uint32) {
-        return _mainSafeId;
     }
 
     /// @notice Number of registered safes
@@ -398,7 +353,7 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
     receive() external payable {}
 
     /// @dev Registers a safe config
-    function _registerSafe(address _safe, address _execModule, address _policy, bytes32 _policyHash, bool _setAsMain) internal {
+    function _registerSafe(address _safe, address _execModule, address _policy, bytes32 _policyHash) internal {
         if (_safe == address(0)) revert ADDRESS_ZERO();
         if (_execModule == address(0)) revert INVALID_MODULE();
         if (safeIds[_safe] != 0) revert SAFE_ALREADY_REGISTERED();
@@ -414,24 +369,11 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
             execModule: _execModule,
             policy: _policy,
             policyHash: _policyHash,
-            active: true,
-            isMain: false
+            active: true
         });
         safeIds[_safe] = newId;
 
-        emit SafeRegistered(newId, _safe, false, _execModule, _policy, _policyHash);
-
-        if (_setAsMain || _mainSafeId == 0) {
-            uint32 prevMainId = _mainSafeId;
-            if (prevMainId != 0) {
-                safes[prevMainId].isMain = false;
-            }
-
-            safes[newId].isMain = true;
-            _mainSafeId = newId;
-
-            emit MainSafeUpdated(prevMainId, newId);
-        }
+        emit SafeRegistered(newId, _safe, _execModule, _policy, _policyHash);
     }
 
     /// @dev Sets global policy metadata
