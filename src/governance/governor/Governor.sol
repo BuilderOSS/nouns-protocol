@@ -5,6 +5,7 @@ import { UUPS } from "../../lib/proxy/UUPS.sol";
 import { Ownable } from "../../lib/utils/Ownable.sol";
 import { EIP712 } from "../../lib/utils/EIP712.sol";
 import { SafeCast } from "../../lib/utils/SafeCast.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import { GovernorStorageV1 } from "./storage/GovernorStorageV1.sol";
 import { GovernorStorageV2 } from "./storage/GovernorStorageV2.sol";
@@ -15,10 +16,6 @@ import { IManager } from "../../manager/IManager.sol";
 import { IGovernor } from "./IGovernor.sol";
 import { ProposalHasher } from "./ProposalHasher.sol";
 import { VersionedContract } from "../../VersionedContract.sol";
-
-interface IERC1271 {
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue);
-}
 
 /// @title Governor
 /// @author Rohan Kulkarni
@@ -68,9 +65,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     /// @notice The maximum proposal updatable period setting
     uint256 public immutable MAX_PROPOSAL_UPDATABLE_PERIOD = 24 weeks;
-
-    /// @notice Magic value returned by ERC-1271 isValidSignature
-    bytes4 internal constant ERC1271_MAGICVALUE = 0x1626ba7e;
 
     /// @notice The maximum delayed governance expiration setting
     uint256 public immutable MAX_DELAYED_GOVERNANCE_EXPIRATION = 30 days;
@@ -177,7 +171,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         _validateProposalArrays(_targets, _values, _calldatas);
 
-        return _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold, _hashTxs(_targets, _values, _calldatas));
+        return _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold);
     }
 
     /// @notice Creates a proposal backed by signer approvals
@@ -218,7 +212,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         uint256 currentProposalThreshold = proposalThreshold();
         if (votes <= currentProposalThreshold) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
 
-        bytes32 proposalId = _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold, txsHash);
+        bytes32 proposalId = _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold);
 
         for (uint256 i = 0; i < signers.length; ++i) {
             proposalSigners[proposalId].push(signers[i]);
@@ -242,10 +236,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         _validateProposalArrays(_targets, _values, _calldatas);
 
         Proposal memory oldProposal = proposals[_proposalId];
-        bytes32 txsHash = _hashTxs(_targets, _values, _calldatas);
         address[] storage signers = proposalSigners[_proposalId];
-
-        if (signers.length > 0 && txsHash != oldProposal.txsHash) revert PROPOSER_CANNOT_UPDATE_TXS_WITH_SIGNERS();
 
         bytes32 newProposalId = _replaceProposal(_proposalId, oldProposal, signers, _targets, _values, _calldatas, _description);
 
@@ -336,7 +327,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         bytes32 structHash = keccak256(abi.encode(VOTE_TYPEHASH, _voter, _proposalId, _support, _nonce, _deadline));
         bytes32 digest = _hashTypedData(structHash);
 
-        if (!_isValidSignatureNow(_voter, digest, _sig)) revert INVALID_SIGNATURE();
+        if (!SignatureChecker.isValidSignatureNow(_voter, digest, _sig)) revert INVALID_SIGNATURE();
 
         nonces[_voter] = expectedNonce + 1;
 
@@ -467,24 +458,18 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // Get a copy of the proposal
         Proposal memory proposal = proposals[_proposalId];
 
-        bool isSigner;
+        bool msgSenderIsProposerOrSigner = msg.sender == proposal.proposer;
+        uint256 votes = getVotes(proposal.proposer, block.timestamp - 1);
         address[] storage signers = proposalSigners[_proposalId];
         for (uint256 i = 0; i < signers.length; ++i) {
-            if (msg.sender == signers[i]) {
-                isSigner = true;
-                break;
-            }
+            msgSenderIsProposerOrSigner = msgSenderIsProposerOrSigner || msg.sender == signers[i];
+            votes += getVotes(signers[i], block.timestamp - 1);
         }
 
         // Cannot realistically underflow and `getVotes` would revert
         unchecked {
-            // Ensure the caller is the proposer or the proposer's voting weight has dropped below the proposal threshold
-            if (
-                !isSigner &&
-                msg.sender != proposal.proposer &&
-                getVotes(proposal.proposer, block.timestamp - 1) >= proposal.proposalThreshold
-            )
-                revert INVALID_CANCEL();
+            // Ensure the caller is the proposer/signer or backing votes have dropped below the proposal threshold
+            if (!msgSenderIsProposerOrSigner && votes >= proposal.proposalThreshold) revert INVALID_CANCEL();
         }
 
         // Update the proposal as canceled
@@ -553,7 +538,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
             return ProposalState.Vetoed;
 
             // Else if proposal is still in updatable period:
-        } else if (block.timestamp < proposal.updatePeriodEnd) {
+        } else if (block.timestamp < proposalUpdatePeriodEnds[_proposalId]) {
             return ProposalState.Updatable;
 
             // Else if voting has not started:
@@ -802,8 +787,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         bytes[] memory _calldatas,
         string memory _description,
         address _proposer,
-        uint256 _proposalThreshold,
-        bytes32 _txsHash
+        uint256 _proposalThreshold
     ) internal returns (bytes32 proposalId) {
         bytes32 descriptionHash = keccak256(bytes(_description));
         proposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, _proposer);
@@ -823,12 +807,12 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         proposal.voteStart = SafeCast.toUint32(snapshot);
         proposal.voteEnd = SafeCast.toUint32(deadline);
-        proposal.updatePeriodEnd = SafeCast.toUint32(updatePeriodEnd);
         proposal.proposalThreshold = SafeCast.toUint32(_proposalThreshold);
         proposal.quorumVotes = SafeCast.toUint32(quorum());
         proposal.proposer = _proposer;
         proposal.timeCreated = SafeCast.toUint32(block.timestamp);
-        proposal.txsHash = _txsHash;
+
+        proposalUpdatePeriodEnds[proposalId] = SafeCast.toUint32(updatePeriodEnd);
 
         emit ProposalCreated(proposalId, _targets, _values, _calldatas, _description, descriptionHash, proposal);
     }
@@ -870,7 +854,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         newProposal.proposer = _oldProposal.proposer;
         newProposal.timeCreated = _oldProposal.timeCreated;
-        newProposal.updatePeriodEnd = _oldProposal.updatePeriodEnd;
         newProposal.againstVotes = _oldProposal.againstVotes;
         newProposal.forVotes = _oldProposal.forVotes;
         newProposal.abstainVotes = _oldProposal.abstainVotes;
@@ -878,7 +861,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         newProposal.voteEnd = _oldProposal.voteEnd;
         newProposal.proposalThreshold = _oldProposal.proposalThreshold;
         newProposal.quorumVotes = _oldProposal.quorumVotes;
-        newProposal.txsHash = _hashTxs(_targets, _values, _calldatas);
+
+        proposalUpdatePeriodEnds[newProposalId] = proposalUpdatePeriodEnds[_oldProposalId];
 
         for (uint256 i = 0; i < _oldSigners.length; ++i) {
             proposalSigners[newProposalId].push(_oldSigners[i]);
@@ -905,7 +889,9 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         );
         bytes32 digest = _hashTypedData(structHash);
 
-        if (!_isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) revert INVALID_SIGNATURE();
+        if (!SignatureChecker.isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) {
+            revert INVALID_SIGNATURE();
+        }
 
         proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
     }
@@ -934,7 +920,9 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         );
         bytes32 digest = _hashTypedData(structHash);
 
-        if (!_isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) revert INVALID_SIGNATURE();
+        if (!SignatureChecker.isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) {
+            revert INVALID_SIGNATURE();
+        }
 
         proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
     }
@@ -949,37 +937,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     function _hashTypedData(bytes32 _structHash) internal view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), _structHash));
-    }
-
-    function _isValidSignatureNow(address _signer, bytes32 _digest, bytes memory _signature) internal view returns (bool) {
-        if (_signer.code.length == 0) {
-            if (_signature.length != 65) {
-                return false;
-            }
-
-            bytes32 r;
-            bytes32 s;
-            uint8 v;
-            assembly {
-                r := mload(add(_signature, 0x20))
-                s := mload(add(_signature, 0x40))
-                v := byte(0, mload(add(_signature, 0x60)))
-            }
-
-            if (v < 27) v += 27;
-            if (v != 27 && v != 28) {
-                return false;
-            }
-
-            address recovered = ecrecover(_digest, v, r, s);
-            return recovered != address(0) && recovered == _signer;
-        }
-
-        (bool success, bytes memory result) = _signer.staticcall(
-            abi.encodeWithSelector(IERC1271.isValidSignature.selector, _digest, _signature)
-        );
-
-        return success && result.length >= 32 && abi.decode(result, (bytes4)) == ERC1271_MAGICVALUE;
     }
 
     ///                                                          ///

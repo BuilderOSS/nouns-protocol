@@ -153,8 +153,6 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     error ONLY_PROPOSER_CAN_EDIT();
 
-    error PROPOSER_CANNOT_UPDATE_TXS_WITH_SIGNERS();
-
     error MUST_PROVIDE_SIGNATURES();
 
     error SIGNER_COUNT_MISMATCH();

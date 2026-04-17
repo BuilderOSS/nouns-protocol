@@ -44,8 +44,8 @@ All signatures are EIP-712 and verified with EOA + ERC-1271 support.
 Notes:
 
 - Signatures for proposal sponsorship bind to tx bundle hash (not description text).
-- This allows minor description edits during `Updatable` without recollecting signatures.
-- If txs change on signed proposals, `updateProposalBySigs` is required.
+- `updateProposal` allows full edits (description and txs) during `Updatable`.
+- `updateProposalBySigs` remains available as an optional stricter path for sponsor re-approval.
 - Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
 
 ## Proposal Identity & Updates
@@ -75,8 +75,16 @@ Vote signature nonces use the existing EIP-712 `nonces` mapping.
 
 Extend proposal type with:
 
-- `updatePeriodEnd`
-- `txsHash`
+- no new fields (existing `Proposal` layout remains upgrade-safe)
+
+Add side mappings for:
+
+- `proposalUpdatePeriodEnds[proposalId]`
+
+## Breaking Changes
+
+- `castVoteBySig` ABI changed from `(v, r, s)` to `(nonce, deadline, sig)`.
+- Integrations relying on the old selector must migrate to the new signature payload and calldata format.
 
 ## Core Functions
 

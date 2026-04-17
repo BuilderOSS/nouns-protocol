@@ -120,6 +120,12 @@ Suggested proposal note for v2 rollout:
 
 "This upgrade includes a change to Auction rewards policy. The new Auction implementation sets `builderRewardsBPS=250` and `referralRewardsBPS=250` (2.5% each). For upgraded DAOs, settled auction proceeds will allocate these reward splits through protocol rewards before the remainder is transferred to treasury. MetadataRenderer and Treasury implementations remain unchanged in this release."
 
+## Governor ABI Compatibility Note
+
+- `castVoteBySig` changed ABI from `(address voter, bytes32 proposalId, uint256 support, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`
+  to `(address voter, bytes32 proposalId, uint256 support, uint256 nonce, uint256 deadline, bytes sig)`.
+- Any frontend, SDK, script, or indexer using the old selector must be updated before proposing the Governor upgrade.
+
 ## Phase 3: Existing DAO Upgrades
 
 Each DAO upgrades itself through its own governance proposal.

@@ -447,7 +447,6 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         Proposal memory proposal = governor.getProposal(proposalId);
         assertEq(proposal.proposer, voter2);
-        assertEq(proposal.txsHash, _txsHash(targets, values, calldatas));
     }
 
     function test_UpdateProposalBySigs() public {
@@ -498,12 +497,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         assertTrue(updatedProposalId != proposalId);
         assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
-
-        Proposal memory updatedProposal = governor.getProposal(updatedProposalId);
-        assertEq(updatedProposal.txsHash, _txsHash(targets, values, updatedCalldatas));
     }
 
-    function testRevert_UpdateProposalTxsWithoutSignersOnSignedProposal() public {
+    function test_UpdateProposalTxsOnSignedProposalWithoutSignatures() public {
         deployMock();
 
         mintVoter1();
@@ -525,9 +521,18 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
 
-        vm.expectRevert(abi.encodeWithSignature("PROPOSER_CANNOT_UPDATE_TXS_WITH_SIGNERS()"));
         vm.prank(voter2);
-        governor.updateProposal(proposalId, targets, values, updatedCalldatas, "new desc", "try update without sig");
+        bytes32 updatedProposalId = governor.updateProposal(
+            proposalId,
+            targets,
+            values,
+            updatedCalldatas,
+            "new desc",
+            "tx update without fresh sponsorship"
+        );
+
+        assertTrue(updatedProposalId != proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
     }
 
     function test_ProposalHashDiffersFromIncorrectProposer() public {
@@ -1116,6 +1121,48 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.expectRevert(abi.encodeWithSignature("INVALID_CANCEL()"));
         governor.cancel(proposalId);
+    }
+
+    function testRevert_CannotCancelSignedProposalWhenCombinedVotesAtThreshold() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+
+        vm.expectRevert(abi.encodeWithSignature("INVALID_CANCEL()"));
+        governor.cancel(proposalId);
+    }
+
+    function test_SignerCanCancelSignedProposal() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+
+        vm.prank(voter1);
+        governor.cancel(proposalId);
+
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
     }
 
     function test_VetoProposal() public {

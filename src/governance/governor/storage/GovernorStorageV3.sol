@@ -16,6 +16,9 @@ contract GovernorStorageV3 {
     /// @notice Signers that sponsored a signed proposal
     mapping(bytes32 => address[]) internal proposalSigners;
 
+    /// @notice The timestamp until which a proposal can be updated
+    mapping(bytes32 => uint32) internal proposalUpdatePeriodEnds;
+
     /// @notice Mapping from previous proposal id to replacement id created by update
     mapping(bytes32 => bytes32) public proposalIdReplacedBy;
 
