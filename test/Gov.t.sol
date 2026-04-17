@@ -449,6 +449,24 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertEq(proposal.proposer, voter2);
     }
 
+    function testRevert_ProposeBySigsSignerCannotBeProposer() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter2PK, voter2, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.expectRevert(abi.encodeWithSignature("PROPOSER_CANNOT_BE_SIGNER()"));
+        vm.prank(voter2);
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+    }
+
     function test_UpdateProposalBySigs() public {
         deployMock();
 

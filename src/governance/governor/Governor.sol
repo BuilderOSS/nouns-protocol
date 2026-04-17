@@ -199,6 +199,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         for (uint256 i = 0; i < _proposerSignatures.length; ++i) {
             ProposerSignature memory proposerSignature = _proposerSignatures[i];
 
+            if (proposerSignature.signer == msg.sender) revert PROPOSER_CANNOT_BE_SIGNER();
+
             if (i > 0 && proposerSignature.signer <= _proposerSignatures[i - 1].signer) {
                 revert INVALID_SIGNATURE_ORDER();
             }
