@@ -1,4 +1,4 @@
-# Governor Upgrade Spec (Hybrid EAS + Onchain Sigs)
+# Governor Architecture (Hybrid EAS + Onchain Signatures)
 
 ## Scope
 
@@ -49,11 +49,11 @@ Notes:
   - the proposer independently met proposal threshold at creation time.
 - `updateProposalBySigs` remains available as an optional stricter path for sponsor re-approval.
 - Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
+- Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
 
-## Proposal Identity & Updates
+## Proposal Identity and Updates
 
-The current protocol proposal id is hash-based and includes description hash.
-Any description/tx change creates a new proposal id.
+The protocol proposal id is hash-based and includes description hash. Any description/tx change creates a new proposal id.
 
 Update flow:
 
@@ -65,22 +65,17 @@ Update flow:
 
 ## Storage Additions
 
-Add append-only `GovernorStorageV3`:
+Append-only `GovernorStorageV3` additions:
 
-- `proposalUpdatablePeriod`
+- `_proposalUpdatablePeriod`
 - `proposeSigNonces`
 - `proposalSigners[proposalId]`
 - `proposalIdReplacedBy`
+- `proposalUpdatePeriodEnds[proposalId]`
 
 Vote signature nonces use the existing EIP-712 `nonces` mapping.
 
-Extend proposal type with:
-
-- no new fields (existing `Proposal` layout remains upgrade-safe)
-
-Add side mappings for:
-
-- `proposalUpdatePeriodEnds[proposalId]`
+No new fields are inserted into legacy `Proposal` storage layout.
 
 ## Breaking Changes
 
@@ -95,15 +90,13 @@ Add side mappings for:
 - `castVoteBySig(...)` (new bytes signature API)
 - `updateProposalUpdatablePeriod(uint256 newPeriod)`
 
-Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
-
 ## EAS Hybrid Boundary
 
 - EAS provides candidate drafting and revision/discussion UX.
 - Governor enforces threshold/signature validity on final promotion and updates.
 - Subgraph controls canonical latest draft selection policy.
 
-## Upgrade / Rollout
+## Upgrade and Rollout
 
 Existing DAOs:
 

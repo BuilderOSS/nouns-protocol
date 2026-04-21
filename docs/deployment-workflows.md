@@ -145,5 +145,5 @@ yarn addresses:sync-manager-owner
 
 Then execute manager owner actions and DAO upgrades using:
 
-- `docs/mainnet-v2-upgrade-runbook.md`
+- `docs/upgrade-runbook.md`
 - `docs/manager-ownership-runbook.md`

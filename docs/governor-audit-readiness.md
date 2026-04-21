@@ -4,6 +4,8 @@
 
 This checklist covers governor changes introduced on branch `feat/governor-signed-proposals-updatable-state`.
 
+Reference architecture: `docs/governor-architecture.md`.
+
 Key feature additions:
 
 - `proposeBySigs`
