@@ -10,9 +10,6 @@ contract GovernorStorageV3 {
     /// @notice Nonce used for propose/update signatures
     mapping(address => uint256) internal proposeSigNonces;
 
-    /// @notice Sender-canceled signatures by hash
-    mapping(address => mapping(bytes32 => bool)) internal cancelledSigs;
-
     /// @notice Signers that sponsored a signed proposal
     mapping(bytes32 => address[]) internal proposalSigners;
 
@@ -22,6 +19,4 @@ contract GovernorStorageV3 {
     /// @notice Mapping from previous proposal id to replacement id created by update
     mapping(bytes32 => bytes32) public proposalIdReplacedBy;
 
-    /// @notice Reverse mapping for replacement proposal ids
-    mapping(bytes32 => bytes32) public proposalIdReplaces;
 }

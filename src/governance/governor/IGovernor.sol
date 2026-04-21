@@ -40,9 +40,6 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @notice Emitted when proposal signers are set on signed proposal creation
     event ProposalSignersSet(bytes32 proposalId, address[] signers);
 
-    /// @notice Emitted when a previously signed message is cancelled
-    event SignatureCancelled(address signer, bytes signature);
-
     /// @notice Emitted when a proposal is queued
     event ProposalQueued(bytes32 proposalId, uint256 eta);
 
@@ -159,8 +156,6 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     error VOTES_BELOW_PROPOSAL_THRESHOLD();
 
-    error SIGNATURE_CANCELLED();
-
     error INVALID_SIGNATURE_ORDER();
 
     error INVALID_SIGNATURE_NONCE();
@@ -263,9 +258,6 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
         uint256 deadline,
         bytes calldata sig
     ) external returns (uint256);
-
-    /// @notice Cancels a signature so it cannot be reused
-    function cancelSig(bytes calldata sig) external;
 
     /// @notice Queues a proposal
     /// @param proposalId The proposal id

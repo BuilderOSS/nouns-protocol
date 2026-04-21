@@ -9,7 +9,6 @@ Key feature additions:
 - `proposeBySigs`
 - `updateProposal`
 - `updateProposalBySigs`
-- `cancelSig`
 - `Updatable` proposal state
 - `castVoteBySig` ABI upgrade (`bytes` signature path)
 
@@ -21,7 +20,7 @@ Key feature additions:
 - Signature replay protections:
   - vote signatures use existing `nonces` mapping,
   - propose/update signatures use `proposeSigNonces`,
-  - signature cancellation via `cancelSig` + `cancelledSigs`.
+  - signatures expire via deadline checks.
 - Third-party cancellation for signed proposals checks combined proposer + signer votes.
 - Proposal updates are only allowed in `Updatable` state.
 - For signed proposals, unsigned `updateProposal` is only allowed if proposer met threshold at creation-time reference (`timeCreated - 1`), otherwise `updateProposalBySigs` is required.
@@ -32,10 +31,9 @@ Key feature additions:
 - New fields are append-only through `GovernorStorageV3` mappings:
   - `_proposalUpdatablePeriod`
   - `proposeSigNonces`
-  - `cancelledSigs`
   - `proposalSigners`
   - `proposalUpdatePeriodEnds`
-  - `proposalIdReplacedBy` / `proposalIdReplaces`
+  - `proposalIdReplacedBy`
 - `ProposalState.Updatable` is appended to enum tail to preserve existing numeric values.
 
 ## User Flow Coverage (Gov.t.sol)

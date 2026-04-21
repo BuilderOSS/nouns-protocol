@@ -340,12 +340,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         return _castVote(_proposalId, _voter, _support, "");
     }
 
-    /// @notice Cancels a signature hash so it cannot be reused
-    function cancelSig(bytes calldata _sig) external {
-        cancelledSigs[msg.sender][keccak256(_sig)] = true;
-        emit SignatureCancelled(msg.sender, _sig);
-    }
-
     /// @dev Stores a vote
     /// @param _proposalId The proposal id
     /// @param _voter The voter address
@@ -884,7 +878,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         proposals[_oldProposalId].canceled = true;
         proposalIdReplacedBy[_oldProposalId] = newProposalId;
-        proposalIdReplaces[newProposalId] = _oldProposalId;
     }
 
     function _verifyProposeSignature(
@@ -894,9 +887,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     ) internal {
         if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
         if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
-
-        bytes32 sigHash = keccak256(_proposerSignature.sig);
-        if (cancelledSigs[_proposerSignature.signer][sigHash]) revert SIGNATURE_CANCELLED();
 
         bytes32 structHash = keccak256(
             abi.encode(PROPOSAL_TYPEHASH, _proposer, _txsHash, _proposerSignature.nonce, _proposerSignature.deadline)
@@ -918,9 +908,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     ) internal {
         if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
         if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
-
-        bytes32 sigHash = keccak256(_proposerSignature.sig);
-        if (cancelledSigs[_proposerSignature.signer][sigHash]) revert SIGNATURE_CANCELLED();
 
         bytes32 structHash = keccak256(
             abi.encode(

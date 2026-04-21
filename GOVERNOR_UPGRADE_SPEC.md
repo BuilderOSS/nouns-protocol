@@ -69,9 +69,8 @@ Add append-only `GovernorStorageV3`:
 
 - `proposalUpdatablePeriod`
 - `proposeSigNonces`
-- `cancelledSigs[signer][sigHash]`
 - `proposalSigners[proposalId]`
-- `proposalIdReplacedBy` / `proposalIdReplaces`
+- `proposalIdReplacedBy`
 
 Vote signature nonces use the existing EIP-712 `nonces` mapping.
 
@@ -94,8 +93,9 @@ Add side mappings for:
 - `updateProposal(...)`
 - `updateProposalBySigs(...)`
 - `castVoteBySig(...)` (new bytes signature API)
-- `cancelSig(bytes sig)`
 - `updateProposalUpdatablePeriod(uint256 newPeriod)`
+
+Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
 
 ## EAS Hybrid Boundary
 
