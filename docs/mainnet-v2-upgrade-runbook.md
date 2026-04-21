@@ -126,6 +126,12 @@ Suggested proposal note for v2 rollout:
   to `(address voter, bytes32 proposalId, uint256 support, uint256 nonce, uint256 deadline, bytes sig)`.
 - Any frontend, SDK, script, or indexer using the old selector must be updated before proposing the Governor upgrade.
 
+## Governor Signed Update Policy Note
+
+- Signed proposals can be updated without fresh signatures only if proposer independently met threshold at proposal creation-time reference.
+- Otherwise proposer must use `updateProposalBySigs`.
+- See `docs/governor-audit-readiness.md` for flow and invariant checklist.
+
 ## Phase 3: Existing DAO Upgrades
 
 Each DAO upgrades itself through its own governance proposal.

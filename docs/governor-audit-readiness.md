@@ -1,0 +1,72 @@
+# Governor Upgrade Audit Readiness
+
+## Scope
+
+This checklist covers governor changes introduced on branch `feat/governor-signed-proposals-updatable-state` up to commit `08bd6e5`.
+
+Key feature additions:
+
+- `proposeBySigs`
+- `updateProposal`
+- `updateProposalBySigs`
+- `cancelSig`
+- `Updatable` proposal state
+- `castVoteBySig` ABI upgrade (`bytes` signature path)
+
+## Security Invariants
+
+- Signature validation uses OpenZeppelin `SignatureChecker` for EOA + ERC1271 compatibility.
+- Signed proposing uses strict ordered signer list.
+- Proposer cannot appear in signer set (`PROPOSER_CANNOT_BE_SIGNER`) to avoid vote double counting.
+- Signature replay protections:
+  - vote signatures use existing `nonces` mapping,
+  - propose/update signatures use `proposeSigNonces`,
+  - signature cancellation via `cancelSig` + `cancelledSigs`.
+- Third-party cancellation for signed proposals checks combined proposer + signer votes.
+- Proposal updates are only allowed in `Updatable` state.
+- For signed proposals, unsigned `updateProposal` is only allowed if proposer met threshold at creation-time reference (`timeCreated - 1`), otherwise `updateProposalBySigs` is required.
+
+## Storage / Upgrade Safety
+
+- Legacy `Proposal` struct layout is preserved (no in-place field insertion).
+- New fields are append-only through `GovernorStorageV3` mappings:
+  - `_proposalUpdatablePeriod`
+  - `proposeSigNonces`
+  - `cancelledSigs`
+  - `proposalSigners`
+  - `proposalUpdatePeriodEnds`
+  - `proposalIdReplacedBy` / `proposalIdReplaces`
+- `ProposalState.Updatable` is appended to enum tail to preserve existing numeric values.
+
+## User Flow Coverage (Gov.t.sol)
+
+- Member proposer, no signatures:
+  - create + standard lifecycle: `test_CreateProposal`, `test_ProposalVoteQueueExecution`
+- External proposer, with signatures:
+  - create: `test_ProposeBySigs`
+  - unsigned update blocked if unqualified: `testRevert_UpdateProposalTxsOnSignedProposalWithoutSignaturesForUnqualifiedProposer`
+  - signed update path: `test_UpdateProposalBySigs`
+- Member proposer, with signatures:
+  - proposer can unsigned-update during updatable window if independently qualified: `test_UpdateProposalOnSignedProposalForQualifiedProposer`
+- State transitions:
+  - `Updatable -> Pending -> Active`: `test_ProposalState_UpdatableToPendingToActive`
+- Signed-proposal cancellation semantics:
+  - combined-vote threshold for third-party cancellation: `testRevert_CannotCancelSignedProposalWhenCombinedVotesAtThreshold`
+  - signer cancel ability: `test_SignerCanCancelSignedProposal`
+- Signature edge cases:
+  - invalid signer/nonce/expiry: `testRevert_InvalidVoteSigner`, `testRevert_InvalidVoteNonce`, `testRevert_InvalidVoteExpired`
+  - proposer in signer set blocked: `testRevert_ProposeBySigsSignerCannotBeProposer`
+
+## Integration / UX Notes
+
+- `castVoteBySig` ABI breaking change:
+  - old: `(deadline, v, r, s)`
+  - new: `(nonce, deadline, bytes sig)`
+- Proposal updates create replacement IDs and mark old proposals canceled.
+- Indexers/UI should follow replacement mappings and present revision diffs.
+
+## Operational Rollout Checks
+
+- Set `_proposalUpdatablePeriod` after governor upgrade (defaults to zero if not set).
+- Ensure frontends, indexers, and SDK clients migrate to new `castVoteBySig` ABI.
+- Verify offchain signature builders use updated EIP-712 payloads and nonce sources.
