@@ -517,13 +517,28 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
     }
 
-    function test_UpdateProposalTxsOnSignedProposalWithoutSignatures() public {
-        deployMock();
+    function testRevert_UpdateProposalTxsOnSignedProposalWithoutSignaturesForUnqualifiedProposer() public {
+        deployAltMock();
 
         mintVoter1();
 
+        for (uint256 i; i < 96; i++) {
+            vm.prank(address(auction));
+            token.mint();
+        }
+
+        createVoters(2, 5 ether);
+        vm.prank(otherUsers[0]);
+        token.delegate(voter1);
+        vm.prank(otherUsers[1]);
+        token.delegate(voter1);
+
+        vm.warp(block.timestamp + 20);
+
+        assertGt(token.totalSupply(), 100);
+
         vm.prank(address(treasury));
-        governor.updateProposalThresholdBps(1);
+        governor.updateProposalThresholdBps(100);
 
         vm.prank(address(treasury));
         governor.updateProposalUpdatablePeriod(1 days);
@@ -539,14 +554,41 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
 
+        vm.expectRevert(abi.encodeWithSignature("UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES()"));
         vm.prank(voter2);
+        governor.updateProposal(proposalId, targets, values, updatedCalldatas, "new desc", "update without signatures");
+    }
+
+    function test_UpdateProposalOnSignedProposalForQualifiedProposer() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter2PK, voter2, voter1, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "member proposer signed proposal");
+
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        vm.prank(voter1);
         bytes32 updatedProposalId = governor.updateProposal(
             proposalId,
             targets,
             values,
             updatedCalldatas,
             "new desc",
-            "tx update without fresh sponsorship"
+            "qualified proposer update"
         );
 
         assertTrue(updatedProposalId != proposalId);

@@ -240,6 +240,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         Proposal memory oldProposal = proposals[_proposalId];
         address[] storage signers = proposalSigners[_proposalId];
 
+        if (signers.length > 0 && !_proposerMetThresholdAtCreation(oldProposal)) {
+            revert UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES();
+        }
+
         bytes32 newProposalId = _replaceProposal(_proposalId, oldProposal, signers, _targets, _values, _calldatas, _description);
 
         emit ProposalUpdated(_proposalId, newProposalId, _targets, _values, _calldatas, _description, _updateMessage);
@@ -832,6 +836,14 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     function _checkCanUpdateProposal(bytes32 _proposalId) internal view {
         if (state(_proposalId) != ProposalState.Updatable) revert CAN_ONLY_EDIT_UPDATABLE_PROPOSALS();
         if (msg.sender != proposals[_proposalId].proposer) revert ONLY_PROPOSER_CAN_EDIT();
+    }
+
+    function _proposerMetThresholdAtCreation(Proposal memory _proposal) internal view returns (bool) {
+        if (_proposal.timeCreated == 0) {
+            return false;
+        }
+
+        return getVotes(_proposal.proposer, uint256(_proposal.timeCreated) - 1) >= _proposal.proposalThreshold;
     }
 
     function _replaceProposal(

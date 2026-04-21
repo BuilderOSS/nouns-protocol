@@ -44,7 +44,9 @@ All signatures are EIP-712 and verified with EOA + ERC-1271 support.
 Notes:
 
 - Signatures for proposal sponsorship bind to tx bundle hash (not description text).
-- `updateProposal` allows full edits (description and txs) during `Updatable`.
+- `updateProposal` allows full edits (description and txs) during `Updatable` when either:
+  - the proposal has no signers, or
+  - the proposer independently met proposal threshold at creation time.
 - `updateProposalBySigs` remains available as an optional stricter path for sponsor re-approval.
 - Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
 

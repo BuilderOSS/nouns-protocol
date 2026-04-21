@@ -167,6 +167,8 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     error PROPOSER_CANNOT_BE_SIGNER();
 
+    error UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES();
+
     ///                                                          ///
     ///                          FUNCTIONS                       ///
     ///                                                          ///
