@@ -2,7 +2,7 @@
 
 ## Scope
 
-This checklist covers governor changes introduced on branch `feat/governor-signed-proposals-updatable-state` up to commit `08bd6e5`.
+This checklist covers governor changes introduced on branch `feat/governor-signed-proposals-updatable-state`.
 
 Key feature additions:
 
