@@ -5,3 +5,4 @@
 - [`manager-ownership-runbook`](./manager-ownership-runbook.md): Manager ownership transfer guide (governance or multisig), verification steps, and JSON manifest tracking fields.
 - [`governor-architecture`](./governor-architecture.md): Governor feature design for signed proposals, updatable lifecycle, storage model, and EAS hybrid boundary.
 - [`governor-audit-readiness`](./governor-audit-readiness.md): Security invariants, upgrade/storage checks, user-flow test coverage, and rollout checklist.
+- [`governor-proposal-lifecycle`](./governor-proposal-lifecycle.md): End-to-end proposal state machine and timing reference with query map, defaults, and update permissions.

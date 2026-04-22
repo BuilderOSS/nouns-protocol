@@ -152,6 +152,8 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     error MUST_PROVIDE_SIGNATURES();
 
+    error TOO_MANY_SIGNERS();
+
     error SIGNER_COUNT_MISMATCH();
 
     error VOTES_BELOW_PROPOSAL_THRESHOLD();
@@ -163,6 +165,8 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     error PROPOSER_CANNOT_BE_SIGNER();
 
     error UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES();
+
+    error NO_OP_PROPOSAL_UPDATE();
 
     ///                                                          ///
     ///                          FUNCTIONS                       ///
@@ -303,6 +307,14 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @notice The details of a proposal
     /// @param proposalId The proposal id
     function getProposal(bytes32 proposalId) external view returns (Proposal memory);
+
+    /// @notice The signers that sponsored a signed proposal
+    /// @param proposalId The proposal id
+    function getProposalSigners(bytes32 proposalId) external view returns (address[] memory);
+
+    /// @notice The timestamp until which proposal updates are allowed
+    /// @param proposalId The proposal id
+    function proposalUpdatePeriodEnd(bytes32 proposalId) external view returns (uint256);
 
     /// @notice The timestamp when voting starts for a proposal
     /// @param proposalId The proposal id

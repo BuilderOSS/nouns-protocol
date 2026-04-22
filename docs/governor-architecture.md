@@ -1,5 +1,7 @@
 # Governor Architecture (Hybrid EAS + Onchain Signatures)
 
+For a state-by-state operator/reference guide, see `docs/governor-proposal-lifecycle.md`.
+
 ## Scope
 
 - Add `proposeBySigs` and `updateProposalBySigs` to Governor.
@@ -33,6 +35,11 @@ State transitions:
 
 Updates are disallowed once proposal is `Active`.
 
+Default on fresh governor initialization:
+
+- `proposalUpdatablePeriod = 1 day`
+- existing upgraded DAOs retain prior stored value unless explicitly updated
+
 ## Signature Model
 
 All signatures are EIP-712 and verified with EOA + ERC-1271 support.
@@ -49,6 +56,7 @@ Notes:
   - the proposer independently met proposal threshold at creation time.
 - `updateProposalBySigs` remains available as an optional stricter path for sponsor re-approval.
 - Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
+- Signed proposals cap signer sponsorship to 32 addresses.
 - Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
 
 ## Proposal Identity and Updates
@@ -59,6 +67,7 @@ Update flow:
 
 - Validate old proposal is updatable and caller is proposer.
 - Compute new proposal id from updated content.
+- Revert if update is a no-op (same proposal id).
 - Copy proposal timing/requirements metadata to new id.
 - Mark old id canceled.
 - Emit explicit replacement event `oldProposalId -> newProposalId`.
@@ -72,6 +81,12 @@ Append-only `GovernorStorageV3` additions:
 - `proposalSigners[proposalId]`
 - `proposalIdReplacedBy`
 - `proposalUpdatePeriodEnds[proposalId]`
+
+Read helpers exposed by Governor:
+
+- `getProposalSigners(proposalId)`
+- `proposalUpdatePeriodEnd(proposalId)`
+- `proposalIdReplacedBy(oldProposalId)`
 
 Vote signature nonces use the existing EIP-712 `nonces` mapping.
 

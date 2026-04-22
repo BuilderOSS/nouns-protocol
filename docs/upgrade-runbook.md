@@ -90,11 +90,30 @@ Apply additional contract upgrades if part of the rollout scope.
 - Signed proposal update policy:
   - signed proposals can use unsigned `updateProposal` only if proposer independently met threshold at creation-time reference,
   - otherwise proposer must use `updateProposalBySigs`.
+- Proposal updates that do not change proposal identity now revert (`NO_OP_PROPOSAL_UPDATE`).
+- Indexers/frontends should use proposal revision helpers:
+  - `proposalIdReplacedBy(oldId)`
+  - `getProposalSigners(proposalId)`
+  - `proposalUpdatePeriodEnd(proposalId)`
 
 See:
 
 - `docs/governor-architecture.md`
 - `docs/governor-audit-readiness.md`
+
+## Existing vs New DAO Rollout
+
+### Existing DAOs (proxy upgrades)
+
+- Existing governor proxies keep storage and do not rerun `initialize`.
+- `proposalUpdatablePeriod` remains whatever was already set (for legacy DAOs this is typically `0`) until governance sets it.
+- During rollout, include `Governor.updateProposalUpdatablePeriod(...)` in the DAO's post-upgrade governance actions.
+
+### New DAOs (fresh deploy via Manager)
+
+- New governor proxies run `initialize` during `Manager.deploy`.
+- Governor defaults `proposalUpdatablePeriod` to `1 day` at initialization.
+- If your deployment policy differs, include a follow-up governance/owner action to update `proposalUpdatablePeriod` after deploy.
 
 ## Verification Checklist
 
@@ -106,6 +125,9 @@ After manager and DAO upgrades:
 4. `getLatestVersions()` reflects expected latest versions.
 5. For each upgraded DAO, `getDAOVersions(token)` reflects expected versions.
 6. Governance-specific config set as expected (for example `_proposalUpdatablePeriod`).
+7. Client compatibility verified:
+   - vote signing uses `(nonce, deadline, bytes sig)`
+   - proposal update clients handle replacement ids and no-op update reverts.
 
 ## Operational Safety
 

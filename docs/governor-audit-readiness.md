@@ -18,6 +18,7 @@ Key feature additions:
 
 - Signature validation uses OpenZeppelin `SignatureChecker` for EOA + ERC1271 compatibility.
 - Signed proposing uses strict ordered signer list.
+- Signed proposing enforces a hard cap of 32 signers per proposal.
 - Proposer cannot appear in signer set (`PROPOSER_CANNOT_BE_SIGNER`) to avoid vote double counting.
 - Signature replay protections:
   - vote signatures use existing `nonces` mapping,
@@ -25,6 +26,7 @@ Key feature additions:
   - signatures expire via deadline checks.
 - Third-party cancellation for signed proposals checks combined proposer + signer votes.
 - Proposal updates are only allowed in `Updatable` state.
+- No-op proposal updates (same resulting proposal id) revert with `NO_OP_PROPOSAL_UPDATE`.
 - For signed proposals, unsigned `updateProposal` is only allowed if proposer met threshold at creation-time reference (`timeCreated - 1`), otherwise `updateProposalBySigs` is required.
 
 ## Storage / Upgrade Safety
@@ -64,9 +66,14 @@ Key feature additions:
   - new: `(nonce, deadline, bytes sig)`
 - Proposal updates create replacement IDs and mark old proposals canceled.
 - Indexers/UI should follow replacement mappings and present revision diffs.
+- Read helpers are available for indexer/client consistency:
+  - `proposalIdReplacedBy(oldId)`
+  - `getProposalSigners(proposalId)`
+  - `proposalUpdatePeriodEnd(proposalId)`
 
 ## Operational Rollout Checks
 
-- Set `_proposalUpdatablePeriod` after governor upgrade (defaults to zero if not set).
+- Existing upgraded DAOs: set `_proposalUpdatablePeriod` after governor upgrade (legacy value remains unchanged unless set).
+- New DAOs initialized with upgraded governor default to `_proposalUpdatablePeriod = 1 days`.
 - Ensure frontends, indexers, and SDK clients migrate to new `castVoteBySig` ABI.
 - Verify offchain signature builders use updated EIP-712 payloads and nonce sources.

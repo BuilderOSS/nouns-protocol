@@ -66,6 +66,12 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice The maximum proposal updatable period setting
     uint256 public immutable MAX_PROPOSAL_UPDATABLE_PERIOD = 24 weeks;
 
+    /// @notice The default period a newly-created proposal is editable
+    uint256 public constant DEFAULT_PROPOSAL_UPDATABLE_PERIOD = 1 days;
+
+    /// @notice The maximum number of signer sponsors allowed per proposal
+    uint256 public constant MAX_PROPOSAL_SIGNERS = 32;
+
     /// @notice The maximum delayed governance expiration setting
     uint256 public immutable MAX_DELAYED_GOVERNANCE_EXPIRATION = 30 days;
 
@@ -130,6 +136,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         settings.votingPeriod = SafeCast.toUint48(_votingPeriod);
         settings.proposalThresholdBps = SafeCast.toUint16(_proposalThresholdBps);
         settings.quorumThresholdBps = SafeCast.toUint16(_quorumThresholdBps);
+        _proposalUpdatablePeriod = uint48(DEFAULT_PROPOSAL_UPDATABLE_PERIOD);
 
         // Initialize EIP-712 support
         __EIP712_init(string.concat(settings.token.symbol(), " GOV"), "1");
@@ -183,6 +190,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         string memory _description
     ) external returns (bytes32) {
         if (_proposerSignatures.length == 0) revert MUST_PROVIDE_SIGNATURES();
+        if (_proposerSignatures.length > MAX_PROPOSAL_SIGNERS) revert TOO_MANY_SIGNERS();
 
         // Ensure governance is not delayed or all reserved tokens have been minted
         if (block.timestamp < delayedGovernanceExpirationTimestamp && settings.token.remainingTokensInReserve() > 0) {
@@ -594,6 +602,18 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         return proposals[_proposalId];
     }
 
+    /// @notice The signers that sponsored a signed proposal
+    /// @param _proposalId The proposal id
+    function getProposalSigners(bytes32 _proposalId) external view returns (address[] memory) {
+        return proposalSigners[_proposalId];
+    }
+
+    /// @notice The timestamp until which proposal updates are allowed
+    /// @param _proposalId The proposal id
+    function proposalUpdatePeriodEnd(bytes32 _proposalId) external view returns (uint256) {
+        return proposalUpdatePeriodEnds[_proposalId];
+    }
+
     /// @notice The timestamp when voting starts for a proposal
     /// @param _proposalId The proposal id
     function proposalSnapshot(bytes32 _proposalId) external view returns (uint256) {
@@ -853,7 +873,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         newProposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, _oldProposal.proposer);
 
         if (newProposalId == _oldProposalId) {
-            return newProposalId;
+            revert NO_OP_PROPOSAL_UPDATE();
         }
 
         if (proposals[newProposalId].voteStart != 0) revert PROPOSAL_EXISTS(newProposalId);

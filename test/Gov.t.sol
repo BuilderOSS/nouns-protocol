@@ -280,6 +280,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
 
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(0);
+
         vm.warp(block.timestamp + 20);
 
         vm.prank(voter1);
@@ -293,6 +296,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bytes memory _calldata
     ) internal returns (bytes32 proposalId) {
         deployMock();
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(0);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
@@ -316,6 +322,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         assertEq(governor.votingDelay(), govParams.votingDelay);
         assertEq(governor.votingPeriod(), govParams.votingPeriod);
+        assertEq(governor.proposalUpdatablePeriod(), 1 days);
         assertEq(governor.proposalThresholdBps(), govParams.proposalThresholdBps);
         assertEq(governor.quorumThresholdBps(), govParams.quorumThresholdBps);
     }
@@ -363,8 +370,11 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         assertEq(proposal.proposer, voter1);
 
-        assertEq(proposal.voteStart, block.timestamp + governor.votingDelay());
-        assertEq(proposal.voteEnd, block.timestamp + governor.votingDelay() + governor.votingPeriod());
+        assertEq(proposal.voteStart, block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
+        assertEq(
+            proposal.voteEnd,
+            block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay() + governor.votingPeriod()
+        );
 
         assertEq(proposal.voteStart, governor.proposalSnapshot(proposalId));
         assertEq(proposal.voteEnd, governor.proposalDeadline(proposalId));
@@ -372,7 +382,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertEq(proposal.proposalThreshold, (token.totalSupply() * governor.proposalThresholdBps()) / 10_000);
         assertEq(proposal.quorumVotes, (token.totalSupply() * governor.quorumThresholdBps()) / 10_000);
 
-        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Pending));
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Updatable));
 
         assertEq(treasury.hashProposal(targets, values, calldatas, descriptionHash, voter1), proposalId);
     }
@@ -446,7 +456,32 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
 
         Proposal memory proposal = governor.getProposal(proposalId);
+        address[] memory signers = governor.getProposalSigners(proposalId);
+
         assertEq(proposal.proposer, voter2);
+        assertEq(signers.length, 1);
+        assertEq(signers[0], voter1);
+    }
+
+    function testRevert_UpdateProposalNoOp() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "");
+
+        vm.expectRevert(abi.encodeWithSignature("NO_OP_PROPOSAL_UPDATE()"));
+        vm.prank(voter1);
+        governor.updateProposal(proposalId, targets, values, calldatas, "", "no-op update");
     }
 
     function testRevert_ProposeBySigsSignerCannotBeProposer() public {
@@ -464,6 +499,17 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.expectRevert(abi.encodeWithSignature("PROPOSER_CANNOT_BE_SIGNER()"));
         vm.prank(voter2);
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+    }
+
+    function testRevert_ProposeBySigsTooManySigners() public {
+        deployMock();
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](33);
+
+        vm.expectRevert(abi.encodeWithSignature("TOO_MANY_SIGNERS()"));
         governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
     }
 
@@ -1277,6 +1323,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         mintVoter1();
 
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(0);
+
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
 
         bytes32 descriptionHash = keccak256(bytes("test"));
@@ -1305,6 +1354,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
     function test_UpdateDelay(uint128 _newDelay) public {
         deployMock();
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(0);
 
         vm.prank(founder);
         auction.unpause();
@@ -1372,6 +1424,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
     function test_GracePeriod(uint128 _newGracePeriod) public {
         deployMock();
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(0);
 
         vm.prank(founder);
         auction.unpause();
