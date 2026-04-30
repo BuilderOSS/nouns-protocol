@@ -7,6 +7,8 @@ import { IManager, Manager } from "../src/manager/Manager.sol";
 
 import { MockImpl } from "./utils/mocks/MockImpl.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
+import { BridgeTypes } from "../src/bridge/types/BridgeTypes.sol";
+import { IOwnable } from "../src/lib/interfaces/IOwnable.sol";
 
 contract ManagerTest is NounsBuilderTest {
     MockImpl internal mockImpl;
@@ -155,5 +157,110 @@ contract ManagerTest is NounsBuilderTest {
         vm.startPrank(founder);
         manager.setMetadataRenderer(address(token), metadataRendererImpl, tokenParams.initStrings);
         vm.stopPrank();
+    }
+
+    function test_DeployBridgeInfrastructure() public {
+        deployMock();
+
+        IManager.BridgeDeployParams memory params = IManager.BridgeDeployParams({
+            daoId: keccak256(abi.encode(address(token))),
+            sourceTreasury: address(treasury),
+            sourceChainId: block.chainid,
+            destinationChainId: 8453,
+            destinationEid: 30184,
+            transportAdapterId: 1,
+            layerZeroEndpoint: makeAddr("lzEndpoint"),
+            bridgeOwner: manager.owner(),
+            destinationManagedAdmin: makeAddr("managedAdmin"),
+            destinationGuardian: makeAddr("guardian"),
+            mode: BridgeTypes.BridgeMode.MANAGED,
+            verificationThreshold: 1,
+            modeChangeMinDelay: 1 days,
+            modeChangeCooldown: 1 days
+        });
+
+        vm.prank(manager.owner());
+        IManager.BridgeAddresses memory addresses = manager.deployBridgeInfrastructure(params);
+
+        assertTrue(addresses.sourceBridgeAdapter != address(0));
+        assertTrue(addresses.destinationExecutor != address(0));
+        assertTrue(addresses.transportAdapter != address(0));
+        assertTrue(addresses.safeWalletAdapter != address(0));
+        assertTrue(addresses.verificationPolicy != address(0));
+
+        assertEq(IOwnable(addresses.sourceBridgeAdapter).owner(), address(manager));
+        assertEq(IOwnable(addresses.destinationExecutor).owner(), manager.owner());
+
+        IManager.BridgeAddresses memory stored = manager.getBridgeAddresses(params.daoId, params.destinationChainId);
+        assertEq(stored.sourceBridgeAdapter, addresses.sourceBridgeAdapter);
+        assertEq(stored.destinationExecutor, addresses.destinationExecutor);
+        assertEq(stored.transportAdapter, addresses.transportAdapter);
+        assertEq(stored.safeWalletAdapter, addresses.safeWalletAdapter);
+        assertEq(stored.verificationPolicy, addresses.verificationPolicy);
+
+        assertEq(manager.getSourceBridgeAdapter(params.daoId), addresses.sourceBridgeAdapter);
+    }
+
+    function testRevert_OnlyOwnerCanDeployBridgeInfrastructure() public {
+        deployMock();
+
+        IManager.BridgeDeployParams memory params = IManager.BridgeDeployParams({
+            daoId: keccak256("dao"),
+            sourceTreasury: address(treasury),
+            sourceChainId: block.chainid,
+            destinationChainId: 10,
+            destinationEid: 11111,
+            transportAdapterId: 1,
+            layerZeroEndpoint: makeAddr("lzEndpoint"),
+            bridgeOwner: manager.owner(),
+            destinationManagedAdmin: makeAddr("managedAdmin"),
+            destinationGuardian: makeAddr("guardian"),
+            mode: BridgeTypes.BridgeMode.MANAGED,
+            verificationThreshold: 1,
+            modeChangeMinDelay: 1 days,
+            modeChangeCooldown: 1 days
+        });
+
+        vm.expectRevert(abi.encodeWithSignature("ONLY_OWNER()"));
+        manager.deployBridgeInfrastructure(params);
+    }
+
+    function test_DeployBridgeInfrastructure_MultipleChainsReuseSourceAdapter() public {
+        deployMock();
+
+        bytes32 daoId = keccak256(abi.encode(address(token)));
+
+        IManager.BridgeDeployParams memory params = IManager.BridgeDeployParams({
+            daoId: daoId,
+            sourceTreasury: address(treasury),
+            sourceChainId: block.chainid,
+            destinationChainId: 8453,
+            destinationEid: 30184,
+            transportAdapterId: 1,
+            layerZeroEndpoint: makeAddr("lzEndpoint1"),
+            bridgeOwner: manager.owner(),
+            destinationManagedAdmin: makeAddr("managedAdmin1"),
+            destinationGuardian: makeAddr("guardian1"),
+            mode: BridgeTypes.BridgeMode.MANAGED,
+            verificationThreshold: 1,
+            modeChangeMinDelay: 1 days,
+            modeChangeCooldown: 1 days
+        });
+
+        vm.prank(manager.owner());
+        IManager.BridgeAddresses memory first = manager.deployBridgeInfrastructure(params);
+
+        params.destinationChainId = 10;
+        params.destinationEid = 30111;
+        params.layerZeroEndpoint = makeAddr("lzEndpoint2");
+        params.destinationManagedAdmin = makeAddr("managedAdmin2");
+        params.destinationGuardian = makeAddr("guardian2");
+
+        vm.prank(manager.owner());
+        IManager.BridgeAddresses memory second = manager.deployBridgeInfrastructure(params);
+
+        assertEq(first.sourceBridgeAdapter, second.sourceBridgeAdapter);
+        assertTrue(first.destinationExecutor != second.destinationExecutor);
+        assertTrue(first.transportAdapter != second.transportAdapter);
     }
 }
