@@ -268,9 +268,16 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         if (_operation != SAFE_OP_CALL) revert INVALID_OPERATION();
         if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
 
+        // Check pause states
+        if (allSafesPaused) revert ALL_SAFES_PAUSED();
+        if (safePaused[_safeId]) revert SAFE_PAUSED();
+
         SafeConfigV2 storage cfg = safes[_safeId];
         if (cfg.safe == address(0)) revert SAFE_NOT_REGISTERED();
         if (!cfg.active) revert SAFE_INACTIVE();
+
+        // Check spending limits
+        _checkSpendingLimits(_safeId, _value);
 
         try IGovernorSafeModule(cfg.execModule).execTransactionFromModule(cfg.safe, _target, _value, _data, _operation) returns (
             bytes memory _returnData
@@ -325,6 +332,74 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         } catch {
             return false;
         }
+    }
+
+    ///                                                          ///
+    ///                      SAFETY MECHANISMS                   ///
+    ///                                                          ///
+
+    /// @notice Sets spending limits for a safe
+    /// @param _safeId The safe id
+    /// @param _perTxLimit Maximum value per transaction (0 = no limit)
+    /// @param _dailyLimit Maximum value per day (0 = no limit)
+    function setSafeSpendingLimits(uint32 _safeId, uint256 _perTxLimit, uint256 _dailyLimit) external {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+
+        safeSpendingLimits[_safeId] = _perTxLimit;
+        safeSpendingTrackers[_safeId].dailyLimit = _dailyLimit;
+
+        emit SafeSpendingLimitUpdated(_safeId, _perTxLimit, _dailyLimit);
+    }
+
+    /// @notice Pauses a specific safe
+    /// @param _safeId The safe id to pause
+    function pauseSafe(uint32 _safeId) external {
+        if (msg.sender != guardian && msg.sender != address(this)) revert ONLY_GUARDIAN();
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+
+        safePaused[_safeId] = true;
+        emit SafePaused(_safeId, msg.sender);
+    }
+
+    /// @notice Unpauses a specific safe
+    /// @param _safeId The safe id to unpause
+    function unpauseSafe(uint32 _safeId) external {
+        if (msg.sender != guardian && msg.sender != address(this)) revert ONLY_GUARDIAN();
+        if (_safeId == 0 || _safeId > _safeCount) revert INVALID_SAFE_ID();
+
+        safePaused[_safeId] = false;
+        emit SafeUnpaused(_safeId, msg.sender);
+    }
+
+    /// @notice Emergency pause all safe execution
+    function pauseAllSafes() external {
+        if (msg.sender != guardian && msg.sender != address(this)) revert ONLY_GUARDIAN();
+
+        allSafesPaused = true;
+        emit AllSafesPaused(msg.sender);
+    }
+
+    /// @notice Unpause all safe execution
+    function unpauseAllSafes() external {
+        if (msg.sender != guardian && msg.sender != address(this)) revert ONLY_GUARDIAN();
+
+        allSafesPaused = false;
+        emit AllSafesUnpaused(msg.sender);
+    }
+
+    /// @notice Sets the guardian address
+    /// @param _guardian The new guardian address
+    function setGuardian(address _guardian) external {
+        if (msg.sender != address(this)) revert ONLY_TREASURY();
+
+        emit GuardianUpdated(guardian, _guardian);
+        guardian = _guardian;
+    }
+
+    /// @notice Gets the guardian address
+    function getGuardian() external view returns (address) {
+        return guardian;
     }
 
     ///                                                          ///
@@ -397,6 +472,33 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
     function _setGlobalPolicy(address _policy, bytes32 _policyHash, bool _enforce) internal {
         globalPolicy = GlobalPolicyV2({ policy: _policy, policyHash: _policyHash, enforce: _enforce });
         emit GlobalPolicyUpdated(_policy, _policyHash, _enforce);
+    }
+
+    /// @dev Checks and updates spending limits for a safe
+    function _checkSpendingLimits(uint32 _safeId, uint256 _value) internal {
+        // Check per-transaction limit
+        uint256 perTxLimit = safeSpendingLimits[_safeId];
+        if (perTxLimit > 0 && _value > perTxLimit) {
+            revert SPENDING_LIMIT_EXCEEDED();
+        }
+
+        // Check daily limit
+        SpendingTrackerV2 storage tracker = safeSpendingTrackers[_safeId];
+        if (tracker.dailyLimit > 0) {
+            // Reset if new day
+            if (block.timestamp >= tracker.lastResetTime + 1 days) {
+                tracker.spentToday = 0;
+                tracker.lastResetTime = uint64(block.timestamp);
+            }
+
+            // Check if adding this transaction would exceed daily limit
+            if (tracker.spentToday + _value > tracker.dailyLimit) {
+                revert DAILY_LIMIT_EXCEEDED();
+            }
+
+            // Update spent amount
+            tracker.spentToday += _value;
+        }
     }
 
     ///                                                          ///

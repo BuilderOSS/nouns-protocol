@@ -69,6 +69,24 @@ interface ITreasury is IUUPS, IOwnable {
         bytes returnData
     );
 
+    /// @notice Emitted when safe spending limit is updated
+    event SafeSpendingLimitUpdated(uint32 indexed safeId, uint256 perTxLimit, uint256 dailyLimit);
+
+    /// @notice Emitted when a safe is paused
+    event SafePaused(uint32 indexed safeId, address indexed pausedBy);
+
+    /// @notice Emitted when a safe is unpaused
+    event SafeUnpaused(uint32 indexed safeId, address indexed unpausedBy);
+
+    /// @notice Emitted when all safes are paused
+    event AllSafesPaused(address indexed pausedBy);
+
+    /// @notice Emitted when all safes are unpaused
+    event AllSafesUnpaused(address indexed unpausedBy);
+
+    /// @notice Emitted when guardian is updated
+    event GuardianUpdated(address indexed previousGuardian, address indexed newGuardian);
+
     ///                                                          ///
     ///                            ERRORS                        ///
     ///                                                          ///
@@ -119,6 +137,21 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @dev Reverts if module is not enabled on safe
     error MODULE_NOT_ENABLED();
+
+    /// @dev Reverts if safe execution is paused
+    error SAFE_PAUSED();
+
+    /// @dev Reverts if all safe execution is paused
+    error ALL_SAFES_PAUSED();
+
+    /// @dev Reverts if spending limit exceeded
+    error SPENDING_LIMIT_EXCEEDED();
+
+    /// @dev Reverts if daily spending limit exceeded
+    error DAILY_LIMIT_EXCEEDED();
+
+    /// @dev Reverts if caller is not guardian
+    error ONLY_GUARDIAN();
 
     ///                                                          ///
     ///                          FUNCTIONS                       ///

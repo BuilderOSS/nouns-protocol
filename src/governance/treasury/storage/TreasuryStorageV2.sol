@@ -18,4 +18,19 @@ contract TreasuryStorageV2 is TreasuryTypesV2 {
 
     /// @notice Optional global policy metadata
     GlobalPolicyV2 internal globalPolicy;
+
+    /// @notice Per-safe spending limits (value per transaction)
+    mapping(uint32 => uint256) internal safeSpendingLimits;
+
+    /// @notice Per-safe daily spending limits tracking
+    mapping(uint32 => SpendingTrackerV2) internal safeSpendingTrackers;
+
+    /// @notice Per-safe pause state
+    mapping(uint32 => bool) internal safePaused;
+
+    /// @notice Global safe execution pause
+    bool internal allSafesPaused;
+
+    /// @notice Guardian address with emergency pause power
+    address internal guardian;
 }

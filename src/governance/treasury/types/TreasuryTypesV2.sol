@@ -22,4 +22,11 @@ contract TreasuryTypesV2 is TreasuryTypesV1 {
         bytes32 policyHash;
         bool enforce;
     }
+
+    /// @notice Daily spending tracker for rate limiting
+    struct SpendingTrackerV2 {
+        uint256 dailyLimit;
+        uint256 spentToday;
+        uint64 lastResetTime;
+    }
 }
