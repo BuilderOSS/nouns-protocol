@@ -133,4 +133,4 @@ For updated proposals, these timestamps are preserved from the original proposal
 - Treat proposal ids as revisioned content ids, not permanent mutable objects.
 - Always follow `proposalIdReplacedBy` when rendering history.
 - Do not assume voting starts at creation + `votingDelay`; it is creation + `proposalUpdatablePeriod` + `votingDelay`.
-- Signed sponsorship binds tx bundle hash, not description text.
+- Signed sponsorship binds canonical proposal id, including description hash and proposer.

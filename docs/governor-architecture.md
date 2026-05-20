@@ -45,12 +45,12 @@ Default on fresh governor initialization:
 All signatures are EIP-712 and verified with EOA + ERC-1271 support.
 
 - Vote signature: `voter, proposalId, support, nonce, deadline`
-- Propose signature: `proposer, txsHash, nonce, deadline`
-- Update signature: `proposalId, proposer, txsHash, nonce, deadline`
+- Propose signature: `proposer, proposalId, nonce, deadline`
+- Update signature: `proposalId, updatedProposalId, proposer, nonce, deadline`
 
 Notes:
 
-- Signatures for proposal sponsorship bind to tx bundle hash (not description text).
+- Signatures for proposal sponsorship bind to canonical proposal identity (includes description hash).
 - `updateProposal` allows full edits (description and txs) during `Updatable` when either:
   - the proposal has no signers, or
   - the proposer independently met proposal threshold at creation time.
