@@ -33,11 +33,11 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     bytes32 public immutable VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 proposalId,uint256 support,uint256 nonce,uint256 deadline)");
 
     /// @notice The EIP-712 typehash to sponsor proposal submission
-    bytes32 public immutable PROPOSAL_TYPEHASH = keccak256("Proposal(address proposer,bytes32 txsHash,uint256 nonce,uint256 deadline)");
+    bytes32 public immutable PROPOSAL_TYPEHASH = keccak256("Proposal(address proposer,bytes32 proposalId,uint256 nonce,uint256 deadline)");
 
     /// @notice The EIP-712 typehash to sponsor proposal update
     bytes32 public immutable UPDATE_PROPOSAL_TYPEHASH =
-        keccak256("UpdateProposal(bytes32 proposalId,address proposer,bytes32 txsHash,uint256 nonce,uint256 deadline)");
+        keccak256("UpdateProposal(bytes32 proposalId,bytes32 updatedProposalId,address proposer,uint256 nonce,uint256 deadline)");
 
     /// @notice The minimum proposal threshold bps setting
     uint256 public immutable MIN_PROPOSAL_THRESHOLD_BPS = 1;
@@ -199,7 +199,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         _validateProposalArrays(_targets, _values, _calldatas);
 
-        bytes32 txsHash = _hashTxs(_targets, _values, _calldatas);
+        bytes32 descriptionHash = keccak256(bytes(_description));
+        bytes32 proposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, msg.sender);
 
         uint256 votes = getVotes(msg.sender, block.timestamp - 1);
         address[] memory signers = new address[](_proposerSignatures.length);
@@ -213,7 +214,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
                 revert INVALID_SIGNATURE_ORDER();
             }
 
-            _verifyProposeSignature(msg.sender, txsHash, proposerSignature);
+            _verifyProposeSignature(msg.sender, proposalId, proposerSignature);
 
             signers[i] = proposerSignature.signer;
             votes += getVotes(proposerSignature.signer, block.timestamp - 1);
@@ -222,7 +223,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         uint256 currentProposalThreshold = proposalThreshold();
         if (votes <= currentProposalThreshold) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
 
-        bytes32 proposalId = _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold);
+        proposalId = _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold);
 
         address[] storage proposalSignersList = proposalSigners[proposalId];
         uint256 signersLen = signers.length;
@@ -280,13 +281,14 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (signers.length == 0) revert MUST_PROVIDE_SIGNATURES();
         if (_proposerSignatures.length != signers.length) revert SIGNER_COUNT_MISMATCH();
 
-        bytes32 txsHash = _hashTxs(_targets, _values, _calldatas);
+        bytes32 updatedDescriptionHash = keccak256(bytes(_description));
+        bytes32 updatedProposalId = hashProposal(_targets, _values, _calldatas, updatedDescriptionHash, msg.sender);
 
         for (uint256 i = 0; i < _proposerSignatures.length; ++i) {
             ProposerSignature memory proposerSignature = _proposerSignatures[i];
             if (proposerSignature.signer != signers[i]) revert INVALID_SIGNATURE_ORDER();
 
-            _verifyUpdateSignature(_proposalId, msg.sender, txsHash, proposerSignature);
+            _verifyUpdateSignature(_proposalId, updatedProposalId, msg.sender, proposerSignature);
         }
 
         bytes32 newProposalId = _replaceProposal(_proposalId, oldProposal, signers, _targets, _values, _calldatas, _description);
@@ -911,15 +913,13 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     function _verifyProposeSignature(
         address _proposer,
-        bytes32 _txsHash,
+        bytes32 _proposalId,
         ProposerSignature memory _proposerSignature
     ) internal {
         if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
         if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
 
-        bytes32 structHash = keccak256(
-            abi.encode(PROPOSAL_TYPEHASH, _proposer, _txsHash, _proposerSignature.nonce, _proposerSignature.deadline)
-        );
+        bytes32 structHash = keccak256(abi.encode(PROPOSAL_TYPEHASH, _proposer, _proposalId, _proposerSignature.nonce, _proposerSignature.deadline));
         bytes32 digest = _hashTypedData(structHash);
 
         if (!SignatureChecker.isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) {
@@ -931,8 +931,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     function _verifyUpdateSignature(
         bytes32 _proposalId,
+        bytes32 _updatedProposalId,
         address _proposer,
-        bytes32 _txsHash,
         ProposerSignature memory _proposerSignature
     ) internal {
         if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
@@ -942,8 +942,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
             abi.encode(
                 UPDATE_PROPOSAL_TYPEHASH,
                 _proposalId,
+                _updatedProposalId,
                 _proposer,
-                _txsHash,
                 _proposerSignature.nonce,
                 _proposerSignature.deadline
             )
@@ -955,14 +955,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         }
 
         proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
-    }
-
-    function _hashTxs(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(_targets, _values, _calldatas));
     }
 
     function _hashTypedData(bytes32 _structHash) internal view returns (bytes32) {
