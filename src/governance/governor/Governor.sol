@@ -470,6 +470,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // Get a copy of the proposal
         Proposal memory proposal = proposals[_proposalId];
 
+        // Calculate whether caller is authorized and check combined voting power
+        // Note: Vote accumulation cannot realistically overflow as total supply is bound by token design
+        // and getVotes would revert on invalid timestamps. The threshold comparison below cannot
+        // underflow as proposalThreshold is always <= total supply.
         bool msgSenderIsProposerOrSigner = msg.sender == proposal.proposer;
         uint256 votes = getVotes(proposal.proposer, block.timestamp - 1);
         address[] storage signers = proposalSigners[_proposalId];
@@ -479,11 +483,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
             votes += getVotes(signers[i], block.timestamp - 1);
         }
 
-        // Cannot realistically underflow and `getVotes` would revert
-        unchecked {
-            // Ensure the caller is the proposer/signer or backing votes have dropped below the proposal threshold
-            if (!msgSenderIsProposerOrSigner && votes >= proposal.proposalThreshold) revert INVALID_CANCEL();
-        }
+        // Ensure the caller is the proposer/signer or backing votes have dropped below the proposal threshold
+        if (!msgSenderIsProposerOrSigner && votes >= proposal.proposalThreshold) revert INVALID_CANCEL();
 
         // Update the proposal as canceled
         proposals[_proposalId].canceled = true;
@@ -889,8 +890,11 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         Proposal storage newProposal = proposals[newProposalId];
 
+        // Copy proposal metadata and timing from old proposal
         newProposal.proposer = _oldProposal.proposer;
         newProposal.timeCreated = _oldProposal.timeCreated;
+        // Note: Vote counts are copied for consistency but should always be zero
+        // since updates are only allowed in Updatable state (before voting starts)
         newProposal.againstVotes = _oldProposal.againstVotes;
         newProposal.forVotes = _oldProposal.forVotes;
         newProposal.abstainVotes = _oldProposal.abstainVotes;
