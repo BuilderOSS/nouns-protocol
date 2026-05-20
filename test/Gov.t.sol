@@ -2,6 +2,7 @@
 pragma solidity 0.8.16;
 
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
+import { MockERC1271Wallet } from "./utils/mocks/MockERC1271Wallet.sol";
 
 import { IManager } from "../src/manager/IManager.sol";
 import { IGovernor } from "../src/governance/governor/IGovernor.sol";
@@ -1620,5 +1621,1037 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.prank(voter1);
         governor.propose(targets, values, calldatas, "test");
+    }
+
+    /// @notice Test that users cannot vote twice across proposal updates
+    /// This is a critical security test to ensure hasVoted mapping properly prevents double voting
+    /// when a proposal is updated during the Updatable period
+    function testRevert_CannotVoteTwiceAcrossUpdate() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Create initial proposal
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "original");
+
+        // Vote during updatable period
+        vm.prank(voter1);
+        governor.castVote(proposalId, FOR);
+
+        // Verify vote was counted
+        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
+        assertEq(forVotes, 1);
+
+        // Update the proposal (creates new proposal ID)
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        vm.prank(voter1);
+        bytes32 updatedProposalId = governor.updateProposal(proposalId, targets, values, updatedCalldatas, "updated", "changing calldata");
+
+        // Verify old proposal is marked as replaced
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced));
+
+        // Attempt to vote again on the updated proposal
+        // This SHOULD revert if double-voting protection is working correctly
+        vm.prank(voter1);
+        vm.expectRevert(abi.encodeWithSignature("ALREADY_VOTED()"));
+        governor.castVote(updatedProposalId, FOR);
+    }
+
+    /// @notice Test that votes are preserved when proposal is updated
+    function test_VotesPreservedAcrossUpdate() public {
+        deployAltMock();
+
+        // Mint tokens to voter1 and voter2
+        mintVoter1();
+        createVoters(1, 5 ether);
+        address voter2 = otherUsers[0];
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Create proposal
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "original");
+
+        // Both users vote during updatable period
+        vm.prank(voter1);
+        governor.castVote(proposalId, FOR);
+
+        vm.prank(voter2);
+        governor.castVote(proposalId, AGAINST);
+
+        // Check votes before update
+        (uint256 againstVotesBefore, uint256 forVotesBefore, uint256 abstainVotesBefore) = governor.proposalVotes(proposalId);
+        assertEq(forVotesBefore, 1);
+        assertEq(againstVotesBefore, 1);
+        assertEq(abstainVotesBefore, 0);
+
+        // Update proposal
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        vm.prank(voter1);
+        bytes32 updatedProposalId = governor.updateProposal(proposalId, targets, values, updatedCalldatas, "updated", "minor change");
+
+        // Check that votes were preserved to new proposal
+        (uint256 againstVotesAfter, uint256 forVotesAfter, uint256 abstainVotesAfter) = governor.proposalVotes(updatedProposalId);
+        assertEq(forVotesAfter, forVotesBefore, "For votes should be preserved");
+        assertEq(againstVotesAfter, againstVotesBefore, "Against votes should be preserved");
+        assertEq(abstainVotesAfter, abstainVotesBefore, "Abstain votes should be preserved");
+    }
+
+    ///                                                          ///
+    ///                      GAS BENCHMARKS                      ///
+    ///                                                          ///
+
+    /// @notice Gas benchmark: proposeBySigs with 1 signer
+    function test_GasProposeBySigs_1Signer() public {
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        uint256 gasBefore = gasleft();
+        vm.prank(voter2);
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "single signer");
+        uint256 gasUsed = gasBefore - gasleft();
+
+        emit log_named_uint("Gas used for proposeBySigs (1 signer)", gasUsed);
+        // Sanity check: should be reasonable
+        assertLt(gasUsed, 1_000_000, "Gas too high for 1 signer");
+    }
+
+    /// @notice Gas benchmark: proposeBySigs with 16 signers
+    function test_GasProposeBySigs_16Signers() public {
+        deployAltMock();
+        createVoters(16, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Build 16 signatures
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](16);
+        for (uint256 i = 0; i < 16; i++) {
+            proposerSignatures[i] = _buildProposeSignature(
+                otherUsersPKs[i],
+                otherUsers[i],
+                voter1,
+                targets,
+                values,
+                calldatas,
+                0,
+                block.timestamp + 1 days
+            );
+        }
+
+        uint256 gasBefore = gasleft();
+        vm.prank(voter1);
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "16 signers");
+        uint256 gasUsed = gasBefore - gasleft();
+
+        emit log_named_uint("Gas used for proposeBySigs (16 signers)", gasUsed);
+        assertLt(gasUsed, 5_000_000, "Gas too high for 16 signers");
+    }
+
+    /// @notice Gas benchmark: proposeBySigs with 32 signers (MAX)
+    function test_GasProposeBySigs_32Signers() public {
+        deployAltMock();
+        createVoters(32, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Build 32 signatures (max allowed)
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](32);
+        for (uint256 i = 0; i < 32; i++) {
+            proposerSignatures[i] = _buildProposeSignature(
+                otherUsersPKs[i],
+                otherUsers[i],
+                voter1,
+                targets,
+                values,
+                calldatas,
+                0,
+                block.timestamp + 1 days
+            );
+        }
+
+        uint256 gasBefore = gasleft();
+        vm.prank(voter1);
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "32 signers max");
+        uint256 gasUsed = gasBefore - gasleft();
+
+        emit log_named_uint("Gas used for proposeBySigs (32 signers MAX)", gasUsed);
+        // Critical: Must be under 10M gas to ensure it can fit in a block
+        assertLt(gasUsed, 10_000_000, "CRITICAL: Gas exceeds 10M for max signers");
+    }
+
+    /// @notice Gas benchmark: cancel with 32 signers
+    function test_GasCancelSignedProposal_32Signers() public {
+        deployAltMock();
+        createVoters(32, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Create proposal with 32 signers
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](32);
+        for (uint256 i = 0; i < 32; i++) {
+            proposerSignatures[i] = _buildProposeSignature(
+                otherUsersPKs[i],
+                otherUsers[i],
+                voter1,
+                targets,
+                values,
+                calldatas,
+                0,
+                block.timestamp + 1 days
+            );
+        }
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "32 signers");
+
+        // Warp past updatable period
+        vm.warp(block.timestamp + 2 days);
+
+        // First signer cancels (must iterate through all 32 to check)
+        uint256 gasBefore = gasleft();
+        vm.prank(otherUsers[0]);
+        governor.cancel(proposalId, targets, values, calldatas, keccak256(bytes("32 signers")));
+        uint256 gasUsed = gasBefore - gasleft();
+
+        emit log_named_uint("Gas used for cancel (32 signers)", gasUsed);
+        assertLt(gasUsed, 5_000_000, "Cancel gas too high with max signers");
+    }
+
+    /// @notice Gas benchmark: updateProposalBySigs
+    function test_GasUpdateProposalBySigs() public {
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(voter1PK, voter1, voter2, targets, values, calldatas, 0, block.timestamp + 1 days);
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "original");
+
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        updateSignatures[0] = _buildUpdateSignature(
+            voter1PK,
+            voter1,
+            proposalId,
+            voter2,
+            targets,
+            values,
+            updatedCalldatas,
+            1,
+            block.timestamp + 1 days
+        );
+
+        uint256 gasBefore = gasleft();
+        vm.prank(voter2);
+        governor.updateProposalBySigs(proposalId, updateSignatures, targets, values, updatedCalldatas, "updated", "gas test");
+        uint256 gasUsed = gasBefore - gasleft();
+
+        emit log_named_uint("Gas used for updateProposalBySigs", gasUsed);
+        assertLt(gasUsed, 2_000_000, "Update gas too high");
+    }
+
+    ///                                                          ///
+    ///                       FUZZ TESTS                         ///
+    ///                                                          ///
+
+    /// @notice Fuzz test: Signer ordering must be strictly increasing
+    function testFuzz_SignerOrderingEnforcement(uint8 numSigners) public {
+        // Bound to reasonable range: 2-10 signers for fuzz test
+        numSigners = uint8(bound(numSigners, 2, 10));
+
+        deployAltMock();
+        createVoters(numSigners, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Build signatures in correct order
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](numSigners);
+        for (uint256 i = 0; i < numSigners; i++) {
+            proposerSignatures[i] = _buildProposeSignature(
+                otherUsersPKs[i],
+                otherUsers[i],
+                voter1,
+                targets,
+                values,
+                calldatas,
+                0,
+                block.timestamp + 1 days
+            );
+        }
+
+        // This should succeed (correct order)
+        vm.prank(voter1);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "ordered");
+        assertTrue(proposalId != bytes32(0), "Proposal creation should succeed with correct order");
+
+        // Now test with reversed order (should fail)
+        if (numSigners >= 2) {
+            ProposerSignature[] memory reversedSignatures = new ProposerSignature[](numSigners);
+            for (uint256 i = 0; i < numSigners; i++) {
+                reversedSignatures[i] = _buildProposeSignature(
+                    otherUsersPKs[numSigners - 1 - i],
+                    otherUsers[numSigners - 1 - i],
+                    voter2,
+                    targets,
+                    values,
+                    calldatas,
+                    0,
+                    block.timestamp + 1 days
+                );
+            }
+
+            vm.prank(voter2);
+            vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_ORDER()"));
+            governor.proposeBySigs(reversedSignatures, targets, values, calldatas, "reversed");
+        }
+    }
+
+    /// @notice Fuzz test: Duplicate signers should be rejected
+    function testFuzz_RejectDuplicateSigners(uint8 numSigners) public {
+        numSigners = uint8(bound(numSigners, 2, 10));
+
+        deployAltMock();
+        createVoters(numSigners, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Build signatures with duplicate (signer[1] appears twice)
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](numSigners);
+        for (uint256 i = 0; i < numSigners; i++) {
+            // Use same signer for positions 1 and 2 (if numSigners >= 3)
+            uint256 signerIndex = (i == 2 && numSigners >= 3) ? 1 : i;
+
+            proposerSignatures[i] = _buildProposeSignature(
+                otherUsersPKs[signerIndex],
+                otherUsers[signerIndex],
+                voter1,
+                targets,
+                values,
+                calldatas,
+                i == 2 ? 1 : 0, // Use same nonce for duplicate
+                block.timestamp + 1 days
+            );
+        }
+
+        if (numSigners >= 3) {
+            // Should fail due to non-increasing order (duplicate = same address)
+            vm.prank(voter1);
+            vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_ORDER()"));
+            governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "duplicate");
+        }
+    }
+
+    /// @notice Fuzz test: Proposal updates with varying array lengths
+    function testFuzz_UpdateWithDifferentArrayLengths(uint8 numTargets) public {
+        numTargets = uint8(bound(numTargets, 1, 5));
+
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        // Create initial proposal with 1 target
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "original");
+
+        // Update with different number of targets
+        address[] memory newTargets = new address[](numTargets);
+        uint256[] memory newValues = new uint256[](numTargets);
+        bytes[] memory newCalldatas = new bytes[](numTargets);
+
+        for (uint256 i = 0; i < numTargets; i++) {
+            newTargets[i] = address(auction);
+            newValues[i] = 0;
+            newCalldatas[i] = abi.encodeWithSignature("unpause()");
+        }
+
+        // Should succeed with any valid array length
+        vm.prank(voter1);
+        bytes32 updatedId = governor.updateProposal(
+            proposalId,
+            newTargets,
+            newValues,
+            newCalldatas,
+            "updated",
+            "different length"
+        );
+
+        assertTrue(updatedId != proposalId, "Should create new proposal ID");
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced), "Old proposal should be replaced");
+    }
+
+    /// @notice Fuzz test: Signature deadline edge cases
+    function testFuzz_SignatureDeadlineEdgeCases(uint128 timeOffset) public {
+        // Bound to reasonable future time (0 to 30 days)
+        timeOffset = uint128(bound(timeOffset, 0, 30 days));
+
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        uint256 deadline = block.timestamp + timeOffset;
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(
+            voter1PK,
+            voter1,
+            voter2,
+            targets,
+            values,
+            calldatas,
+            0,
+            deadline
+        );
+
+        // If deadline is in the future, should succeed
+        if (timeOffset > 0) {
+            vm.prank(voter2);
+            bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "future deadline");
+            assertTrue(proposalId != bytes32(0), "Should succeed with future deadline");
+        } else {
+            // If deadline is now or past, should fail
+            vm.prank(voter2);
+            vm.expectRevert(abi.encodeWithSignature("EXPIRED_SIGNATURE()"));
+            governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "expired");
+        }
+    }
+
+    /// @notice Fuzz test: Nonce manipulation should fail
+    function testFuzz_NonceManipulationPrevented(uint256 wrongNonce) public {
+        // Ensure wrong nonce is not 0 (the correct initial nonce)
+        vm.assume(wrongNonce != 0);
+
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Build signature with wrong nonce
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = ProposerSignature({
+            signer: voter1,
+            nonce: wrongNonce,
+            deadline: block.timestamp + 1 days,
+            sig: ""
+        });
+
+        // Generate signature with correct nonce but claim wrong nonce
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(
+                    governor.PROPOSAL_TYPEHASH(),
+                    voter2,
+                    keccak256(abi.encodePacked(targets, values, calldatas)),
+                    wrongNonce,
+                    block.timestamp + 1 days
+                ))
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PK, digest);
+        proposerSignatures[0].sig = abi.encodePacked(r, s, v);
+
+        // Should fail with wrong nonce
+        vm.prank(voter2);
+        vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_NONCE()"));
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "wrong nonce");
+    }
+
+    ///                                                          ///
+    ///                    INVARIANT TESTS                       ///
+    ///                                                          ///
+
+    /// @notice Invariant: Total votes on a proposal can never exceed token supply
+    function invariant_VotesNeverExceedSupply() public {
+        // This would need to be called after random state changes in a proper invariant test setup
+        // For now, we'll create a scenario and verify the invariant
+        deployAltMock();
+        createVoters(5, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "test");
+
+        // Get total supply
+        uint256 totalSupply = token.totalSupply();
+
+        // Warp to voting period
+        vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay() + 1);
+
+        // Everyone votes
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(otherUsers[i]);
+            governor.castVote(proposalId, i % 3); // Distribute across For/Against/Abstain
+        }
+
+        vm.prank(voter1);
+        governor.castVote(proposalId, FOR);
+
+        // Check invariant: total votes <= supply
+        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
+        uint256 totalVotes = againstVotes + forVotes + abstainVotes;
+
+        assertLe(totalVotes, totalSupply, "INVARIANT VIOLATED: Total votes exceed supply");
+    }
+
+    /// @notice Invariant: Only one proposal can exist per proposal ID
+    function invariant_OnlyOneActiveProposalPerID() public {
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "test");
+
+        // Try to create same proposal again (should fail)
+        vm.prank(voter1);
+        vm.expectRevert(abi.encodeWithSelector(IGovernor.PROPOSAL_EXISTS.selector, proposalId));
+        governor.propose(targets, values, calldatas, "test");
+
+        // Invariant holds: Cannot create duplicate proposal IDs
+    }
+
+    /// @notice Invariant: Replaced proposals are always marked as canceled
+    function invariant_ReplacedProposalsAlwaysCanceled() public {
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "original");
+
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        vm.prank(voter1);
+        bytes32 newProposalId = governor.updateProposal(proposalId, targets, values, updatedCalldatas, "updated", "test");
+
+        // Check invariant: old proposal is canceled and marked as replaced
+        Proposal memory oldProposal = governor.getProposal(proposalId);
+        assertTrue(oldProposal.canceled, "INVARIANT VIOLATED: Replaced proposal not marked canceled");
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced), "INVARIANT VIOLATED: Wrong state");
+
+        // Check replacement mapping
+        bytes32 replacedBy = governor.proposalIdReplacedBy(proposalId);
+        assertEq(replacedBy, newProposalId, "INVARIANT VIOLATED: Replacement mapping incorrect");
+    }
+
+    /// @notice Invariant: Proposer must have had threshold votes at creation time
+    function invariant_ProposerMeetsThresholdAtCreation() public {
+        deployAltMock();
+        createVoters(10, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(500); // 5% threshold
+
+        uint256 requiredVotes = proposalThreshold();
+
+        // voter1 has 1 token, below threshold
+        assertLt(token.getVotes(voter1), requiredVotes, "Setup: voter1 should be below threshold");
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Should fail - proposer below threshold
+        vm.prank(voter1);
+        vm.expectRevert(abi.encodeWithSignature("BELOW_PROPOSAL_THRESHOLD()"));
+        governor.propose(targets, values, calldatas, "test");
+
+        // Delegate enough votes to voter1
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(otherUsers[i]);
+            token.delegate(voter1);
+        }
+
+        vm.warp(block.timestamp + 1);
+
+        // Now voter1 has enough votes
+        assertGe(token.getVotes(voter1), requiredVotes, "voter1 should now meet threshold");
+
+        // Should succeed
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "test");
+
+        // Verify proposal stored the threshold requirement
+        Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.proposalThreshold, requiredVotes, "INVARIANT VIOLATED: Threshold not stored correctly");
+    }
+
+    /// @notice Invariant: Proposal state transitions are monotonic (no backwards movement)
+    function invariant_StateTransitionsMonotonic() public {
+        deployMock();
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "test");
+
+        // State progression: Updatable -> Pending -> Active -> Succeeded/Defeated
+        ProposalState currentState = governor.state(proposalId);
+        assertEq(uint256(currentState), uint256(ProposalState.Updatable), "Should start Updatable");
+
+        // Move to Pending
+        vm.warp(block.timestamp + 1 days);
+        currentState = governor.state(proposalId);
+        assertEq(uint256(currentState), uint256(ProposalState.Pending), "Should move to Pending");
+
+        // Move to Active
+        vm.warp(block.timestamp + governor.votingDelay() + 1);
+        currentState = governor.state(proposalId);
+        assertEq(uint256(currentState), uint256(ProposalState.Active), "Should move to Active");
+
+        // Vote to pass
+        vm.prank(voter1);
+        governor.castVote(proposalId, FOR);
+
+        // Move to Succeeded
+        vm.warp(block.timestamp + governor.votingPeriod() + 1);
+        currentState = governor.state(proposalId);
+        assertEq(uint256(currentState), uint256(ProposalState.Succeeded), "Should move to Succeeded");
+
+        // Invariant: Once in terminal state, cannot go backwards
+        // (This is enforced by the contract logic - terminal states are checked first)
+    }
+
+    /// @notice Invariant: Signer array length never exceeds MAX_PROPOSAL_SIGNERS
+    function invariant_SignerArrayBounded() public {
+        // Verify the constant is set correctly
+        uint256 maxSigners = governor.MAX_PROPOSAL_SIGNERS();
+        assertEq(maxSigners, 32, "MAX_PROPOSAL_SIGNERS should be 32");
+
+        // Try to create proposal with more than max signers (should fail during creation)
+        deployAltMock();
+        createVoters(33, 5 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](33);
+        for (uint256 i = 0; i < 33; i++) {
+            proposerSignatures[i] = _buildProposeSignature(
+                otherUsersPKs[i],
+                otherUsers[i],
+                voter1,
+                targets,
+                values,
+                calldatas,
+                0,
+                block.timestamp + 1 days
+            );
+        }
+
+        vm.prank(voter1);
+        vm.expectRevert(abi.encodeWithSignature("TOO_MANY_SIGNERS()"));
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "too many");
+
+        // Invariant holds: Cannot exceed MAX_PROPOSAL_SIGNERS
+    }
+
+    ///                                                          ///
+    ///                   ERC-1271 WALLET TESTS                  ///
+    ///                                                          ///
+
+    /// @notice Test proposeBySigs with ERC-1271 smart wallet signer
+    function test_ProposeBySigsWithSmartWallet() public {
+        deployMock();
+
+        // Create smart wallet owned by voter1
+        MockERC1271Wallet wallet = new MockERC1271Wallet(voter1);
+
+        // Mint token to wallet
+        vm.prank(address(auction));
+        token.mint();
+
+        vm.prank(address(wallet));
+        token.delegate(address(wallet));
+
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Build the proposal signature
+        bytes32 txsHash = keccak256(abi.encodePacked(targets, values, calldatas));
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(PROPOSAL_TYPEHASH, voter2, txsHash, 0, block.timestamp + 1 days))
+            )
+        );
+
+        // Approve the hash in the wallet (simulates wallet's internal approval)
+        vm.prank(voter1);
+        wallet.approveHash(digest);
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = ProposerSignature({
+            signer: address(wallet),
+            nonce: 0,
+            deadline: block.timestamp + 1 days,
+            sig: "" // Empty sig for ERC-1271 (contract validates internally)
+        });
+
+        // Create proposal with smart wallet as signer
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "smart wallet proposal");
+
+        // Verify proposal created
+        Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.proposer, voter2);
+
+        // Verify wallet is recorded as signer
+        address[] memory signers = governor.getProposalSigners(proposalId);
+        assertEq(signers.length, 1);
+        assertEq(signers[0], address(wallet));
+    }
+
+    /// @notice Test castVoteBySig with ERC-1271 smart wallet
+    function test_CastVoteBySigWithSmartWallet() public {
+        deployMock();
+
+        // Create smart wallet owned by voter1
+        MockERC1271Wallet wallet = new MockERC1271Wallet(voter1);
+
+        // Mint token to wallet
+        vm.prank(address(auction));
+        token.mint();
+
+        vm.prank(address(wallet));
+        token.delegate(address(wallet));
+
+        vm.warp(block.timestamp + 1);
+
+        // Create a proposal
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        bytes32 proposalId = createProposal();
+
+        // Warp to voting period
+        vm.warp(block.timestamp + governor.votingDelay() + 1);
+
+        // Build vote signature
+        bytes32 domainSeparator = governor.DOMAIN_SEPARATOR();
+        bytes32 voteTypeHash = governor.VOTE_TYPEHASH();
+
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(abi.encode(voteTypeHash, address(wallet), proposalId, FOR, 0, block.timestamp + 1 days))
+            )
+        );
+
+        // Approve hash in wallet
+        vm.prank(voter1);
+        wallet.approveHash(digest);
+
+        // Cast vote with smart wallet signature
+        vm.prank(voter1); // Can be anyone since signature validates
+        governor.castVoteBySig(address(wallet), proposalId, FOR, 0, block.timestamp + 1 days, "");
+
+        // Verify vote counted
+        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
+        assertEq(forVotes, 1);
+        assertEq(againstVotes, 0);
+        assertEq(abstainVotes, 0);
+    }
+
+    /// @notice Test updateProposalBySigs with ERC-1271 smart wallet
+    function test_UpdateProposalBySigsWithSmartWallet() public {
+        deployMock();
+
+        // Create smart wallet owned by voter1
+        MockERC1271Wallet wallet = new MockERC1271Wallet(voter1);
+
+        // Mint token to wallet
+        vm.prank(address(auction));
+        token.mint();
+
+        vm.prank(address(wallet));
+        token.delegate(address(wallet));
+
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Create signed proposal with smart wallet
+        bytes32 txsHash = keccak256(abi.encodePacked(targets, values, calldatas));
+        bytes32 proposeDigest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(PROPOSAL_TYPEHASH, voter2, txsHash, 0, block.timestamp + 1 days))
+            )
+        );
+
+        vm.prank(voter1);
+        wallet.approveHash(proposeDigest);
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = ProposerSignature({
+            signer: address(wallet),
+            nonce: 0,
+            deadline: block.timestamp + 1 days,
+            sig: ""
+        });
+
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "original");
+
+        // Update the proposal with new calldatas
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        bytes32 updatedTxsHash = keccak256(abi.encodePacked(targets, values, updatedCalldatas));
+        bytes32 updateDigest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(UPDATE_PROPOSAL_TYPEHASH, proposalId, voter2, updatedTxsHash, 1, block.timestamp + 1 days))
+            )
+        );
+
+        vm.prank(voter1);
+        wallet.approveHash(updateDigest);
+
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        updateSignatures[0] = ProposerSignature({
+            signer: address(wallet),
+            nonce: 1,
+            deadline: block.timestamp + 1 days,
+            sig: ""
+        });
+
+        vm.prank(voter2);
+        bytes32 updatedProposalId = governor.updateProposalBySigs(
+            proposalId,
+            updateSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated",
+            "smart wallet update"
+        );
+
+        // Verify update worked
+        assertTrue(updatedProposalId != proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced));
+    }
+
+    /// @notice Test that invalid ERC-1271 signature is rejected
+    function testRevert_InvalidERC1271Signature() public {
+        deployMock();
+
+        // Create smart wallet but don't approve any hashes
+        MockERC1271Wallet wallet = new MockERC1271Wallet(voter1);
+
+        vm.prank(address(auction));
+        token.mint();
+
+        vm.prank(address(wallet));
+        token.delegate(address(wallet));
+
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Try to create proposal without approving hash (wallet will reject)
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = ProposerSignature({
+            signer: address(wallet),
+            nonce: 0,
+            deadline: block.timestamp + 1 days,
+            sig: "" // Empty sig, but wallet hasn't approved hash
+        });
+
+        vm.prank(voter2);
+        vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE()"));
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "should fail");
+    }
+
+    /// @notice Test mixed EOA and smart wallet signers
+    function test_MixedEOAAndSmartWalletSigners() public {
+        deployMock();
+
+        // Create smart wallet
+        MockERC1271Wallet wallet = new MockERC1271Wallet(voter1);
+
+        // Mint to both wallet and voter1
+        vm.prank(address(auction));
+        token.mint(); // to wallet
+
+        mintVoter1(); // to voter1 EOA
+
+        vm.prank(address(wallet));
+        token.delegate(address(wallet));
+
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Sort signers (wallet address < voter1 address in test setup)
+        address[] memory sortedSigners = new address[](2);
+        if (address(wallet) < voter1) {
+            sortedSigners[0] = address(wallet);
+            sortedSigners[1] = voter1;
+        } else {
+            sortedSigners[0] = voter1;
+            sortedSigners[1] = address(wallet);
+        }
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](2);
+
+        // Build signatures in sorted order
+        bytes32 txsHash = keccak256(abi.encodePacked(targets, values, calldatas));
+
+        for (uint256 i = 0; i < 2; i++) {
+            bytes32 digest = keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    governor.DOMAIN_SEPARATOR(),
+                    keccak256(abi.encode(PROPOSAL_TYPEHASH, voter2, txsHash, 0, block.timestamp + 1 days))
+                )
+            );
+
+            if (sortedSigners[i] == address(wallet)) {
+                // Smart wallet signature
+                vm.prank(voter1);
+                wallet.approveHash(digest);
+
+                proposerSignatures[i] = ProposerSignature({
+                    signer: address(wallet),
+                    nonce: 0,
+                    deadline: block.timestamp + 1 days,
+                    sig: ""
+                });
+            } else {
+                // EOA signature
+                (uint8 v, bytes32 r, bytes32 s) = vm.sign(voter1PK, digest);
+
+                proposerSignatures[i] = ProposerSignature({
+                    signer: voter1,
+                    nonce: 0,
+                    deadline: block.timestamp + 1 days,
+                    sig: abi.encodePacked(r, s, v)
+                });
+            }
+        }
+
+        // Create proposal with mixed signers
+        vm.prank(voter2);
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "mixed signers");
+
+        // Verify both signers recorded
+        address[] memory recordedSigners = governor.getProposalSigners(proposalId);
+        assertEq(recordedSigners.length, 2);
+        assertEq(recordedSigners[0], sortedSigners[0]);
+        assertEq(recordedSigners[1], sortedSigners[1]);
     }
 }

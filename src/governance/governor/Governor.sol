@@ -224,8 +224,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         bytes32 proposalId = _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold);
 
-        for (uint256 i = 0; i < signers.length; ++i) {
-            proposalSigners[proposalId].push(signers[i]);
+        address[] storage proposalSignersList = proposalSigners[proposalId];
+        uint256 signersLen = signers.length;
+        for (uint256 i; i < signersLen; ++i) {
+            proposalSignersList.push(signers[i]);
         }
 
         emit ProposalSignersSet(proposalId, signers);
@@ -469,7 +471,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         bool msgSenderIsProposerOrSigner = msg.sender == proposal.proposer;
         uint256 votes = getVotes(proposal.proposer, block.timestamp - 1);
         address[] storage signers = proposalSigners[_proposalId];
-        for (uint256 i = 0; i < signers.length; ++i) {
+        uint256 signersLen = signers.length;
+        for (uint256 i; i < signersLen; ++i) {
             msgSenderIsProposerOrSigner = msgSenderIsProposerOrSigner || msg.sender == signers[i];
             votes += getVotes(signers[i], block.timestamp - 1);
         }
@@ -896,8 +899,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         proposalUpdatePeriodEnds[newProposalId] = proposalUpdatePeriodEnds[_oldProposalId];
 
-        for (uint256 i = 0; i < _oldSigners.length; ++i) {
-            proposalSigners[newProposalId].push(_oldSigners[i]);
+        address[] storage newSigners = proposalSigners[newProposalId];
+        uint256 oldSignersLen = _oldSigners.length;
+        for (uint256 i; i < oldSignersLen; ++i) {
+            newSigners.push(_oldSigners[i]);
         }
 
         proposals[_oldProposalId].canceled = true;
