@@ -126,4 +126,39 @@ contract TreasuryV2Test is NounsBuilderTest {
         vm.expectRevert();
         treasury.execOnSafe(1, address(target), 0, data, 0);
     }
+
+    function testRevert_RegisterSafe_ModuleNotEnabled() public {
+        MockGnosisSafe newSafe = new MockGnosisSafe();
+        GovernorSafeModule newModule = new GovernorSafeModule(address(treasury));
+        // Intentionally NOT enabling the module on the safe
+
+        vm.prank(address(treasury));
+        vm.expectRevert();
+        treasury.registerSafe(address(newSafe), address(newModule), address(0), bytes32(0));
+    }
+
+    function test_IsSafeReady() public {
+        // Primary safe has module enabled
+        bool ready = treasury.isSafeReady(address(primarySafe), address(primaryModule));
+        assertEq(ready, true);
+
+        // New safe without module enabled
+        MockGnosisSafe newSafe = new MockGnosisSafe();
+        GovernorSafeModule newModule = new GovernorSafeModule(address(treasury));
+        bool notReady = treasury.isSafeReady(address(newSafe), address(newModule));
+        assertEq(notReady, false);
+
+        // Enable and check again
+        newSafe.enableModule(address(newModule));
+        bool nowReady = treasury.isSafeReady(address(newSafe), address(newModule));
+        assertEq(nowReady, true);
+    }
+
+    function test_IsSafeReady_InvalidInputs() public {
+        bool result1 = treasury.isSafeReady(address(0), address(primaryModule));
+        assertEq(result1, false);
+
+        bool result2 = treasury.isSafeReady(address(primarySafe), address(0));
+        assertEq(result2, false);
+    }
 }

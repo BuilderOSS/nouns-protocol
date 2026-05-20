@@ -36,7 +36,7 @@ contract VerifyStorageLayout is Script {
         ".storage-layout-governor.txt"
     ];
 
-    function run() external view {
+    function run() external {
         console.log("=== Storage Layout Verification ===\n");
 
         bool allMatch = true;
@@ -62,16 +62,16 @@ contract VerifyStorageLayout is Script {
 
                 // Compare
                 if (keccak256(currentLayout) == keccak256(baselineLayout)) {
-                    console.log("  ✓ Storage layout matches baseline\n");
+                    console.log("  [OK] Storage layout matches baseline\n");
                 } else {
-                    console.log("  ✗ STORAGE LAYOUT MISMATCH!");
+                    console.log("  [FAIL] STORAGE LAYOUT MISMATCH!");
                     console.log("  Baseline file:", baselineFiles[i]);
                     console.log("  This may indicate a dangerous storage collision.");
                     console.log("  Review changes carefully before proceeding.\n");
                     allMatch = false;
                 }
             } catch {
-                console.log("  ⚠ No baseline file found:", baselineFiles[i]);
+                console.log("  [WARN] No baseline file found:", baselineFiles[i]);
                 console.log("  Run 'make update-storage-layout' to create baseline.\n");
                 allMatch = false;
             }

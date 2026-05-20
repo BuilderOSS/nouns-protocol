@@ -10,6 +10,7 @@ import { TreasuryStorageV1 } from "./storage/TreasuryStorageV1.sol";
 import { TreasuryStorageV2 } from "./storage/TreasuryStorageV2.sol";
 import { ITreasury } from "./ITreasury.sol";
 import { IGovernorSafeModule } from "./interfaces/IGovernorSafeModule.sol";
+import { IGnosisSafe } from "./interfaces/IGnosisSafe.sol";
 import { ProposalHasher } from "../governor/ProposalHasher.sol";
 import { IManager } from "../../manager/IManager.sol";
 import { VersionedContract } from "../../VersionedContract.sol";
@@ -313,6 +314,19 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         return safeIds[_safe];
     }
 
+    /// @notice Checks if a safe is ready for registration (module enabled)
+    /// @param _safe The safe address
+    /// @param _execModule The module address to check
+    /// @return ready True if module is enabled on the safe
+    function isSafeReady(address _safe, address _execModule) external view returns (bool ready) {
+        if (_safe == address(0) || _execModule == address(0)) return false;
+        try IGnosisSafe(_safe).isModuleEnabled(_execModule) returns (bool enabled) {
+            return enabled;
+        } catch {
+            return false;
+        }
+    }
+
     ///                                                          ///
     ///                        RECEIVE TOKENS                    ///
     ///                                                          ///
@@ -357,6 +371,9 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
         if (_safe == address(0)) revert ADDRESS_ZERO();
         if (_execModule == address(0)) revert INVALID_MODULE();
         if (safeIds[_safe] != 0) revert SAFE_ALREADY_REGISTERED();
+
+        // Verify module is enabled on Safe
+        if (!IGnosisSafe(_safe).isModuleEnabled(_execModule)) revert MODULE_NOT_ENABLED();
 
         unchecked {
             _safeCount++;

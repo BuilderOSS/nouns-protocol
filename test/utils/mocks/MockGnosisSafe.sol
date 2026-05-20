@@ -15,6 +15,10 @@ contract MockGnosisSafe {
         modules[_module] = false;
     }
 
+    function isModuleEnabled(address _module) external view returns (bool) {
+        return modules[_module];
+    }
+
     function execTransactionFromModuleReturnData(address _to, uint256 _value, bytes memory _data, uint8 _operation)
         external
         returns (bool success, bytes memory returnData)

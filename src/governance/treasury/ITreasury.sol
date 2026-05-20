@@ -117,6 +117,9 @@ interface ITreasury is IUUPS, IOwnable {
     /// @dev Reverts if safe module execution failed
     error SAFE_EXECUTION_FAILED();
 
+    /// @dev Reverts if module is not enabled on safe
+    error MODULE_NOT_ENABLED();
+
     ///                                                          ///
     ///                          FUNCTIONS                       ///
     ///                                                          ///
