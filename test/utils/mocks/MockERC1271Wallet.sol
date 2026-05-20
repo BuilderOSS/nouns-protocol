@@ -27,9 +27,8 @@ contract MockERC1271Wallet {
 
     /// @notice ERC-1271 signature validation
     /// @param hash The hash to validate
-    /// @param signature The signature bytes (can contain owner address)
     /// @return magicValue The ERC-1271 magic value if valid
-    function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4 magicValue) {
+    function isValidSignature(bytes32 hash, bytes memory) external view returns (bytes4 magicValue) {
         // Check if hash was pre-approved
         if (approvedHashes[hash]) {
             return MAGICVALUE;

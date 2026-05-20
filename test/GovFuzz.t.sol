@@ -69,7 +69,7 @@ contract GovFuzz is GovTest {
         governor.castVoteBySig(voter1, proposalId, FOR, 0, deadline, sig);
 
         // Verify vote was cast
-        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
+        (, uint256 forVotes,) = governor.proposalVotes(proposalId);
         assertTrue(forVotes > 0, "Vote should be cast");
     }
 
@@ -85,6 +85,7 @@ contract GovFuzz is GovTest {
         bytes32 proposalId = createProposal();
         vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
 
+        vm.assume(expiredOffset <= block.timestamp);
         uint256 deadline = block.timestamp - expiredOffset;
 
         bytes32 voteHash = keccak256(abi.encode(governor.VOTE_TYPEHASH(), voter1, proposalId, FOR, 0, deadline));
@@ -107,7 +108,6 @@ contract GovFuzz is GovTest {
         deployMock();
         mintVoter1();
 
-        vm.prank(voter1);
         bytes32 proposalId = createProposal();
 
         uint256 updatePeriodEnd = governor.proposalUpdatePeriodEnd(proposalId);
@@ -288,14 +288,13 @@ contract GovFuzz is GovTest {
         // Mint specific number of tokens to voter1
         for (uint256 i = 0; i < voterTokens; i++) {
             vm.prank(address(auction));
-            token.mint();
+            uint256 tokenId = token.mint();
             vm.prank(address(auction));
-            token.transferFrom(address(auction), voter1, token.totalSupply() - 1);
+            token.transferFrom(address(auction), voter1, tokenId);
         }
 
         vm.warp(block.timestamp + 1);
 
-        vm.prank(voter1);
         bytes32 proposalId = createProposal();
 
         uint256 proposalThreshold = governor.proposalThreshold();
@@ -331,8 +330,14 @@ contract GovFuzz is GovTest {
 
         // Create a proposal and verify the update period end
         mintVoter1();
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
         vm.prank(voter1);
-        bytes32 proposalId = createProposal();
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "Fuzz updatable period");
 
         uint256 expectedUpdateEnd = block.timestamp + updatablePeriod;
         assertEq(governor.proposalUpdatePeriodEnd(proposalId), expectedUpdateEnd, "Update period end should be correct");

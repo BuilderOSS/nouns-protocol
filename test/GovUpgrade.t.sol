@@ -23,8 +23,7 @@ contract GovUpgrade is GovTest {
         mintVoter1();
 
         // Step 1: Create a proposal with the deployed governor
-        vm.prank(voter1);
-        bytes32 oldProposalId = createProposal();
+        bytes32 oldProposalId = _createProposalWithDescription("upgrade-old-proposal");
 
         // Verify proposal exists
         IGovernor.Proposal memory oldProposal = governor.getProposal(oldProposalId);
@@ -37,8 +36,11 @@ contract GovUpgrade is GovTest {
         vm.prank(voter1);
         governor.castVote(oldProposalId, FOR);
 
-        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(oldProposalId);
+        (, uint256 forVotes,) = governor.proposalVotes(oldProposalId);
         assertTrue(forVotes > 0, "Votes should be cast");
+
+        // Refresh proposal snapshot after vote so comparisons include vote state
+        oldProposal = governor.getProposal(oldProposalId);
 
         // Step 3: Deploy new Governor implementation
         newGovernorImpl = new Governor(address(manager));
@@ -76,8 +78,6 @@ contract GovUpgrade is GovTest {
 
         // Step 9: Test new features on upgraded Governor
         // Note: proposalUpdatablePeriod should retain prior value (not reinitialized)
-        uint256 updatablePeriod = governor.proposalUpdatablePeriod();
-
         // Update the updatable period (new feature governance control)
         vm.prank(address(treasury));
         governor.updateProposalUpdatablePeriod(2 days);
@@ -181,8 +181,7 @@ contract GovUpgrade is GovTest {
         mintVoter1();
 
         // Create proposal before upgrade
-        vm.prank(voter1);
-        bytes32 proposalId = createProposal();
+        bytes32 proposalId = _createProposalWithDescription("upgrade-vote-sig-proposal");
 
         // Deploy and upgrade
         newGovernorImpl = new Governor(address(manager));
@@ -209,7 +208,7 @@ contract GovUpgrade is GovTest {
         governor.castVoteBySig(voter1, proposalId, FOR, nonce, block.timestamp + 1 days, sig);
 
         // Verify vote was cast
-        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(proposalId);
+        (, uint256 forVotes,) = governor.proposalVotes(proposalId);
         assertTrue(forVotes > 0, "Vote should be cast");
 
         // Note: Nonce would be incremented to 1, but we can't verify since nonces is internal
@@ -222,8 +221,7 @@ contract GovUpgrade is GovTest {
         mintVoter1();
 
         // Create proposal with original version
-        vm.prank(voter1);
-        bytes32 proposalId1 = createProposal();
+        bytes32 proposalId1 = _createProposalWithDescription("upgrade-proposal-1");
 
         // First upgrade
         Governor newImpl1 = new Governor(address(manager));
@@ -236,8 +234,7 @@ contract GovUpgrade is GovTest {
 
         // Create proposal after first upgrade
         vm.warp(block.timestamp + 1 days);
-        vm.prank(voter1);
-        bytes32 proposalId2 = createProposal();
+        bytes32 proposalId2 = _createProposalWithDescription("upgrade-proposal-2");
 
         // Second upgrade (simulating future upgrade)
         Governor newImpl2 = new Governor(address(manager));
@@ -257,8 +254,7 @@ contract GovUpgrade is GovTest {
 
         // Create proposal after second upgrade
         vm.warp(block.timestamp + 1 days);
-        vm.prank(voter1);
-        bytes32 proposalId3 = createProposal();
+        bytes32 proposalId3 = _createProposalWithDescription("upgrade-proposal-3");
 
         IGovernor.Proposal memory proposal3 = governor.getProposal(proposalId3);
         assertTrue(proposal3.voteStart != 0, "Third proposal should exist");
@@ -307,8 +303,11 @@ contract GovUpgrade is GovTest {
         address treasuryBefore = governor.treasury();
 
         // Create proposal to test proposal storage
-        vm.prank(voter1);
-        bytes32 proposalId = createProposal();
+        bytes32 proposalId = _createProposalWithDescription("upgrade-storage-layout");
+
+        // The proposal helper configures threshold/updatable period before proposing.
+        // Capture the actual pre-upgrade values after setup to verify storage preservation.
+        proposalThresholdBpsBefore = governor.proposalThresholdBps();
 
         IGovernor.Proposal memory proposalBefore = governor.getProposal(proposalId);
 
@@ -345,8 +344,7 @@ contract GovUpgrade is GovTest {
         deployMock();
         mintVoter1();
 
-        vm.prank(voter1);
-        bytes32 proposalId = createProposal();
+        bytes32 proposalId = _createProposalWithDescription("upgrade-voting-history");
 
         // Cast vote before upgrade
         vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
@@ -387,5 +385,25 @@ contract GovUpgrade is GovTest {
             token.transferFrom(address(auction), otherUsers[i], tokenId);
         }
         vm.warp(block.timestamp + 1); // Advance time for voting power to take effect
+    }
+
+    function _createProposalWithDescription(string memory description) internal returns (bytes32 proposalId) {
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.startPrank(address(auction));
+        uint256 newTokenId = token.mint();
+        token.transferFrom(address(auction), voter1, newTokenId);
+        vm.stopPrank();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(0);
+
+        vm.warp(block.timestamp + 20);
+
+        vm.prank(voter1);
+        proposalId = governor.propose(targets, values, calldatas, description);
     }
 }

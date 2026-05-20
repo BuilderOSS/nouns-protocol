@@ -127,10 +127,13 @@ contract GovGasBenchmark is GovTest {
         deployMock();
         mintVoter1();
 
-        vm.prank(voter1);
-        bytes32 proposalId = createProposal();
-
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "Gas benchmark proposal");
 
         vm.prank(voter1);
         uint256 gasBefore = gasleft();

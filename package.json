@@ -51,7 +51,7 @@
     "addresses:check-builder-rewards": "node script/checkBuilderRewardsConfig.mjs",
     "addresses:sync-builder-rewards": "node script/checkBuilderRewardsConfig.mjs --write",
     "upgrade:check-status": "node script/checkUpgradeStatus.mjs",
-    "test": "echo 'temporarily skipping metadata tests, remove this when fixed' && forge test --no-match-test 'WithAddress' -vvv",
+    "test": "forge test -vvv",
     "typechain": "typechain --target=ethers-v5 'dist/artifacts/*/*.json' --out-dir dist/typechain",
     "storage-inspect:check": "./script/storage-check.sh check Manager Auction Governor Treasury Token",
     "storage-inspect:generate": "./script/storage-check.sh generate Manager Auction Governor Treasury Token"

@@ -1855,7 +1855,6 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         // Mint tokens to voter1 and voter2
         mintVoter1();
         createVoters(1, 5 ether);
-        address voter2 = otherUsers[0];
 
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
