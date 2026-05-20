@@ -539,6 +539,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
             // Else if the proposal was canceled:
         } else if (proposal.canceled) {
+            // Check if this was a replacement (updated proposal)
+            if (proposalIdReplacedBy[_proposalId] != bytes32(0)) {
+                return ProposalState.Replaced;
+            }
             return ProposalState.Canceled;
 
             // Else if the proposal was vetoed:

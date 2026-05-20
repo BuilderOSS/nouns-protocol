@@ -72,6 +72,7 @@ interface GovernorTypesV1 {
         Expired,
         Executed,
         Vetoed,
-        Updatable
+        Updatable,
+        Replaced
     }
 }
