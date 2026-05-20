@@ -34,7 +34,7 @@ contract GovFuzz is GovTest {
         );
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
 
         // Verify proposal was created
         assertTrue(createdProposalId != bytes32(0), "Proposal should be created");
@@ -184,7 +184,7 @@ contract GovFuzz is GovTest {
 
         vm.prank(founder);
         vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_NONCE()"));
-        governor.proposeBySigs(signatures, targets, values, calldatas, "test");
+        governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
     }
 
     /// @notice Fuzz test: Support value variations for voting
@@ -242,7 +242,7 @@ contract GovFuzz is GovTest {
         );
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
@@ -258,6 +258,7 @@ contract GovFuzz is GovTest {
         vm.prank(founder);
         bytes32 newProposalId = governor.updateProposalBySigs(
             createdProposalId,
+            founder,
             updateSigs,
             targets,
             values,

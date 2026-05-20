@@ -166,7 +166,7 @@ contract GovUpgrade is GovTest {
         );
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
 
         // Verify signed proposal was created
         assertTrue(createdProposalId != bytes32(0), "Proposal should be created");

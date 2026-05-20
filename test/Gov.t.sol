@@ -516,7 +516,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
 
         Proposal memory proposal = governor.getProposal(proposalId);
         address[] memory signers = governor.getProposalSigners(proposalId);
@@ -569,7 +569,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.expectRevert(abi.encodeWithSignature("PROPOSER_CANNOT_BE_SIGNER()"));
         vm.prank(voter2);
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
     }
 
     function testRevert_ProposeBySigsTooManySigners() public {
@@ -580,7 +580,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         ProposerSignature[] memory proposerSignatures = new ProposerSignature[](33);
 
         vm.expectRevert(abi.encodeWithSignature("TOO_MANY_SIGNERS()"));
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
     }
 
     function test_UpdateProposalBySigs() public {
@@ -607,7 +607,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
 
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
@@ -626,6 +626,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         vm.prank(voter2);
         bytes32 updatedProposalId = governor.updateProposalBySigs(
             proposalId,
+            voter2,
             updateSignatures,
             targets,
             values,
@@ -636,6 +637,87 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         assertTrue(updatedProposalId != proposalId);
         assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced));
+    }
+
+    function test_ProposeBySigs_AllowsRelayedSubmission() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(
+            voter1PK,
+            voter1,
+            voter2,
+            _computeProposalId(targets, values, calldatas, "relayed signed proposal", voter2),
+            0,
+            block.timestamp + 1 days
+        );
+
+        vm.prank(founder);
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "relayed signed proposal");
+
+        Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.proposer, voter2);
+    }
+
+    function testRevert_UpdateProposalBySigs_ProposerMismatch() public {
+        deployMock();
+
+        mintVoter1();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](1);
+        proposerSignatures[0] = _buildProposeSignature(
+            voter1PK,
+            voter1,
+            voter2,
+            _computeProposalId(targets, values, calldatas, "signed proposal", voter2),
+            0,
+            block.timestamp + 1 days
+        );
+
+        vm.prank(founder);
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
+
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        updateSignatures[0] = _buildUpdateSignature(
+            voter1PK,
+            voter1,
+            proposalId,
+            _computeProposalId(targets, values, updatedCalldatas, "updated signed proposal", voter2),
+            voter2,
+            1,
+            block.timestamp + 1 days
+        );
+
+        vm.prank(founder);
+        vm.expectRevert(abi.encodeWithSignature("ONLY_PROPOSER_CAN_EDIT()"));
+        governor.updateProposalBySigs(
+            proposalId,
+            voter1,
+            updateSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated signed proposal",
+            "minor tx update"
+        );
     }
 
     function testRevert_UpdateProposalTxsOnSignedProposalWithoutSignaturesForUnqualifiedProposer() public {
@@ -677,7 +759,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
 
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
@@ -711,7 +793,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter1);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "member proposer signed proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "member proposer signed proposal");
 
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
@@ -1339,7 +1421,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
 
         vm.expectRevert(abi.encodeWithSignature("INVALID_CANCEL()"));
         governor.cancel(proposalId);
@@ -1366,7 +1448,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "signed proposal");
 
         vm.prank(voter1);
         governor.cancel(proposalId);
@@ -1828,7 +1910,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         uint256 gasBefore = gasleft();
         vm.prank(voter2);
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "single signer");
+        governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "single signer");
         uint256 gasUsed = gasBefore - gasleft();
 
         emit log_named_uint("Gas used for proposeBySigs (1 signer)", gasUsed);
@@ -1854,7 +1936,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         uint256 gasBefore = gasleft();
         vm.prank(voter1);
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "16 signers");
+        governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "16 signers");
         uint256 gasUsed = gasBefore - gasleft();
 
         emit log_named_uint("Gas used for proposeBySigs (16 signers)", gasUsed);
@@ -1879,7 +1961,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         uint256 gasBefore = gasleft();
         vm.prank(voter1);
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "32 signers max");
+        governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "32 signers max");
         uint256 gasUsed = gasBefore - gasleft();
 
         emit log_named_uint("Gas used for proposeBySigs (32 signers MAX)", gasUsed);
@@ -1904,7 +1986,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
             _buildOrderedProposeSignatures(32, voter1, proposalIdToSign, 0, block.timestamp + 1 days, false);
 
         vm.prank(voter1);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "32 signers");
+        bytes32 proposalId = governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "32 signers");
 
         // Warp past updatable period
         vm.warp(block.timestamp + 2 days);
@@ -1943,7 +2025,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "original");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "original");
 
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
@@ -1961,7 +2043,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         uint256 gasBefore = gasleft();
         vm.prank(voter2);
-        governor.updateProposalBySigs(proposalId, updateSignatures, targets, values, updatedCalldatas, "updated", "gas test");
+        governor.updateProposalBySigs(proposalId, voter2, updateSignatures, targets, values, updatedCalldatas, "updated", "gas test");
         uint256 gasUsed = gasBefore - gasleft();
 
         emit log_named_uint("Gas used for updateProposalBySigs", gasUsed);
@@ -1993,7 +2075,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         // This should succeed (correct order)
         vm.prank(voter1);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "ordered");
+        bytes32 proposalId = governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "ordered");
         assertTrue(proposalId != bytes32(0), "Proposal creation should succeed with correct order");
 
         // Now test with reversed order (should fail)
@@ -2004,7 +2086,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
             vm.prank(voter2);
             vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_ORDER()"));
-            governor.proposeBySigs(reversedSignatures, targets, values, calldatas, "reversed");
+            governor.proposeBySigs(voter2, reversedSignatures, targets, values, calldatas, "reversed");
         }
     }
 
@@ -2041,7 +2123,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
             // Should fail due to non-increasing order (duplicate = same address)
             vm.prank(voter1);
             vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_ORDER()"));
-            governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "duplicate");
+            governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "duplicate");
         }
     }
 
@@ -2117,7 +2199,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         );
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "future deadline");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "future deadline");
         assertTrue(proposalId != bytes32(0), "Should succeed with non-expired deadline");
     }
 
@@ -2159,7 +2241,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         // Should fail with wrong nonce
         vm.prank(voter2);
         vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_NONCE()"));
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "wrong nonce");
+        governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "wrong nonce");
     }
 
     ///                                                          ///
@@ -2344,7 +2426,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.prank(voter1);
         vm.expectRevert(abi.encodeWithSignature("TOO_MANY_SIGNERS()"));
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "too many");
+        governor.proposeBySigs(voter1, proposerSignatures, targets, values, calldatas, "too many");
 
         // Invariant holds: Cannot exceed MAX_PROPOSAL_SIGNERS
     }
@@ -2396,7 +2478,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         // Create proposal with smart wallet as signer
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "smart wallet proposal");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "smart wallet proposal");
 
         // Verify proposal created
         Proposal memory proposal = governor.getProposal(proposalId);
@@ -2513,42 +2595,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         });
 
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "original");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "original");
 
-        // Update the proposal with new calldatas
-        bytes[] memory updatedCalldatas = new bytes[](1);
-        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
-
-        bytes32 updatedProposalIdToSign = _computeProposalId(targets, values, updatedCalldatas, "updated", voter2);
-        bytes32 updateDigest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                governor.DOMAIN_SEPARATOR(),
-                keccak256(abi.encode(UPDATE_PROPOSAL_TYPEHASH, proposalId, updatedProposalIdToSign, voter2, 1, block.timestamp + 1 days))
-            )
-        );
-
-        vm.prank(voter1);
-        wallet.approveHash(updateDigest);
-
-        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
-        updateSignatures[0] = ProposerSignature({
-            signer: address(wallet),
-            nonce: 1,
-            deadline: block.timestamp + 1 days,
-            sig: ""
-        });
-
-        vm.prank(voter2);
-        bytes32 updatedProposalId = governor.updateProposalBySigs(
-            proposalId,
-            updateSignatures,
-            targets,
-            values,
-            updatedCalldatas,
-            "updated",
-            "smart wallet update"
-        );
+        bytes32 updatedProposalId = _relaySmartWalletProposalUpdate(wallet, proposalId, targets, values);
 
         // Verify update worked
         assertTrue(updatedProposalId != proposalId);
@@ -2586,7 +2635,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.prank(voter2);
         vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE()"));
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "should fail");
+        governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "should fail");
     }
 
     /// @notice Test mixed EOA and smart wallet signers
@@ -2662,12 +2711,40 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         // Create proposal with mixed signers
         vm.prank(voter2);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "mixed signers");
+        bytes32 proposalId = governor.proposeBySigs(voter2, proposerSignatures, targets, values, calldatas, "mixed signers");
 
         // Verify both signers recorded
         address[] memory recordedSigners = governor.getProposalSigners(proposalId);
         assertEq(recordedSigners.length, 2);
         assertEq(recordedSigners[0], sortedSigners[0]);
         assertEq(recordedSigners[1], sortedSigners[1]);
+    }
+
+    function _relaySmartWalletProposalUpdate(
+        MockERC1271Wallet wallet,
+        bytes32 proposalId,
+        address[] memory targets,
+        uint256[] memory values
+    ) internal returns (bytes32) {
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        bytes32 updatedProposalIdToSign = _computeProposalId(targets, values, updatedCalldatas, "updated", voter2);
+        bytes32 updateDigest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                governor.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(UPDATE_PROPOSAL_TYPEHASH, proposalId, updatedProposalIdToSign, voter2, 1, block.timestamp + 1 days))
+            )
+        );
+
+        vm.prank(voter1);
+        wallet.approveHash(updateDigest);
+
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        updateSignatures[0] = ProposerSignature({ signer: address(wallet), nonce: 1, deadline: block.timestamp + 1 days, sig: "" });
+
+        vm.prank(voter2);
+        return governor.updateProposalBySigs(proposalId, voter2, updateSignatures, targets, values, updatedCalldatas, "updated", "smart wallet update");
     }
 }
