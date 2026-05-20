@@ -12,6 +12,7 @@ contract MockTransportAdapter is ITransportAdapter {
 
     function sendMessage(uint256 _dstChainId, bytes calldata _envelope, bytes calldata _options)
         external
+        payable
         returns (bytes32 messageId)
     {
         lastDstChainId = _dstChainId;

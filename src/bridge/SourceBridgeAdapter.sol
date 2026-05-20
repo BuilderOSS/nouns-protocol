@@ -58,6 +58,7 @@ contract SourceBridgeAdapter is Ownable, BridgeTypes {
 
     function sendCommand(uint8 _adapterId, uint256 _destinationChainId, uint64 _deadline, bytes calldata _payload, bytes calldata _options)
         external
+        payable
         onlyTreasury
         returns (bytes32 messageId)
     {
@@ -83,8 +84,14 @@ contract SourceBridgeAdapter is Ownable, BridgeTypes {
             payload: _payload
         });
 
-        messageId = ITransportAdapter(adapter).sendMessage(_destinationChainId, abi.encode(envelope), _options);
+        // Forward ETH for fees to transport adapter
+        messageId = ITransportAdapter(adapter).sendMessage{ value: msg.value }(
+            _destinationChainId, abi.encode(envelope), _options
+        );
 
         emit BridgeCommandSent(messageId, _adapterId, _destinationChainId, destinationExecutor, nonce, _payload);
     }
+
+    /// @notice Fallback to receive ETH for fees
+    receive() external payable {}
 }

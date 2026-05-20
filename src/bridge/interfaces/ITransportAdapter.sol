@@ -4,6 +4,7 @@ pragma solidity 0.8.16;
 interface ITransportAdapter {
     function sendMessage(uint256 dstChainId, bytes calldata envelope, bytes calldata options)
         external
+        payable
         returns (bytes32 messageId);
 
     function decodeMessage(bytes calldata transportMessage)

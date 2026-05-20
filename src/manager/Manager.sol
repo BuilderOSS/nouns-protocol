@@ -334,11 +334,11 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         address managedAdmin = _params.destinationManagedAdmin == address(0) ? bridgeOwner : _params.destinationManagedAdmin;
         address guardian = _params.destinationGuardian == address(0) ? managedAdmin : _params.destinationGuardian;
 
-        address sourceBridgeAdapter = sourceBridgeAdapterByDao[_params.daoId];
+        address payable sourceBridgeAdapter = payable(sourceBridgeAdapterByDao[_params.daoId]);
 
         if (sourceBridgeAdapter == address(0)) {
             SourceBridgeAdapter sourceAdapter = new SourceBridgeAdapter(address(this), _params.sourceTreasury, _params.daoId);
-            sourceBridgeAdapter = address(sourceAdapter);
+            sourceBridgeAdapter = payable(address(sourceAdapter));
             sourceBridgeAdapterByDao[_params.daoId] = sourceBridgeAdapter;
         }
 
