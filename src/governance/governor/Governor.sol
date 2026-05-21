@@ -257,27 +257,15 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         string memory _description,
         string memory _updateMessage
     ) external returns (bytes32) {
-        if (_proposer == address(0)) revert ADDRESS_ZERO();
-        _checkCanUpdateProposal(_proposalId);
-        _validateProposalArrays(_targets, _values, _calldatas);
-
-        Proposal memory oldProposal = proposals[_proposalId];
-        address[] storage signers = proposalSigners[_proposalId];
-
-        if (oldProposal.proposer != _proposer) revert ONLY_PROPOSER_CAN_EDIT();
-        if (signers.length == 0) revert MUST_PROVIDE_SIGNATURES();
-        if (_proposerSignatures.length != signers.length) revert SIGNER_COUNT_MISMATCH();
-
-        bytes32 updatedProposalId = hashProposal(_targets, _values, _calldatas, keccak256(bytes(_description)), _proposer);
-
-        for (uint256 i = 0; i < _proposerSignatures.length; ++i) {
-            ProposerSignature memory proposerSignature = _proposerSignatures[i];
-            if (proposerSignature.signer != signers[i]) revert INVALID_SIGNATURE_ORDER();
-
-            _verifyUpdateSignature(_proposalId, updatedProposalId, _proposer, proposerSignature);
-        }
-
-        bytes32 newProposalId = _replaceProposal(_proposalId, oldProposal, signers, _targets, _values, _calldatas, _description);
+        bytes32 newProposalId = _updateProposalBySigsInternal(
+            _proposalId,
+            _proposer,
+            _proposerSignatures,
+            _targets,
+            _values,
+            _calldatas,
+            _description
+        );
 
         emit ProposalUpdated(_proposalId, newProposalId, msg.sender, _targets, _values, _calldatas, _description, _updateMessage);
 
@@ -901,6 +889,85 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         proposalIdReplacedBy[_oldProposalId] = newProposalId;
     }
 
+    function _replaceProposalWithSigners(
+        bytes32 _oldProposalId,
+        Proposal memory _oldProposal,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        bytes32 _descriptionHash,
+        address[] memory _newSigners
+    ) internal returns (bytes32 newProposalId) {
+        newProposalId = hashProposal(_targets, _values, _calldatas, _descriptionHash, _oldProposal.proposer);
+
+        if (newProposalId == _oldProposalId) {
+            revert NO_OP_PROPOSAL_UPDATE();
+        }
+
+        if (proposals[newProposalId].voteStart != 0) revert PROPOSAL_EXISTS(newProposalId);
+
+        Proposal storage newProposal = proposals[newProposalId];
+
+        // Copy proposal metadata and timing from old proposal
+        newProposal.proposer = _oldProposal.proposer;
+        newProposal.timeCreated = _oldProposal.timeCreated;
+        newProposal.againstVotes = _oldProposal.againstVotes;
+        newProposal.forVotes = _oldProposal.forVotes;
+        newProposal.abstainVotes = _oldProposal.abstainVotes;
+        newProposal.voteStart = _oldProposal.voteStart;
+        newProposal.voteEnd = _oldProposal.voteEnd;
+        newProposal.proposalThreshold = _oldProposal.proposalThreshold;
+        newProposal.quorumVotes = _oldProposal.quorumVotes;
+
+        proposalUpdatePeriodEnds[newProposalId] = proposalUpdatePeriodEnds[_oldProposalId];
+
+        // Set new signers
+        address[] storage signersList = proposalSigners[newProposalId];
+        uint256 newSignersLen = _newSigners.length;
+        for (uint256 i; i < newSignersLen; ++i) {
+            signersList.push(_newSigners[i]);
+        }
+
+        proposals[_oldProposalId].canceled = true;
+        proposalIdReplacedBy[_oldProposalId] = newProposalId;
+    }
+
+    function _updateProposalBySigsInternal(
+        bytes32 _proposalId,
+        address _proposer,
+        ProposerSignature[] memory _proposerSignatures,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description
+    ) internal returns (bytes32) {
+        if (_proposer == address(0)) revert ADDRESS_ZERO();
+        _checkCanUpdateProposal(_proposalId);
+        _validateProposalArrays(_targets, _values, _calldatas);
+
+        Proposal memory oldProposal = proposals[_proposalId];
+
+        if (oldProposal.proposer != _proposer) revert ONLY_PROPOSER_CAN_EDIT();
+
+        // If original proposal had signers, update must also have signers
+        if (proposalSigners[_proposalId].length > 0 && _proposerSignatures.length == 0) revert MUST_PROVIDE_SIGNATURES();
+
+        bytes32 descriptionHash = keccak256(bytes(_description));
+        bytes32 updatedProposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, _proposer);
+
+        // Validate new signatures and collect votes (signers can be different from original)
+        (uint256 totalVotes, address[] memory newSigners) =
+            _validateUpdateSignaturesAndGetVotes(_proposalId, updatedProposalId, _proposer, _proposerSignatures);
+
+        if (totalVotes <= proposalThreshold()) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
+
+        bytes32 newProposalId = _replaceProposalWithSigners(_proposalId, oldProposal, _targets, _values, _calldatas, descriptionHash, newSigners);
+
+        emit ProposalSignersSet(newProposalId, newSigners);
+
+        return newProposalId;
+    }
+
     function _verifyProposeSignature(
         address _proposer,
         bytes32 _proposalId,
@@ -962,6 +1029,28 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
             if (i > 0 && proposerSignature.signer <= _proposerSignatures[i - 1].signer) revert INVALID_SIGNATURE_ORDER();
 
             _verifyProposeSignature(_proposer, _proposalId, proposerSignature);
+
+            signers[i] = proposerSignature.signer;
+            votes += getVotes(proposerSignature.signer, block.timestamp - 1);
+        }
+    }
+
+    function _validateUpdateSignaturesAndGetVotes(
+        bytes32 _oldProposalId,
+        bytes32 _newProposalId,
+        address _proposer,
+        ProposerSignature[] memory _proposerSignatures
+    ) internal returns (uint256 votes, address[] memory signers) {
+        votes = getVotes(_proposer, block.timestamp - 1);
+        signers = new address[](_proposerSignatures.length);
+
+        for (uint256 i = 0; i < _proposerSignatures.length; ++i) {
+            ProposerSignature memory proposerSignature = _proposerSignatures[i];
+
+            if (proposerSignature.signer == _proposer) revert PROPOSER_CANNOT_BE_SIGNER();
+            if (i > 0 && proposerSignature.signer <= _proposerSignatures[i - 1].signer) revert INVALID_SIGNATURE_ORDER();
+
+            _verifyUpdateSignature(_oldProposalId, _newProposalId, _proposer, proposerSignature);
 
             signers[i] = proposerSignature.signer;
             votes += getVotes(proposerSignature.signer, block.timestamp - 1);

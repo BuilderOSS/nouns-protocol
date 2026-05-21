@@ -184,6 +184,33 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         }
     }
 
+    function _sortedSignersAndPksExcludingProposer(uint256 count, address proposer) internal view returns (address[] memory signers, uint256[] memory signerPks) {
+        signers = new address[](count);
+        signerPks = new uint256[](count);
+
+        uint256 signersIndex = 0;
+        for (uint256 i = 0; i < otherUsers.length && signersIndex < count; i++) {
+            if (otherUsers[i] != proposer) {
+                signers[signersIndex] = otherUsers[i];
+                signerPks[signersIndex] = otherUsersPKs[i];
+                signersIndex++;
+            }
+        }
+
+        for (uint256 i = 1; i < count; i++) {
+            address currentSigner = signers[i];
+            uint256 currentPk = signerPks[i];
+            uint256 j = i;
+            while (j > 0 && signers[j - 1] > currentSigner) {
+                signers[j] = signers[j - 1];
+                signerPks[j] = signerPks[j - 1];
+                j--;
+            }
+            signers[j] = currentSigner;
+            signerPks[j] = currentPk;
+        }
+    }
+
     function _buildOrderedProposeSignatures(
         uint256 count,
         address proposer,
@@ -193,7 +220,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bool reverse
     ) internal view returns (ProposerSignature[] memory signatures) {
         signatures = new ProposerSignature[](count);
-        (address[] memory sortedSigners, uint256[] memory sortedSignerPks) = _sortedSignersAndPks(count);
+        (address[] memory sortedSigners, uint256[] memory sortedSignerPks) = _sortedSignersAndPksExcludingProposer(count, proposer);
 
         for (uint256 i = 0; i < count; i++) {
             uint256 idx = reverse ? count - 1 - i : i;
@@ -251,6 +278,60 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
 
         return ProposerSignature({ signer: signer, nonce: nonce, deadline: deadline, sig: _encodeSignature(v, r, s) });
+    }
+
+    function _buildUpdateSignaturesWithOverlap(
+        ProposerSignature[] memory signatures,
+        bytes32 proposalId,
+        bytes32 updatedProposalId,
+        address proposer,
+        uint256 count,
+        uint256 originalSignerIndex
+    ) internal view {
+        (address[] memory sortedSigners, uint256[] memory sortedPks) = _sortedSignersAndPksExcludingProposer(count, proposer);
+        for (uint256 i = 0; i < count; i++) {
+            uint256 nonce = (i == originalSignerIndex) ? 1 : 0;
+            signatures[i] = _buildUpdateSignature(
+                sortedPks[i], sortedSigners[i], proposalId, updatedProposalId, proposer, nonce, block.timestamp + 1 days
+            );
+        }
+    }
+
+    function _callUpdateProposalBySigs(
+        bytes32 proposalId,
+        address proposer,
+        ProposerSignature[] memory signatures,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) internal returns (bytes32) {
+        return governor.updateProposalBySigs(proposalId, proposer, signatures, targets, values, calldatas, "updated", "msg");
+    }
+
+    function _mintAndDelegateTokens(uint256 count) internal {
+        // Check if auction is paused, and unpause if needed
+        bool isPaused = auction.paused();
+        if (isPaused) {
+            vm.prank(founder);
+            auction.unpause();
+        }
+
+        for (uint256 i = 0; i < count; i++) {
+            (uint256 tokenId, , , , , ) = auction.auction();
+
+            vm.prank(otherUsers[i]);
+            auction.createBid{ value: 0.420 ether }(tokenId);
+
+            vm.warp(block.timestamp + auctionParams.duration + 1 seconds);
+            auction.settleCurrentAndCreateNewAuction();
+        }
+
+        vm.warp(block.timestamp + 20);
+
+        for (uint256 i = 0; i < count; i++) {
+            vm.prank(otherUsers[i]);
+            token.delegate(otherUsers[i]);
+        }
     }
 
     function mintVoter1() internal {
@@ -2745,5 +2826,321 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         vm.prank(voter2);
         return governor.updateProposalBySigs(proposalId, voter2, updateSignatures, targets, values, updatedCalldatas, "updated", "smart wallet update");
+    }
+
+    /// @notice Test updating signed proposal with different signers (Option 1 - Flexible signers)
+    function test_UpdateProposalBySigs_WithDifferentSigners() public {
+        bytes32 proposalId = _setupSignedProposal();
+
+        bytes32 newProposalId = _updateWithDifferentSigners(proposalId);
+
+        // Verify update succeeded
+        assertTrue(newProposalId != proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced));
+
+        // Verify new signers are stored and different
+        address[] memory newSigners = governor.getProposalSigners(newProposalId);
+        assertEq(newSigners.length, 2);
+    }
+
+    function _setupSignedProposal() internal returns (bytes32) {
+        deployMock();
+        _createUsersWithPKs(4, 100 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(100);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        // Mint 1 token for founder (proposer) + 4 tokens for signers
+        // Unpause and mint first token for founder
+        vm.deal(founder, 100 ether);
+        vm.prank(founder);
+        auction.unpause();
+
+        (uint256 tokenId, , , , , ) = auction.auction();
+        vm.prank(founder);
+        auction.createBid{ value: 0.420 ether }(tokenId);
+        vm.warp(block.timestamp + auctionParams.duration + 1 seconds);
+        auction.settleCurrentAndCreateNewAuction();
+        vm.warp(block.timestamp + 20);
+
+        _mintAndDelegateTokens(4);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        ProposerSignature[] memory proposerSignatures = _buildOrderedProposeSignatures(
+            2,
+            founder,
+            _computeProposalId(targets, values, calldatas, "original", founder),
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        vm.prank(founder);
+        return governor.proposeBySigs(founder, proposerSignatures, targets, values, calldatas, "original");
+    }
+
+    function _updateWithDifferentSigners(bytes32 proposalId) internal returns (bytes32) {
+        (address[] memory targets, uint256[] memory values, ) = mockProposal();
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        address signer1 = otherUsers[2];
+        address signer2 = otherUsers[3];
+        uint256 pk1 = otherUsersPKs[2];
+        uint256 pk2 = otherUsersPKs[3];
+
+        if (signer1 > signer2) {
+            (signer1, signer2) = (signer2, signer1);
+            (pk1, pk2) = (pk2, pk1);
+        }
+
+        bytes32 updatedProposalId = _computeProposalId(targets, values, updatedCalldatas, "updated", founder);
+
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](2);
+        updateSignatures[0] = _buildUpdateSignature(pk1, signer1, proposalId, updatedProposalId, founder, 0, block.timestamp + 1 days);
+        updateSignatures[1] = _buildUpdateSignature(pk2, signer2, proposalId, updatedProposalId, founder, 0, block.timestamp + 1 days);
+
+        vm.prank(founder);
+        return _callUpdateProposalBySigs(proposalId, founder, updateSignatures, targets, values, updatedCalldatas);
+    }
+
+    /// @notice Test updating signed proposal with fewer signers
+    function test_UpdateProposalBySigs_WithFewerSigners() public {
+        deployMock();
+
+        _createUsersWithPKs(3, 100 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(100); // 1% threshold
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        // Mint token for founder (proposer) first
+        vm.deal(founder, 100 ether);
+        vm.prank(founder);
+        auction.unpause();
+        (uint256 tokenId, , , , , ) = auction.auction();
+        vm.prank(founder);
+        auction.createBid{ value: 0.420 ether }(tokenId);
+        vm.warp(block.timestamp + auctionParams.duration + 1 seconds);
+        auction.settleCurrentAndCreateNewAuction();
+        vm.warp(block.timestamp + 20);
+
+        _mintAndDelegateTokens(3);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Original: proposer + 2 signers
+        ProposerSignature[] memory proposerSignatures = _buildOrderedProposeSignatures(
+            2,
+            founder,
+            _computeProposalId(targets, values, calldatas, "original", founder),
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        vm.prank(founder);
+        bytes32 proposalId = governor.proposeBySigs(founder, proposerSignatures, targets, values, calldatas, "original");
+
+        // Update with only 1 signer (still meets threshold)
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        bytes32 updatedProposalId = _computeProposalId(targets, values, updatedCalldatas, "updated fewer", founder);
+
+        (address[] memory sortedSigners, uint256[] memory sortedPks) = _sortedSignersAndPksExcludingProposer(1, founder);
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        updateSignatures[0] = _buildUpdateSignature(sortedPks[0], sortedSigners[0], proposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
+
+        vm.prank(founder);
+        bytes32 newProposalId = governor.updateProposalBySigs(
+            proposalId,
+            founder,
+            updateSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated fewer",
+            "reduced signers"
+        );
+
+        assertTrue(newProposalId != proposalId);
+        address[] memory newSigners = governor.getProposalSigners(newProposalId);
+        assertEq(newSigners.length, 1);
+    }
+
+    /// @notice Test updating signed proposal with more signers
+    function test_UpdateProposalBySigs_WithMoreSigners() public {
+        deployMock();
+
+        _createUsersWithPKs(4, 100 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(100);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        _mintAndDelegateTokens(4);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Original: proposer + 1 signer
+        ProposerSignature[] memory proposerSignatures = _buildOrderedProposeSignatures(
+            1,
+            otherUsers[0],
+            _computeProposalId(targets, values, calldatas, "original", otherUsers[0]),
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        vm.prank(otherUsers[0]);
+        bytes32 proposalId = governor.proposeBySigs(otherUsers[0], proposerSignatures, targets, values, calldatas, "original");
+
+        // Update with 3 signers
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        bytes32 updatedProposalId = _computeProposalId(targets, values, updatedCalldatas, "updated more", otherUsers[0]);
+
+        ProposerSignature[] memory updateSignatures = _buildOrderedProposeSignatures(
+            3,
+            otherUsers[0],
+            updatedProposalId,
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        // Convert to update signatures - nonces: second signer (index 1) was original, so uses nonce 1
+        // See logs: original signer is 0x2B5AD which appears as second in sorted update signers
+        _buildUpdateSignaturesWithOverlap(updateSignatures, proposalId, updatedProposalId, otherUsers[0], 3, 1);
+
+        vm.prank(otherUsers[0]);
+        bytes32 newProposalId = governor.updateProposalBySigs(
+            proposalId,
+            otherUsers[0],
+            updateSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated more",
+            "added signers"
+        );
+
+        assertTrue(newProposalId != proposalId);
+        address[] memory newSigners = governor.getProposalSigners(newProposalId);
+        assertEq(newSigners.length, 3);
+    }
+
+    /// @notice Test that update still requires signatures if original had signatures
+    function testRevert_UpdateProposalBySigs_MustProvideSignaturesIfOriginalHadSignatures() public {
+        deployMock();
+
+        _createUsersWithPKs(2, 100 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(100);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        _mintAndDelegateTokens(2);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Create with signatures
+        ProposerSignature[] memory proposerSignatures = _buildOrderedProposeSignatures(
+            1,
+            otherUsers[0],
+            _computeProposalId(targets, values, calldatas, "original", otherUsers[0]),
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        vm.prank(otherUsers[0]);
+        bytes32 proposalId = governor.proposeBySigs(otherUsers[0], proposerSignatures, targets, values, calldatas, "original");
+
+        // Try to update without signatures (should fail)
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        ProposerSignature[] memory emptySignatures = new ProposerSignature[](0);
+
+        vm.prank(otherUsers[0]);
+        vm.expectRevert(abi.encodeWithSignature("MUST_PROVIDE_SIGNATURES()"));
+        governor.updateProposalBySigs(
+            proposalId,
+            otherUsers[0],
+            emptySignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated",
+            "no sigs"
+        );
+    }
+
+    /// @notice Test that update fails if new signers don't meet threshold
+    function testRevert_UpdateProposalBySigs_BelowThreshold() public {
+        deployMock();
+
+        _createUsersWithPKs(100, 100 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(300); // 3% threshold - needs 3 votes
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        // Mint 100 tokens (1 per user) so that 3% = 3 votes
+        _mintAndDelegateTokens(100);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Original: proposer + 3 signers = 4 votes (meets 3% threshold of 3 votes)
+        ProposerSignature[] memory proposerSignatures = _buildOrderedProposeSignatures(
+            3,
+            otherUsers[0],
+            _computeProposalId(targets, values, calldatas, "original", otherUsers[0]),
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        vm.prank(otherUsers[0]);
+        bytes32 proposalId = governor.proposeBySigs(otherUsers[0], proposerSignatures, targets, values, calldatas, "original");
+
+        // Try to update with only 1 signer (proposer + 1 signer = 2 votes < 3% threshold of 3 votes)
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        bytes32 updatedProposalId = _computeProposalId(targets, values, updatedCalldatas, "updated", otherUsers[0]);
+
+        (address[] memory sortedSigners, uint256[] memory sortedPks) = _sortedSignersAndPksExcludingProposer(1, otherUsers[0]);
+        ProposerSignature[] memory updateSignatures = new ProposerSignature[](1);
+        // This signer was in the original proposal (first of 2 signers), so needs nonce 1
+        updateSignatures[0] = _buildUpdateSignature(sortedPks[0], sortedSigners[0], proposalId, updatedProposalId, otherUsers[0], 1, block.timestamp + 1 days);
+
+        vm.prank(otherUsers[0]);
+        vm.expectRevert(abi.encodeWithSignature("VOTES_BELOW_PROPOSAL_THRESHOLD()"));
+        governor.updateProposalBySigs(
+            proposalId,
+            otherUsers[0],
+            updateSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated",
+            "below threshold"
+        );
     }
 }
