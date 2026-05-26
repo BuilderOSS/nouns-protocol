@@ -14,6 +14,7 @@ contract GovernorStorageV3 {
     mapping(bytes32 => address[]) internal proposalSigners;
 
     /// @notice The timestamp until which a proposal can be updated
+    /// @dev Uses uint32 (overflows in year 2106), consistent with existing voteStart/voteEnd tech debt
     mapping(bytes32 => uint32) internal proposalUpdatePeriodEnds;
 
     /// @notice Mapping from previous proposal id to replacement id created by update

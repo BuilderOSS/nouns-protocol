@@ -86,7 +86,23 @@ Apply additional contract upgrades if part of the rollout scope.
 
 ## Governor-Specific Compatibility Notes
 
+### Breaking Change: `castVoteBySig` ABI
+
 - `castVoteBySig` ABI changed from `(deadline, v, r, s)` to `(nonce, deadline, bytes sig)`.
+- **This is a versioned breaking change** (Governor 2.0.0 → 2.1.0).
+- **Critical**: Old vote-signing code will stop working immediately after upgrade.
+
+**Rollout Sequence to Avoid Downtime:**
+
+1. **Before on-chain upgrade**: Deploy updated frontend/relayer code that supports the new ABI, but keep it dormant (do not activate vote-by-sig features yet).
+2. **Execute on-chain upgrade**: DAO governance proposal upgrades Governor to v2.1.0.
+3. **After on-chain upgrade**: Activate the new vote-by-sig features in frontend/relayer.
+4. **Coordination**: For DAOs with active relayers, coordinate the timing between on-chain upgrade execution and relayer deployment to minimize any window where vote-by-sig is unavailable.
+
+See `docs/frontend-migration-guide.md` for detailed code migration examples.
+
+### Other Compatibility Notes
+
 - Signed proposal update policy:
   - signed proposals can use unsigned `updateProposal` only if proposer independently met threshold at creation-time reference,
   - otherwise proposer must use `updateProposalBySigs`.
@@ -106,13 +122,18 @@ See:
 ### Existing DAOs (proxy upgrades)
 
 - Existing governor proxies keep storage and do not rerun `initialize`.
-- `proposalUpdatablePeriod` remains whatever was already set (for legacy DAOs this is typically `0`) until governance sets it.
-- During rollout, include `Governor.updateProposalUpdatablePeriod(...)` in the DAO's post-upgrade governance actions.
+- **`_proposalUpdatablePeriod` will be `0` after upgrade** for DAOs upgrading from a version that did not have this storage slot. This is **intended behavior** and disables the updatable window until explicitly enabled.
+- With `_proposalUpdatablePeriod == 0`:
+  - Newly created proposals immediately transition to `Pending` state (skipping `Updatable`).
+  - `updateProposal` and `updateProposalBySigs` will revert with `CAN_ONLY_EDIT_UPDATABLE_PROPOSALS`.
+  - Normal proposal lifecycle (voting, queuing, execution) is unaffected.
+- **To enable updatable proposals**: Include `Governor.updateProposalUpdatablePeriod(...)` in the DAO's post-upgrade governance actions (e.g., set to `1 days` to match the new default).
+- Document this clearly in your upgrade proposal so DAO members understand the feature is opt-in.
 
 ### New DAOs (fresh deploy via Manager)
 
 - New governor proxies run `initialize` during `Manager.deploy`.
-- Governor defaults `proposalUpdatablePeriod` to `1 day` at initialization.
+- Governor defaults `_proposalUpdatablePeriod` to `1 day` at initialization.
 - If your deployment policy differs, include a follow-up governance/owner action to update `proposalUpdatablePeriod` after deploy.
 
 ## Verification Checklist

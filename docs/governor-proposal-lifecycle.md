@@ -37,6 +37,8 @@ At proposal creation (`_createProposal`):
 - `voteEnd = voteStart + votingPeriod`
 
 For updated proposals, these timestamps are preserved from the original proposal and copied to the replacement id.
+This means chained updates share a single update window: if A is updated to B and B to C,
+all revisions use A's original `proposalUpdatePeriodEnd`.
 
 ## Periods and Parameters
 
@@ -72,29 +74,46 @@ For updated proposals, these timestamps are preserved from the original proposal
 - Combined votes (proposer + signers) must exceed proposal threshold.
 - Signatures are EIP-712 with nonce + deadline replay protection.
 - Signer sponsorship is capped: max `32` signers per proposal.
+- `proposeBySigs` and `updateProposalBySigs` share the same per-signer nonce mapping (`proposeSigNonces`),
+  so off-chain signing flows must sequence propose/update sponsorship signatures against one shared counter.
 
 ## Update Paths
 
 ### `updateProposal`
 
+- **For unsigned proposals only**. This path reverts if the proposal has any signers.
 - Allowed only while proposal state is `Updatable`.
 - Caller must be the original proposer.
-- If proposal had signers and proposer did not independently meet threshold at creation reference, this path is blocked.
+- Signed proposals must use `updateProposalBySigs` instead.
 
 ### `updateProposalBySigs`
 
+- **For signed proposals** (or to convert an unsigned proposal to a signed one).
 - Also only while `Updatable` and proposer-only caller.
-- Requires signatures from the exact stored signer set (same order, same count).
+- Accepts an arbitrary new signer set, subject to the same ordering/uniqueness/threshold rules as proposal creation.
+- The new signer set does NOT need to match the original proposal's signers (can add, remove, or replace signers entirely).
+- If the original proposal was unsigned, calling `updateProposalBySigs` with zero signatures is allowed (proposer-only re-hash).
 
 ### No-op updates
 
 - If updated content hashes to the same proposal id, update reverts with `NO_OP_PROPOSAL_UPDATE`.
+- Re-submitting an earlier revision's exact content does not "undo" an update if that proposal id already exists:
+  if that id is already present in storage (for example, the original now-canceled id), the update reverts with `PROPOSAL_EXISTS`.
 
 ### Replacement behavior
 
 - New id receives copied metadata (timings, votes, thresholds, signers).
 - Old id is marked canceled.
 - Link is recorded in `proposalIdReplacedBy(oldId)`.
+
+### Voting Power Snapshot (Frozen at Original Creation)
+
+**IMPORTANT**: When a proposal is updated, the voting power snapshot remains frozen at the **original** `timeCreated` timestamp.
+
+- The `timeCreated` field is deliberately preserved from the original proposal when creating the replacement.
+- Voters cast votes weighted by their token balance at the time the proposal was **first created**, NOT when it was updated.
+- This prevents proposers from gaming the system by updating proposals to capture favorable snapshots.
+- All vote queries use `getVotes(_voter, proposal.timeCreated)`, which points to the original creation time even for updated proposals.
 
 ## Query Cheat Sheet
 

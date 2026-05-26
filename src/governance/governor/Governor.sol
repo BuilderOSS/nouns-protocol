@@ -67,10 +67,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     uint256 public immutable MAX_PROPOSAL_UPDATABLE_PERIOD = 24 weeks;
 
     /// @notice The default period a newly-created proposal is editable
-    uint256 public constant DEFAULT_PROPOSAL_UPDATABLE_PERIOD = 1 days;
+    uint256 public immutable DEFAULT_PROPOSAL_UPDATABLE_PERIOD = 1 days;
 
     /// @notice The maximum number of signer sponsors allowed per proposal
-    uint256 public constant MAX_PROPOSAL_SIGNERS = 32;
+    uint256 public immutable MAX_PROPOSAL_SIGNERS = 32;
 
     /// @notice The maximum delayed governance expiration setting
     uint256 public immutable MAX_DELAYED_GOVERNANCE_EXPIRATION = 30 days;
@@ -232,14 +232,22 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         _checkCanUpdateProposal(_proposalId);
         _validateProposalArrays(_targets, _values, _calldatas);
 
-        Proposal memory oldProposal = proposals[_proposalId];
-        address[] storage signers = proposalSigners[_proposalId];
-
-        if (signers.length > 0 && !_proposerMetThresholdAtCreation(oldProposal)) {
-            revert UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES();
+        // Reject signed proposals - they must use updateProposalBySigs.
+        // This guard is intentionally stricter than the one in _updateProposalBySigsInternal:
+        // updateProposalBySigs can be called with zero signatures when the original proposal
+        // was unsigned (proposer-only re-hash), but updateProposal never accepts previously
+        // signed proposals.
+        if (proposalSigners[_proposalId].length > 0) {
+            revert SIGNED_PROPOSAL_MUST_USE_SIGNATURES();
         }
 
-        bytes32 newProposalId = _replaceProposal(_proposalId, oldProposal, signers, _targets, _values, _calldatas, _description);
+        Proposal memory oldProposal = proposals[_proposalId];
+
+        // updateProposal (without signatures) creates an unsigned replacement proposal,
+        // so pass an empty signer array to avoid carrying over old approvals
+        address[] memory emptySigners = new address[](0);
+        bytes32 descriptionHash = keccak256(bytes(_description));
+        bytes32 newProposalId = _replaceProposalCore(_proposalId, oldProposal, _targets, _values, _calldatas, descriptionHash, emptySigners);
 
         emit ProposalUpdated(_proposalId, newProposalId, msg.sender, _targets, _values, _calldatas, _description, _updateMessage);
 
@@ -257,6 +265,9 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         string memory _description,
         string memory _updateMessage
     ) external returns (bytes32) {
+        // Check signer count limit early to fail fast before signature validation
+        if (_proposerSignatures.length > MAX_PROPOSAL_SIGNERS) revert TOO_MANY_SIGNERS();
+
         bytes32 newProposalId = _updateProposalBySigsInternal(
             _proposalId,
             _proposer,
@@ -438,27 +449,52 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice Cancels a proposal
     /// @param _proposalId The proposal id
     function cancel(bytes32 _proposalId) external {
-        // Ensure the proposal hasn't been executed
-        if (state(_proposalId) == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
+        // Ensure the proposal is in a live state (can only cancel active proposals)
+        ProposalState currentState = state(_proposalId);
+        if (currentState == ProposalState.Executed) {
+            revert PROPOSAL_ALREADY_EXECUTED();
+        }
+        if (
+            currentState == ProposalState.Canceled ||
+            currentState == ProposalState.Replaced ||
+            currentState == ProposalState.Vetoed
+        ) {
+            revert PROPOSAL_IN_TERMINAL_STATE();
+        }
 
         // Get a copy of the proposal
         Proposal memory proposal = proposals[_proposalId];
 
-        // Calculate whether caller is authorized and check combined voting power
-        // Note: Vote accumulation cannot realistically overflow as total supply is bound by token design
-        // and getVotes would revert on invalid timestamps. The threshold comparison below cannot
-        // underflow as proposalThreshold is always <= total supply.
+        // First check if caller is the proposer or a signer - if so, they can always cancel
+        // This optimization skips the expensive getVotes() loop in the common case
         bool msgSenderIsProposerOrSigner = msg.sender == proposal.proposer;
-        uint256 votes = getVotes(proposal.proposer, block.timestamp - 1);
         address[] storage signers = proposalSigners[_proposalId];
         uint256 signersLen = signers.length;
-        for (uint256 i; i < signersLen; ++i) {
-            msgSenderIsProposerOrSigner = msgSenderIsProposerOrSigner || msg.sender == signers[i];
-            votes += getVotes(signers[i], block.timestamp - 1);
+
+        if (!msgSenderIsProposerOrSigner) {
+            // Check if caller is one of the signers
+            for (uint256 i; i < signersLen; ++i) {
+                if (msg.sender == signers[i]) {
+                    msgSenderIsProposerOrSigner = true;
+                    break;
+                }
+            }
         }
 
-        // Ensure the caller is the proposer/signer or backing votes have dropped below the proposal threshold
-        if (!msgSenderIsProposerOrSigner && votes >= proposal.proposalThreshold) revert INVALID_CANCEL();
+        // If caller is NOT the proposer or a signer, check if backing votes have dropped below threshold
+        if (!msgSenderIsProposerOrSigner) {
+            // Calculate combined voting power of proposer + all signers
+            // Note: Vote accumulation cannot realistically overflow as total supply is bound by token design
+            // and getVotes would revert on invalid timestamps. The threshold comparison below cannot
+            // underflow as proposalThreshold is always <= total supply.
+            uint256 votes = getVotes(proposal.proposer, block.timestamp - 1);
+            for (uint256 i; i < signersLen; ++i) {
+                votes += getVotes(signers[i], block.timestamp - 1);
+            }
+
+            // If backing votes are still above threshold, caller cannot cancel
+            if (votes >= proposal.proposalThreshold) revert INVALID_CANCEL();
+        }
 
         // Update the proposal as canceled
         proposals[_proposalId].canceled = true;
@@ -482,8 +518,16 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // Ensure the caller is the vetoer
         if (msg.sender != settings.vetoer) revert ONLY_VETOER();
 
-        // Ensure the proposal has not been executed
-        if (state(_proposalId) == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
+        // Ensure the proposal is in a live state
+        ProposalState currentState = state(_proposalId);
+        if (currentState == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
+        if (
+            currentState == ProposalState.Canceled ||
+            currentState == ProposalState.Replaced ||
+            currentState == ProposalState.Vetoed
+        ) {
+            revert PROPOSAL_IN_TERMINAL_STATE();
+        }
 
         // Get the pointer to the proposal
         Proposal storage proposal = proposals[_proposalId];
@@ -836,67 +880,15 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (msg.sender != proposals[_proposalId].proposer) revert ONLY_PROPOSER_CAN_EDIT();
     }
 
-    function _proposerMetThresholdAtCreation(Proposal memory _proposal) internal view returns (bool) {
-        if (_proposal.timeCreated == 0) {
-            return false;
-        }
-
-        return getVotes(_proposal.proposer, uint256(_proposal.timeCreated) - 1) >= _proposal.proposalThreshold;
-    }
-
-    function _replaceProposal(
-        bytes32 _oldProposalId,
-        Proposal memory _oldProposal,
-        address[] storage _oldSigners,
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description
-    ) internal returns (bytes32 newProposalId) {
-        bytes32 descriptionHash = keccak256(bytes(_description));
-        newProposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, _oldProposal.proposer);
-
-        if (newProposalId == _oldProposalId) {
-            revert NO_OP_PROPOSAL_UPDATE();
-        }
-
-        if (proposals[newProposalId].voteStart != 0) revert PROPOSAL_EXISTS(newProposalId);
-
-        Proposal storage newProposal = proposals[newProposalId];
-
-        // Copy proposal metadata and timing from old proposal
-        newProposal.proposer = _oldProposal.proposer;
-        newProposal.timeCreated = _oldProposal.timeCreated;
-        // Note: Vote counts are copied for consistency but should always be zero
-        // since updates are only allowed in Updatable state (before voting starts)
-        newProposal.againstVotes = _oldProposal.againstVotes;
-        newProposal.forVotes = _oldProposal.forVotes;
-        newProposal.abstainVotes = _oldProposal.abstainVotes;
-        newProposal.voteStart = _oldProposal.voteStart;
-        newProposal.voteEnd = _oldProposal.voteEnd;
-        newProposal.proposalThreshold = _oldProposal.proposalThreshold;
-        newProposal.quorumVotes = _oldProposal.quorumVotes;
-
-        proposalUpdatePeriodEnds[newProposalId] = proposalUpdatePeriodEnds[_oldProposalId];
-
-        address[] storage newSigners = proposalSigners[newProposalId];
-        uint256 oldSignersLen = _oldSigners.length;
-        for (uint256 i; i < oldSignersLen; ++i) {
-            newSigners.push(_oldSigners[i]);
-        }
-
-        proposals[_oldProposalId].canceled = true;
-        proposalIdReplacedBy[_oldProposalId] = newProposalId;
-    }
-
-    function _replaceProposalWithSigners(
+    /// @dev Core replacement logic shared by both update paths
+    function _replaceProposalCore(
         bytes32 _oldProposalId,
         Proposal memory _oldProposal,
         address[] memory _targets,
         uint256[] memory _values,
         bytes[] memory _calldatas,
         bytes32 _descriptionHash,
-        address[] memory _newSigners
+        address[] memory _signers
     ) internal returns (bytes32 newProposalId) {
         newProposalId = hashProposal(_targets, _values, _calldatas, _descriptionHash, _oldProposal.proposer);
 
@@ -910,7 +902,13 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         // Copy proposal metadata and timing from old proposal
         newProposal.proposer = _oldProposal.proposer;
+        // IMPORTANT: timeCreated is deliberately preserved from the original proposal.
+        // This keeps the voting power snapshot frozen at the original creation time,
+        // even when the proposal is updated. Voters vote against the snapshot taken
+        // when the proposal was first created, NOT when it was updated.
         newProposal.timeCreated = _oldProposal.timeCreated;
+        // Note: Vote counts are copied for consistency but should always be zero
+        // since updates are only allowed in Updatable state (before voting starts)
         newProposal.againstVotes = _oldProposal.againstVotes;
         newProposal.forVotes = _oldProposal.forVotes;
         newProposal.abstainVotes = _oldProposal.abstainVotes;
@@ -921,11 +919,11 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         proposalUpdatePeriodEnds[newProposalId] = proposalUpdatePeriodEnds[_oldProposalId];
 
-        // Set new signers
-        address[] storage signersList = proposalSigners[newProposalId];
-        uint256 newSignersLen = _newSigners.length;
-        for (uint256 i; i < newSignersLen; ++i) {
-            signersList.push(_newSigners[i]);
+        // Set signers for new proposal
+        address[] storage newSignersList = proposalSigners[newProposalId];
+        uint256 signersLen = _signers.length;
+        for (uint256 i; i < signersLen; ++i) {
+            newSignersList.push(_signers[i]);
         }
 
         proposals[_oldProposalId].canceled = true;
@@ -949,7 +947,9 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         if (oldProposal.proposer != _proposer) revert ONLY_PROPOSER_CAN_EDIT();
 
-        // If original proposal had signers, update must also have signers
+        // Only originally signed proposals must continue using signatures.
+        // For originally unsigned proposals, updateProposalBySigs may be called with zero
+        // signatures as a proposer-only update path that still uses the signed-update hash.
         if (proposalSigners[_proposalId].length > 0 && _proposerSignatures.length == 0) revert MUST_PROVIDE_SIGNATURES();
 
         bytes32 descriptionHash = keccak256(bytes(_description));
@@ -961,7 +961,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         if (totalVotes <= proposalThreshold()) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
 
-        bytes32 newProposalId = _replaceProposalWithSigners(_proposalId, oldProposal, _targets, _values, _calldatas, descriptionHash, newSigners);
+        bytes32 newProposalId = _replaceProposalCore(_proposalId, oldProposal, _targets, _values, _calldatas, descriptionHash, newSigners);
 
         emit ProposalSignersSet(newProposalId, newSigners);
 

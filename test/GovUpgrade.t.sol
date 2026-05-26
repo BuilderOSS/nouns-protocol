@@ -12,10 +12,6 @@ import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
 contract GovUpgrade is GovTest {
     Governor public newGovernorImpl;
 
-    function setUp() public override {
-        super.setUp();
-    }
-
     /// @notice Test complete upgrade path: old version -> new version
     /// @dev This test simulates a real DAO upgrade scenario
     function test_UpgradePath_OldToNew() public {
@@ -267,9 +263,9 @@ contract GovUpgrade is GovTest {
         // Deploy new implementation but don't register it
         newGovernorImpl = new Governor(address(manager));
 
-        // Attempt upgrade without registration should fail
+        // Attempt upgrade without registration should fail with INVALID_UPGRADE
         vm.prank(address(treasury));
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSignature("INVALID_UPGRADE(address)", address(newGovernorImpl)));
         governor.upgradeTo(address(newGovernorImpl));
     }
 

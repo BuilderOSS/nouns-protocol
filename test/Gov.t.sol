@@ -845,12 +845,12 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
 
-        vm.expectRevert(abi.encodeWithSignature("UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES()"));
+        vm.expectRevert(abi.encodeWithSignature("SIGNED_PROPOSAL_MUST_USE_SIGNATURES()"));
         vm.prank(voter2);
         governor.updateProposal(proposalId, targets, values, updatedCalldatas, "new desc", "update without signatures");
     }
 
-    function test_UpdateProposalOnSignedProposalForQualifiedProposer() public {
+    function testRevert_UpdateProposalOnSignedProposalEvenForQualifiedProposer() public {
         deployMock();
 
         mintVoter1();
@@ -879,8 +879,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
 
+        vm.expectRevert(abi.encodeWithSignature("SIGNED_PROPOSAL_MUST_USE_SIGNATURES()"));
         vm.prank(voter1);
-        bytes32 updatedProposalId = governor.updateProposal(
+        governor.updateProposal(
             proposalId,
             targets,
             values,
@@ -888,9 +889,6 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
             "new desc",
             "qualified proposer update"
         );
-
-        assertTrue(updatedProposalId != proposalId);
-        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced));
     }
 
     function test_ProposalHashDiffersFromIncorrectProposer() public {
@@ -1486,6 +1484,17 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         mintVoter1();
 
+        // Mint additional tokens to voter1 so proposalThreshold > 0 when BPS = 1
+        // Need totalSupply >= 10,000 for (totalSupply * 1) / 10,000 >= 1
+        for (uint256 i = 0; i < 9999; i++) {
+            vm.prank(address(auction));
+            uint256 tokenId = token.mint();
+            vm.prank(address(auction));
+            token.transferFrom(address(auction), voter1, tokenId);
+        }
+
+        vm.warp(block.timestamp + 1);
+
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
 
@@ -1513,6 +1522,17 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         mintVoter1();
 
+        // Mint additional tokens to voter1 so proposalThreshold > 0 when BPS = 1
+        // Need totalSupply >= 10,000 for (totalSupply * 1) / 10,000 >= 1
+        for (uint256 i = 0; i < 9999; i++) {
+            vm.prank(address(auction));
+            uint256 tokenId = token.mint();
+            vm.prank(address(auction));
+            token.transferFrom(address(auction), voter1, tokenId);
+        }
+
+        vm.warp(block.timestamp + 1);
+
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
 
@@ -1537,6 +1557,83 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
     }
 
+    function testRevert_CannotCancelAlreadyCanceled() public {
+        deployMock();
+
+        mintVoter1();
+
+        bytes32 proposalId = createProposal();
+
+        vm.prank(voter1);
+        governor.cancel(proposalId);
+
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Canceled));
+
+        vm.expectRevert(abi.encodeWithSignature("PROPOSAL_IN_TERMINAL_STATE()"));
+        vm.prank(voter1);
+        governor.cancel(proposalId);
+    }
+
+    function testRevert_CannotCancelReplaced() public {
+        deployMock();
+
+        mintVoter1();
+
+        (address[] memory targets, uint256[] memory values, ) = mockProposal();
+
+        vm.startPrank(address(auction));
+        uint256 newTokenId = token.mint();
+        token.transferFrom(address(auction), voter1, newTokenId);
+        vm.stopPrank();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        vm.warp(block.timestamp + 20);
+
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("pause()");
+
+        vm.prank(voter1);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, "");
+
+        // Update the proposal to replace it
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        vm.prank(voter1);
+        governor.updateProposal(proposalId, targets, values, updatedCalldatas, "updated", "update msg");
+
+        // Move past updatable period so cancel check happens after state check
+        vm.warp(block.timestamp + 2 days);
+
+        assertEq(uint256(governor.state(proposalId)), uint256(ProposalState.Replaced));
+
+        vm.expectRevert(abi.encodeWithSignature("PROPOSAL_IN_TERMINAL_STATE()"));
+        vm.prank(voter1);
+        governor.cancel(proposalId);
+    }
+
+    function testRevert_CannotCancelVetoed() public {
+        deployMock();
+
+        mintVoter1();
+
+        bytes32 proposalId = createProposal();
+
+        vm.prank(founder);
+        governor.veto(proposalId);
+
+        assertEq(uint8(governor.state(proposalId)), uint8(ProposalState.Vetoed));
+
+        vm.expectRevert(abi.encodeWithSignature("PROPOSAL_IN_TERMINAL_STATE()"));
+        vm.prank(voter1);
+        governor.cancel(proposalId);
+    }
+
     function test_VetoProposal() public {
         deployMock();
 
@@ -1546,6 +1643,19 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         governor.veto(proposalId);
 
         assertEq(uint8(governor.state(proposalId)), uint8(ProposalState.Vetoed));
+    }
+
+    function testRevert_CannotVetoVetoed() public {
+        deployMock();
+
+        bytes32 proposalId = createProposal();
+
+        vm.prank(founder);
+        governor.veto(proposalId);
+
+        vm.expectRevert(abi.encodeWithSignature("PROPOSAL_IN_TERMINAL_STATE()"));
+        vm.prank(founder);
+        governor.veto(proposalId);
     }
 
     function testRevert_CallerNotVetoer() public {
@@ -2692,7 +2802,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         MockERC1271Wallet wallet = new MockERC1271Wallet(voter1);
 
         vm.prank(address(auction));
-        token.mint();
+        uint256 walletTokenId = token.mint();
+        vm.prank(address(auction));
+        token.transferFrom(address(auction), address(wallet), walletTokenId);
 
         vm.prank(address(wallet));
         token.delegate(address(wallet));
@@ -2727,7 +2839,9 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         // Mint to both wallet and voter1
         vm.prank(address(auction));
-        token.mint(); // to wallet
+        uint256 walletTokenId = token.mint();
+        vm.prank(address(auction));
+        token.transferFrom(address(auction), address(wallet), walletTokenId);
 
         mintVoter1(); // to voter1 EOA
 
@@ -3141,6 +3255,67 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
             updatedCalldatas,
             "updated",
             "below threshold"
+        );
+    }
+
+    /// @notice Test that updateProposalBySigs fails early when too many signers provided
+    function testRevert_UpdateProposalBySigs_TooManySignersFailsFast() public {
+        deployMock();
+
+        _createUsersWithPKs(40, 100 ether);
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(100);
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(1 days);
+
+        _mintAndDelegateTokens(40);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        // Create a proposal with 2 signers
+        ProposerSignature[] memory proposerSignatures = _buildOrderedProposeSignatures(
+            2,
+            otherUsers[0],
+            _computeProposalId(targets, values, calldatas, "original", otherUsers[0]),
+            0,
+            block.timestamp + 1 days,
+            false
+        );
+
+        vm.prank(otherUsers[0]);
+        bytes32 proposalId = governor.proposeBySigs(otherUsers[0], proposerSignatures, targets, values, calldatas, "original");
+
+        // Try to update with 33 signers (MAX_PROPOSAL_SIGNERS is 32)
+        // This should revert BEFORE signature validation
+        bytes[] memory updatedCalldatas = new bytes[](1);
+        updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
+
+        // Create 33 signatures (all with invalid nonces/data to prove validation didn't run)
+        ProposerSignature[] memory oversizedSignatures = new ProposerSignature[](33);
+        for (uint256 i = 0; i < 33; i++) {
+            // Use invalid nonces and signatures - if the function validates these,
+            // it would revert with INVALID_SIGNATURE_NONCE or INVALID_SIGNATURE before TOO_MANY_SIGNERS
+            oversizedSignatures[i] = ProposerSignature({
+                signer: otherUsers[i],
+                nonce: 999, // Invalid nonce
+                deadline: block.timestamp + 1 days,
+                sig: hex"00" // Invalid signature
+            });
+        }
+
+        vm.prank(otherUsers[0]);
+        vm.expectRevert(abi.encodeWithSignature("TOO_MANY_SIGNERS()"));
+        governor.updateProposalBySigs(
+            proposalId,
+            otherUsers[0],
+            oversizedSignatures,
+            targets,
+            values,
+            updatedCalldatas,
+            "updated",
+            "too many signers"
         );
     }
 }

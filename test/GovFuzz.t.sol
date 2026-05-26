@@ -74,18 +74,16 @@ contract GovFuzz is GovTest {
     }
 
     /// @notice Fuzz test: Vote signature fails with expired deadline
-    /// @param expiredOffset How far in the past the deadline is (bounded to 1 second - 1 year)
+    /// @param expiredOffset How far in the past the deadline is (bounded to 1 second - current timestamp)
     function testFuzz_CastVoteBySig_ExpiredDeadline_Reverts(uint256 expiredOffset) public {
-        // Bound to reasonable past range
-        expiredOffset = bound(expiredOffset, 1, 365 days);
-
         deployMock();
         mintVoter1();
 
         bytes32 proposalId = createProposal();
         vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
 
-        vm.assume(expiredOffset <= block.timestamp);
+        // Bound expiredOffset to valid range using current timestamp
+        expiredOffset = bound(expiredOffset, 1, block.timestamp);
         uint256 deadline = block.timestamp - expiredOffset;
 
         bytes32 voteHash = keccak256(abi.encode(governor.VOTE_TYPEHASH(), voter1, proposalId, FOR, 0, deadline));

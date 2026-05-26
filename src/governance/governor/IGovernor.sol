@@ -112,6 +112,9 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @dev Reverts if a proposal was already executed
     error PROPOSAL_ALREADY_EXECUTED();
 
+    /// @dev Reverts if a proposal is in a terminal state and cannot be canceled
+    error PROPOSAL_IN_TERMINAL_STATE();
+
     /// @dev Reverts if a specified proposal doesn't exist
     error PROPOSAL_DOES_NOT_EXIST();
 
@@ -155,8 +158,6 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     error TOO_MANY_SIGNERS();
 
-    error SIGNER_COUNT_MISMATCH();
-
     error VOTES_BELOW_PROPOSAL_THRESHOLD();
 
     error INVALID_SIGNATURE_ORDER();
@@ -165,7 +166,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     error PROPOSER_CANNOT_BE_SIGNER();
 
-    error UNQUALIFIED_PROPOSER_MUST_USE_SIGNATURES();
+    error SIGNED_PROPOSAL_MUST_USE_SIGNATURES();
 
     error NO_OP_PROPOSAL_UPDATE();
 

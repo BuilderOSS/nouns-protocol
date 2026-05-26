@@ -6,7 +6,9 @@ This guide helps frontend developers migrate their applications to support the u
 
 ### 1. `castVoteBySig` ABI Change
 
-**CRITICAL**: The function signature for `castVoteBySig` has changed.
+**CRITICAL**: The function signature for `castVoteBySig` has changed. This is a **versioned breaking change** — the Governor contract version has been bumped from 2.0.0 to 2.1.0.
+
+**⚠️ IMPORTANT**: Old vote-signing code will **stop working** immediately after a DAO upgrades to Governor v2.1.0. Frontends and relayers must coordinate their deployment with the on-chain upgrade. See the `upgrade-runbook.md` for rollout sequencing guidance.
 
 #### Old ABI (V1)
 ```solidity

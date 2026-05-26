@@ -335,6 +335,64 @@ contract GovGasBenchmark is GovTest {
         console2.log("Gas used for cancel with 32 signers (max):", gasUsed);
     }
 
+    /// @notice Benchmark: cancel with 32 signers worst-case (each signer has non-trivial checkpoint history)
+    /// @dev This measures the worst-case scenario where each of the 32 signers has accumulated vote
+    /// checkpoints through multiple token transfers, causing the getVotes binary search to be more expensive
+    function test_GasBenchmark_Cancel_32Signers_WorstCase() public {
+        deployMock();
+        _createUsersWithPKs(32, 100 ether);
+        _mintTokensToUsers(32);
+
+        // Create non-trivial checkpoint history for each signer by transferring tokens back and forth
+        // This forces the getVotes() call in cancel() to perform binary searches through checkpoints
+        for (uint256 i = 0; i < 32; i++) {
+            // Mint and transfer 5 additional tokens to each signer to create checkpoint history
+            for (uint256 j = 0; j < 5; j++) {
+                vm.prank(address(auction));
+                uint256 newTokenId = token.mint();
+                vm.prank(address(auction));
+                token.transferFrom(address(auction), otherUsers[i], newTokenId);
+                vm.warp(block.timestamp + 1);
+            }
+        }
+
+        // Set proposal threshold to 200 BPS (2%) to ensure threshold > 0 for cancel logic
+        // With ~200 tokens, 2% = 4 tokens threshold
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(200);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+        bytes32 proposalId = _computeProposalId(targets, values, calldatas, "test", founder);
+
+        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(32, founder, proposalId, 0, block.timestamp + 1 days, false);
+
+        vm.prank(founder);
+        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+
+        // Delegate tokens away from all signers and proposer to drop backing below threshold
+        // This ensures the cancel will succeed when called by a third party
+        // Delegation removes voting power without transferring tokens
+        address dumpAddress = address(0xdead);
+        vm.prank(founder);
+        token.delegate(dumpAddress);
+        for (uint256 i = 0; i < 32; i++) {
+            vm.prank(otherUsers[i]);
+            token.delegate(dumpAddress);
+        }
+        // Warp time so that getVotes at block.timestamp - 1 sees the delegated state
+        vm.warp(block.timestamp + 10);
+
+        // Measure worst-case cancel() gas: third party cancels (not proposer, not signer)
+        // This forces iteration through all 32 signers' checkpoint histories via getVotes()
+        address thirdParty = address(0xbeef);
+        vm.prank(thirdParty);
+        uint256 gasBefore = gasleft();
+        governor.cancel(createdProposalId);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        console2.log("Gas used for cancel with 32 signers (worst-case with checkpoints):", gasUsed);
+    }
+
     // Helper function to build update signatures
     function _buildOrderedUpdateSignatures(
         uint256 count,
