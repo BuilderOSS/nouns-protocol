@@ -51,6 +51,7 @@ All signatures are EIP-712 and verified with EOA + ERC-1271 support.
 Notes:
 
 - Signatures for proposal sponsorship bind to canonical proposal identity (includes description hash).
+- `proposeBySigs` is caller-bound: `msg.sender` is the proposer and signer sponsorships are collected for that proposer.
 - `updateProposal` allows full edits (description and txs) during `Updatable` when either:
   - the proposal has no signers, or
   - the proposer independently met proposal threshold at creation time.

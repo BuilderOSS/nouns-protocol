@@ -30,7 +30,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     event ProposalUpdated(
         bytes32 oldProposalId,
         bytes32 newProposalId,
-        address submitter,
+        address proposer,
         address[] targets,
         uint256[] values,
         bytes[] calldatas,
@@ -204,9 +204,8 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
         string memory description
     ) external returns (bytes32);
 
-    /// @notice Creates a proposal backed by offchain signatures
+    /// @notice Creates a proposal from msg.sender backed by offchain signer sponsorships
     function proposeBySigs(
-        address proposer,
         ProposerSignature[] memory proposerSignatures,
         address[] memory targets,
         uint256[] memory values,
@@ -227,7 +226,6 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @notice Updates a signed proposal with signer approvals
     function updateProposalBySigs(
         bytes32 proposalId,
-        address proposer,
         ProposerSignature[] memory proposerSignatures,
         address[] memory targets,
         uint256[] memory values,

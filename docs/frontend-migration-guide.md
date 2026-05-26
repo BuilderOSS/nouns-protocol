@@ -100,7 +100,7 @@ const types = {
 };
 
 // Fetch current nonce for voter
-const nonce = await governor.nonces(voterAddress);
+const nonce = await governor.nonce(voterAddress);
 
 const value = {
   voter: voterAddress,
@@ -137,7 +137,7 @@ const types = {
   ]
 };
 
-const nonce = await governor.nonces(voterAddress);
+const nonce = await governor.nonce(voterAddress);
 
 const value = {
   voter: voterAddress,
@@ -159,7 +159,9 @@ await governor.castVoteBySig(voterAddress, proposalId, support, nonce, deadline,
 #### Signed Proposal Creation
 
 ```javascript
-// New feature: proposeBySigs
+// New feature: proposeBySigs. The transaction sender is the proposer.
+const proposerAddress = await signer.getAddress();
+
 const domain = {
   name: `${tokenSymbol} GOV`,
   version: '1',
@@ -211,7 +213,7 @@ for (const signerAddress of signers) {
 }
 
 // Submit signed proposal
-await governor.proposeBySigs(
+await governor.connect(signer).proposeBySigs(
   proposerSignatures,
   targets,
   values,
@@ -417,7 +419,7 @@ The new signature system supports ERC-1271 smart contract wallets:
 ### Vote Nonces
 ```javascript
 // Each voter has a separate nonce for vote signatures
-const voteNonce = await governor.nonces(voterAddress);
+const voteNonce = await governor.nonce(voterAddress);
 ```
 
 ### Propose/Update Nonces
@@ -463,7 +465,7 @@ async function castVoteBySig(governor, voter, signer, proposalId, support) {
   const symbol = await token.symbol();
 
   // 2. Get current nonce
-  const nonce = await governor.nonces(voter);
+  const nonce = await governor.nonce(voter);
 
   // 3. Set deadline (e.g., 1 hour from now)
   const deadline = Math.floor(Date.now() / 1000) + 3600;
@@ -532,7 +534,7 @@ async function castVoteBySig(governor, voter, signer, proposalId, support) {
 ```javascript
 // Test that signature construction works
 const testVoteSignature = async () => {
-  const nonce = await governor.nonces(voterAddress);
+  const nonce = await governor.nonce(voterAddress);
   console.log('Current nonce:', nonce.toString());
 
   // Try to cast vote

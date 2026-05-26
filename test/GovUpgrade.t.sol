@@ -5,6 +5,8 @@ import { GovTest } from "./Gov.t.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { IGovernor } from "../src/governance/governor/IGovernor.sol";
 import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
+import { Manager } from "../src/manager/Manager.sol";
+import { LegacyGovernorV2 } from "./utils/mocks/LegacyGovernorV2.sol";
 
 /// @title GovUpgrade
 /// @notice Integration tests for Governor upgrade path
@@ -15,11 +17,11 @@ contract GovUpgrade is GovTest {
     /// @notice Test complete upgrade path: old version -> new version
     /// @dev This test simulates a real DAO upgrade scenario
     function test_UpgradePath_OldToNew() public {
-        deployMock();
+        _deployMockWithLegacyGovernor();
         mintVoter1();
 
         // Step 1: Create a proposal with the deployed governor
-        bytes32 oldProposalId = _createProposalWithDescription("upgrade-old-proposal");
+        bytes32 oldProposalId = _createLegacyProposalWithDescription("upgrade-old-proposal");
 
         // Verify proposal exists
         IGovernor.Proposal memory oldProposal = governor.getProposal(oldProposalId);
@@ -27,7 +29,7 @@ contract GovUpgrade is GovTest {
         assertTrue(oldProposal.voteStart != 0, "Proposal should exist");
 
         // Step 2: Vote on the old proposal to verify state
-        vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
+        vm.warp(block.timestamp + governor.votingDelay());
 
         vm.prank(voter1);
         governor.castVote(oldProposalId, FOR);
@@ -54,6 +56,8 @@ contract GovUpgrade is GovTest {
         // Step 5: Upgrade the Governor proxy
         vm.prank(address(treasury));
         governor.upgradeTo(address(newGovernorImpl));
+
+        assertEq(governor.proposalUpdatablePeriod(), 0, "Legacy upgrade should start with updatable period disabled");
 
         // Step 6: Verify storage integrity - old proposal should still exist
         IGovernor.Proposal memory oldProposalAfterUpgrade = governor.getProposal(oldProposalId);
@@ -107,16 +111,9 @@ contract GovUpgrade is GovTest {
         assertTrue(governor.state(newProposalId) == ProposalState.Replaced, "Old proposal should be replaced");
     }
 
-    /// @notice Test that proposalUpdatablePeriod is preserved across upgrade
-    function test_UpgradePath_PreservesUpdatablePeriod() public {
-        deployMock();
-
-        // Set a custom updatable period before upgrade
-        vm.prank(address(treasury));
-        governor.updateProposalUpdatablePeriod(3 days);
-
-        uint256 periodBeforeUpgrade = governor.proposalUpdatablePeriod();
-        assertEq(periodBeforeUpgrade, 3 days, "Period should be set before upgrade");
+    /// @notice Test that legacy upgrades start with the new updatable period storage slot unset
+    function test_UpgradePath_LegacyUpdatablePeriodStartsZero() public {
+        _deployMockWithLegacyGovernor();
 
         // Deploy and register new implementation
         newGovernorImpl = new Governor(address(manager));
@@ -128,14 +125,16 @@ contract GovUpgrade is GovTest {
         vm.prank(address(treasury));
         governor.upgradeTo(address(newGovernorImpl));
 
-        // Verify period is preserved (not reinitialized)
-        uint256 periodAfterUpgrade = governor.proposalUpdatablePeriod();
-        assertEq(periodAfterUpgrade, periodBeforeUpgrade, "Period should be preserved after upgrade");
+        assertEq(governor.proposalUpdatablePeriod(), 0, "Legacy slot should not be initialized during upgrade");
+
+        vm.prank(address(treasury));
+        governor.updateProposalUpdatablePeriod(3 days);
+        assertEq(governor.proposalUpdatablePeriod(), 3 days, "Period should be settable after upgrade");
     }
 
     /// @notice Test proposeBySigs works after upgrade
     function test_UpgradePath_ProposeBySigsWorksAfterUpgrade() public {
-        deployMock();
+        _deployMockWithLegacyGovernor();
         _createUsersWithPKs(2, 100 ether);
         _mintTokensToUsers(2);
 
@@ -162,7 +161,7 @@ contract GovUpgrade is GovTest {
         );
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Verify signed proposal was created
         assertTrue(createdProposalId != bytes32(0), "Proposal should be created");
@@ -173,11 +172,11 @@ contract GovUpgrade is GovTest {
 
     /// @notice Test castVoteBySig new signature format works after upgrade
     function test_UpgradePath_NewVoteSignatureFormatWorks() public {
-        deployMock();
+        _deployMockWithLegacyGovernor();
         mintVoter1();
 
         // Create proposal before upgrade
-        bytes32 proposalId = _createProposalWithDescription("upgrade-vote-sig-proposal");
+        bytes32 proposalId = _createLegacyProposalWithDescription("upgrade-vote-sig-proposal");
 
         // Deploy and upgrade
         newGovernorImpl = new Governor(address(manager));
@@ -189,7 +188,7 @@ contract GovUpgrade is GovTest {
         governor.upgradeTo(address(newGovernorImpl));
 
         // Warp to voting period
-        vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
+        vm.warp(block.timestamp + governor.votingDelay());
 
         // Test new vote signature format (with nonce)
         uint256 nonce = 0; // First vote signature for voter1 should use nonce 0
@@ -286,7 +285,7 @@ contract GovUpgrade is GovTest {
 
     /// @notice Test storage layout compatibility across upgrade
     function test_UpgradePath_StorageLayoutCompatibility() public {
-        deployMock();
+        _deployMockWithLegacyGovernor();
         mintVoter1();
 
         // Record various storage values before upgrade
@@ -299,7 +298,7 @@ contract GovUpgrade is GovTest {
         address treasuryBefore = governor.treasury();
 
         // Create proposal to test proposal storage
-        bytes32 proposalId = _createProposalWithDescription("upgrade-storage-layout");
+        bytes32 proposalId = _createLegacyProposalWithDescription("upgrade-storage-layout");
 
         // The proposal helper configures threshold/updatable period before proposing.
         // Capture the actual pre-upgrade values after setup to verify storage preservation.
@@ -337,13 +336,13 @@ contract GovUpgrade is GovTest {
 
     /// @notice Test that voting history is preserved across upgrade
     function test_UpgradePath_VotingHistoryPreserved() public {
-        deployMock();
+        _deployMockWithLegacyGovernor();
         mintVoter1();
 
-        bytes32 proposalId = _createProposalWithDescription("upgrade-voting-history");
+        bytes32 proposalId = _createLegacyProposalWithDescription("upgrade-voting-history");
 
         // Cast vote before upgrade
-        vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay());
+        vm.warp(block.timestamp + governor.votingDelay());
 
         vm.prank(voter1);
         governor.castVote(proposalId, FOR);
@@ -381,6 +380,33 @@ contract GovUpgrade is GovTest {
             token.transferFrom(address(auction), otherUsers[i], tokenId);
         }
         vm.warp(block.timestamp + 1); // Advance time for voting power to take effect
+    }
+
+    function _deployMockWithLegacyGovernor() internal {
+        governorImpl = address(new LegacyGovernorV2(address(manager)));
+        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO));
+
+        vm.prank(zoraDAO);
+        manager.upgradeTo(managerImpl);
+
+        deployMock();
+    }
+
+    function _createLegacyProposalWithDescription(string memory description) internal returns (bytes32 proposalId) {
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
+
+        vm.startPrank(address(auction));
+        uint256 newTokenId = token.mint();
+        token.transferFrom(address(auction), voter1, newTokenId);
+        vm.stopPrank();
+
+        vm.prank(address(treasury));
+        governor.updateProposalThresholdBps(1);
+
+        vm.warp(block.timestamp + 20);
+
+        vm.prank(voter1);
+        proposalId = governor.propose(targets, values, calldatas, description);
     }
 
     function _createProposalWithDescription(string memory description) internal returns (bytes32 proposalId) {

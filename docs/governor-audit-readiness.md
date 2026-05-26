@@ -46,7 +46,7 @@ Key feature additions:
 
 - Member proposer, no signatures:
   - create + standard lifecycle: `test_CreateProposal`, `test_ProposalVoteQueueExecution`
-- External proposer, with signatures:
+- Caller proposer, with signatures:
   - create: `test_ProposeBySigs`
   - unsigned update blocked if unqualified: `testRevert_UpdateProposalTxsOnSignedProposalWithoutSignaturesForUnqualifiedProposer`
   - signed update path: `test_UpdateProposalBySigs`

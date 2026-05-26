@@ -69,6 +69,7 @@ all revisions use A's original `proposalUpdatePeriodEnd`.
 ### Sponsored proposal (`proposeBySigs`)
 
 - Requires at least one signature.
+- `msg.sender` is the proposal's proposer; callers cannot submit on behalf of a different proposer.
 - Signers must be strictly increasing by address (sorted, unique).
 - Proposer cannot also appear as a signer.
 - Combined votes (proposer + signers) must exceed proposal threshold.

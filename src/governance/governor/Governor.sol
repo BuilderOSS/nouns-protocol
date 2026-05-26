@@ -183,14 +183,12 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     /// @notice Creates a proposal backed by signer approvals
     function proposeBySigs(
-        address _proposer,
         ProposerSignature[] memory _proposerSignatures,
         address[] memory _targets,
         uint256[] memory _values,
         bytes[] memory _calldatas,
         string memory _description
     ) external returns (bytes32) {
-        if (_proposer == address(0)) revert ADDRESS_ZERO();
         if (_proposerSignatures.length == 0) revert MUST_PROVIDE_SIGNATURES();
         if (_proposerSignatures.length > MAX_PROPOSAL_SIGNERS) revert TOO_MANY_SIGNERS();
 
@@ -201,13 +199,14 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         _validateProposalArrays(_targets, _values, _calldatas);
 
-        bytes32 proposalId = hashProposal(_targets, _values, _calldatas, keccak256(bytes(_description)), _proposer);
-        (uint256 votes, address[] memory signers) = _validateProposerSignaturesAndGetVotes(_proposer, proposalId, _proposerSignatures);
+        address proposer = msg.sender;
+        bytes32 proposalId = hashProposal(_targets, _values, _calldatas, keccak256(bytes(_description)), proposer);
+        (uint256 votes, address[] memory signers) = _validateProposerSignaturesAndGetVotes(proposer, proposalId, _proposerSignatures);
 
         uint256 currentProposalThreshold = proposalThreshold();
         if (votes <= currentProposalThreshold) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
 
-        proposalId = _createProposal(_targets, _values, _calldatas, _description, _proposer, currentProposalThreshold);
+        proposalId = _createProposal(_targets, _values, _calldatas, _description, proposer, currentProposalThreshold);
 
         address[] storage proposalSignersList = proposalSigners[proposalId];
         uint256 signersLen = signers.length;
@@ -257,7 +256,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice Updates a signed proposal with signer approvals
     function updateProposalBySigs(
         bytes32 _proposalId,
-        address _proposer,
         ProposerSignature[] memory _proposerSignatures,
         address[] memory _targets,
         uint256[] memory _values,
@@ -268,9 +266,11 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // Check signer count limit early to fail fast before signature validation
         if (_proposerSignatures.length > MAX_PROPOSAL_SIGNERS) revert TOO_MANY_SIGNERS();
 
+        address proposer = msg.sender;
+
         bytes32 newProposalId = _updateProposalBySigsInternal(
             _proposalId,
-            _proposer,
+            proposer,
             _proposerSignatures,
             _targets,
             _values,

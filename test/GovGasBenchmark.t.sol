@@ -40,7 +40,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        governor.proposeBySigs(signatures, targets, values, calldatas, "test");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for proposeBySigs with 1 signer:", gasUsed);
@@ -59,7 +59,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        governor.proposeBySigs(signatures, targets, values, calldatas, "test");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for proposeBySigs with 8 signers:", gasUsed);
@@ -78,7 +78,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        governor.proposeBySigs(signatures, targets, values, calldatas, "test");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for proposeBySigs with 16 signers:", gasUsed);
@@ -97,7 +97,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        governor.proposeBySigs(signatures, targets, values, calldatas, "test");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for proposeBySigs with 24 signers:", gasUsed);
@@ -116,7 +116,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        governor.proposeBySigs(signatures, targets, values, calldatas, "test");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for proposeBySigs with 32 signers (max):", gasUsed);
@@ -155,7 +155,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(1, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
@@ -163,7 +163,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.updateProposalBySigs(createdProposalId, founder, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
+        governor.updateProposalBySigs(createdProposalId, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for updateProposalBySigs with 1 signer:", gasUsed);
@@ -181,7 +181,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(8, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
@@ -189,7 +189,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.updateProposalBySigs(createdProposalId, founder, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
+        governor.updateProposalBySigs(createdProposalId, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for updateProposalBySigs with 8 signers:", gasUsed);
@@ -207,7 +207,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(16, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
@@ -215,7 +215,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.updateProposalBySigs(createdProposalId, founder, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
+        governor.updateProposalBySigs(createdProposalId, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for updateProposalBySigs with 16 signers:", gasUsed);
@@ -233,7 +233,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(32, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
@@ -241,7 +241,7 @@ contract GovGasBenchmark is GovTest {
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
-        governor.updateProposalBySigs(createdProposalId, founder, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
+        governor.updateProposalBySigs(createdProposalId, updateSigs, targets, values, calldatas, "updated", "Gas benchmark");
         uint256 gasUsed = gasBefore - gasleft();
 
         console2.log("Gas used for updateProposalBySigs with 32 signers (max):", gasUsed);
@@ -281,7 +281,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(1, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         vm.prank(otherUsers[0]);
         uint256 gasBefore = gasleft();
@@ -303,7 +303,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(16, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         vm.prank(otherUsers[0]);
         uint256 gasBefore = gasleft();
@@ -325,7 +325,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(32, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         vm.prank(otherUsers[0]);
         uint256 gasBefore = gasleft();
@@ -367,7 +367,7 @@ contract GovGasBenchmark is GovTest {
         ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(32, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
-        bytes32 createdProposalId = governor.proposeBySigs(founder, signatures, targets, values, calldatas, "test");
+        bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Delegate tokens away from all signers and proposer to drop backing below threshold
         // This ensures the cancel will succeed when called by a third party
