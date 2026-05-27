@@ -907,11 +907,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // even when the proposal is updated. Voters vote against the snapshot taken
         // when the proposal was first created, NOT when it was updated.
         newProposal.timeCreated = _oldProposal.timeCreated;
-        // Note: Vote counts are copied for consistency but should always be zero
-        // since updates are only allowed in Updatable state (before voting starts)
-        newProposal.againstVotes = _oldProposal.againstVotes;
-        newProposal.forVotes = _oldProposal.forVotes;
-        newProposal.abstainVotes = _oldProposal.abstainVotes;
+        // Note: Vote counts are not copied since they should always be zero before Voting Period
         newProposal.voteStart = _oldProposal.voteStart;
         newProposal.voteEnd = _oldProposal.voteEnd;
         newProposal.proposalThreshold = _oldProposal.proposalThreshold;
