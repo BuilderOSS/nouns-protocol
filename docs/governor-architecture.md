@@ -57,7 +57,7 @@ Notes:
   - the proposer independently met proposal threshold at creation time.
 - `updateProposalBySigs` remains available as an optional stricter path for sponsor re-approval.
 - Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
-- Signed proposals cap signer sponsorship to 32 addresses.
+- Signed proposals cap signer sponsorship to 16 addresses.
 - Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
 
 ## Proposal Identity and Updates

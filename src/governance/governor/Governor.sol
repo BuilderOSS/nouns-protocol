@@ -70,7 +70,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     uint256 public immutable DEFAULT_PROPOSAL_UPDATABLE_PERIOD = 1 days;
 
     /// @notice The maximum number of signer sponsors allowed per proposal
-    uint256 public immutable MAX_PROPOSAL_SIGNERS = 32;
+    uint256 public immutable MAX_PROPOSAL_SIGNERS = 16;
 
     /// @notice The maximum delayed governance expiration setting
     uint256 public immutable MAX_DELAYED_GOVERNANCE_EXPIRATION = 30 days;

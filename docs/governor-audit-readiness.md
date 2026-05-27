@@ -18,9 +18,9 @@ Key feature additions:
 
 - Signature validation uses OpenZeppelin `SignatureChecker` for EOA + ERC1271 compatibility.
 - Signed proposing uses strict ordered signer list.
-- Signed proposing enforces a hard cap of 32 signers per proposal.
+- Signed proposing enforces a hard cap of 16 signers per proposal.
 - Signed propose/update paths validate each signature and run per-signer `getVotes` before the final threshold check,
-  so a proposer can be griefed into an expensive revert path with many valid signers; this is bounded by `MAX_PROPOSAL_SIGNERS` (32).
+  so a proposer can be griefed into an expensive revert path with many valid signers; this is bounded by `MAX_PROPOSAL_SIGNERS` (16).
 - Proposer cannot appear in signer set (`PROPOSER_CANNOT_BE_SIGNER`) to avoid vote double counting.
 - Signature replay protections:
   - vote signatures use existing `nonces` mapping,

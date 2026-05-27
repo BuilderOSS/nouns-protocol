@@ -657,7 +657,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
 
-        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](33);
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](17);
 
         vm.expectRevert(abi.encodeWithSignature("TOO_MANY_SIGNERS()"));
         governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "signed proposal");
@@ -2130,61 +2130,61 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         assertLt(gasUsed, 5_000_000, "Gas too high for 16 signers");
     }
 
-    /// @notice Gas benchmark: proposeBySigs with 32 signers (MAX)
-    function test_GasProposeBySigs_32Signers() public {
+    /// @notice Gas benchmark: proposeBySigs with 16 signers (MAX)
+    function test_GasProposeBySigs_16Signers_Max() public {
         deployAltMock();
         mintVoter1();
-        _createUsersWithPKs(32, 5 ether);
+        _createUsersWithPKs(16, 5 ether);
 
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
 
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
 
-        // Build 32 signatures (max allowed)
-        bytes32 proposalIdToSign = _computeProposalId(targets, values, calldatas, "32 signers max", voter1);
+        // Build 16 signatures (max allowed)
+        bytes32 proposalIdToSign = _computeProposalId(targets, values, calldatas, "16 signers max", voter1);
         ProposerSignature[] memory proposerSignatures =
-            _buildOrderedProposeSignatures(32, voter1, proposalIdToSign, 0, block.timestamp + 1 days, false);
+            _buildOrderedProposeSignatures(16, voter1, proposalIdToSign, 0, block.timestamp + 1 days, false);
 
         uint256 gasBefore = gasleft();
         vm.prank(voter1);
-        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "32 signers max");
+        governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "16 signers max");
         uint256 gasUsed = gasBefore - gasleft();
 
-        emit log_named_uint("Gas used for proposeBySigs (32 signers MAX)", gasUsed);
+        emit log_named_uint("Gas used for proposeBySigs (16 signers MAX)", gasUsed);
         // Critical: Must be under 10M gas to ensure it can fit in a block
         assertLt(gasUsed, 10_000_000, "CRITICAL: Gas exceeds 10M for max signers");
     }
 
-    /// @notice Gas benchmark: cancel with 32 signers
-    function test_GasCancelSignedProposal_32Signers() public {
+    /// @notice Gas benchmark: cancel with 16 signers
+    function test_GasCancelSignedProposal_16Signers() public {
         deployAltMock();
         mintVoter1();
-        _createUsersWithPKs(32, 5 ether);
+        _createUsersWithPKs(16, 5 ether);
 
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
 
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
 
-        // Create proposal with 32 signers
-        bytes32 proposalIdToSign = _computeProposalId(targets, values, calldatas, "32 signers", voter1);
+        // Create proposal with 16 signers
+        bytes32 proposalIdToSign = _computeProposalId(targets, values, calldatas, "16 signers", voter1);
         ProposerSignature[] memory proposerSignatures =
-            _buildOrderedProposeSignatures(32, voter1, proposalIdToSign, 0, block.timestamp + 1 days, false);
+            _buildOrderedProposeSignatures(16, voter1, proposalIdToSign, 0, block.timestamp + 1 days, false);
 
         vm.prank(voter1);
-        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "32 signers");
+        bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "16 signers");
 
         // Warp past updatable period
         vm.warp(block.timestamp + 2 days);
 
-        // First signer cancels (must iterate through all 32 to check)
+        // First signer cancels (must iterate through signer list to check)
         uint256 gasBefore = gasleft();
         vm.prank(otherUsers[0]);
         governor.cancel(proposalId);
         uint256 gasUsed = gasBefore - gasleft();
 
-        emit log_named_uint("Gas used for cancel (32 signers)", gasUsed);
+        emit log_named_uint("Gas used for cancel (16 signers)", gasUsed);
         assertLt(gasUsed, 5_000_000, "Cancel gas too high with max signers");
     }
 
@@ -2587,20 +2587,20 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         // Verify the constant is set correctly
         uint256 maxSigners = governor.MAX_PROPOSAL_SIGNERS();
-        assertEq(maxSigners, 32, "MAX_PROPOSAL_SIGNERS should be 32");
+        assertEq(maxSigners, 16, "MAX_PROPOSAL_SIGNERS should be 16");
 
         // Try to create proposal with more than max signers (should fail during creation)
         mintVoter1();
-        _createUsersWithPKs(33, 5 ether);
+        _createUsersWithPKs(17, 5 ether);
 
         vm.prank(address(treasury));
         governor.updateProposalThresholdBps(1);
 
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
 
-        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](33);
+        ProposerSignature[] memory proposerSignatures = new ProposerSignature[](17);
         bytes32 proposalIdToSign = _computeProposalId(targets, values, calldatas, "too many", voter1);
-        for (uint256 i = 0; i < 33; i++) {
+        for (uint256 i = 0; i < 17; i++) {
             proposerSignatures[i] = _buildProposeSignature(
                 otherUsersPKs[i],
                 otherUsers[i],
@@ -3280,14 +3280,14 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         vm.prank(otherUsers[0]);
         bytes32 proposalId = governor.proposeBySigs(proposerSignatures, targets, values, calldatas, "original");
 
-        // Try to update with 33 signers (MAX_PROPOSAL_SIGNERS is 32)
+        // Try to update with 17 signers (MAX_PROPOSAL_SIGNERS is 16)
         // This should revert BEFORE signature validation
         bytes[] memory updatedCalldatas = new bytes[](1);
         updatedCalldatas[0] = abi.encodeWithSignature("unpause()");
 
-        // Create 33 signatures (all with invalid nonces/data to prove validation didn't run)
-        ProposerSignature[] memory oversizedSignatures = new ProposerSignature[](33);
-        for (uint256 i = 0; i < 33; i++) {
+        // Create 17 signatures (all with invalid nonces/data to prove validation didn't run)
+        ProposerSignature[] memory oversizedSignatures = new ProposerSignature[](17);
+        for (uint256 i = 0; i < 17; i++) {
             // Use invalid nonces and signatures - if the function validates these,
             // it would revert with INVALID_SIGNATURE_NONCE or INVALID_SIGNATURE before TOO_MANY_SIGNERS
             oversizedSignatures[i] = ProposerSignature({

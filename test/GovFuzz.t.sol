@@ -15,7 +15,7 @@ contract GovFuzz is GovTest {
     /// @param signerCount Number of signers (bounded to 1-32)
     function testFuzz_ProposeBySigs_VariableSignerCount(uint8 signerCount) public {
         // Bound to valid range
-        signerCount = uint8(bound(signerCount, 1, 32));
+        signerCount = uint8(bound(signerCount, 1, 16));
 
         deployMock();
         _createUsersWithPKs(signerCount, 100 ether);
