@@ -8,7 +8,7 @@ This guide helps frontend developers migrate their applications to support the u
 
 **CRITICAL**: The function signature for `castVoteBySig` has changed. This is a **versioned breaking change** — the Governor contract version has been bumped from 2.0.0 to 2.1.0.
 
-**⚠️ IMPORTANT**: Old vote-signing code will **stop working** immediately after a DAO upgrades to Governor v2.1.0. Frontends and relayers must coordinate their deployment with the on-chain upgrade. See the `upgrade-runbook.md` for rollout sequencing guidance.
+**⚠️ IMPORTANT**: Old vote-signing code will **stop working** immediately after a DAO upgrades to Governor v2.1.0. Frontends must coordinate their deployment with the on-chain upgrade. See the `upgrade-runbook.md` for rollout sequencing guidance.
 
 #### Old ABI (V1)
 ```solidity
@@ -262,11 +262,14 @@ const updatedProposalId = ethers.utils.keccak256(
   )
 );
 
-// Get original signers (must match exactly, same order)
-const originalSigners = await governor.getProposalSigners(oldProposalId);
+// Collect signatures from the sponsor set for this update.
+// The signer set need NOT match the original proposal's signers — signers
+// can be added, removed, or replaced entirely, subject to the same
+// ordering/uniqueness/threshold rules as proposal creation.
+const updateSigners = [...sponsorAddresses].sort(); // MUST be sorted; need not match original
 
 const updateSignatures = [];
-for (const signerAddress of originalSigners) {
+for (const signerAddress of updateSigners) {
   const nonce = await governor.proposeSignatureNonce(signerAddress);
 
   const value = {

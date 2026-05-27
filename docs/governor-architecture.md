@@ -55,7 +55,7 @@ Notes:
 - `updateProposal` allows full edits (description and txs) during `Updatable` when either:
   - the proposal has no signers, or
   - the proposer independently met proposal threshold at creation time.
-- `updateProposalBySigs` remains available as an optional stricter path for sponsor re-approval.
+- `updateProposalBySigs` is the update path for signed proposals; it accepts a fresh signer set (which need not match the original) and re-checks the combined threshold.
 - Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
 - Signed proposals cap signer sponsorship to 16 addresses.
 - Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
