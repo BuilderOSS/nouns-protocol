@@ -6,6 +6,7 @@ import { Ownable } from "../lib/utils/Ownable.sol";
 import { ERC1967Proxy } from "../lib/proxy/ERC1967Proxy.sol";
 
 import { ManagerStorageV1 } from "./storage/ManagerStorageV1.sol";
+import { ManagerStorageV2 } from "./storage/ManagerStorageV2.sol";
 import { IManager } from "./IManager.sol";
 import { IToken } from "../token/IToken.sol";
 import { IBaseMetadata } from "../token/metadata/interfaces/IBaseMetadata.sol";
@@ -13,6 +14,11 @@ import { IAuction } from "../auction/IAuction.sol";
 import { ITreasury } from "../governance/treasury/ITreasury.sol";
 import { IGovernor } from "../governance/governor/IGovernor.sol";
 import { IOwnable } from "../lib/interfaces/IOwnable.sol";
+import { SourceBridgeAdapter } from "../bridge/SourceBridgeAdapter.sol";
+import { DestinationExecutor } from "../bridge/DestinationExecutor.sol";
+import { SafeWalletAdapter } from "../bridge/adapters/SafeWalletAdapter.sol";
+import { SingleAdapterPolicy } from "../bridge/policies/SingleAdapterPolicy.sol";
+import { LayerZeroTransportAdapter } from "../bridge/adapters/layerzero/LayerZeroTransportAdapter.sol";
 
 import { VersionedContract } from "../VersionedContract.sol";
 import { IVersionedContract } from "../lib/interfaces/IVersionedContract.sol";
@@ -21,7 +27,7 @@ import { IVersionedContract } from "../lib/interfaces/IVersionedContract.sol";
 /// @author Neokry & Rohan Kulkarni
 /// @custom:repo github.com/ourzora/nouns-protocol
 /// @notice The DAO deployer and upgrade manager
-contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1 {
+contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1, ManagerStorageV2 {
     ///                                                          ///
     ///                          IMMUTABLES                      ///
     ///                                                          ///
@@ -245,6 +251,182 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         delete isUpgrade[_baseImpl][_upgradeImpl];
 
         emit UpgradeRemoved(_baseImpl, _upgradeImpl);
+    }
+
+    ///                                                          ///
+    ///                     BRIDGE INFRASTRUCTURE                ///
+    ///                                                          ///
+
+    /// @notice Gets a DAO source bridge adapter by DAO id
+    function getSourceBridgeAdapter(bytes32 _daoId) external view returns (address) {
+        return sourceBridgeAdapterByDao[_daoId];
+    }
+
+    /// @notice Gets bridge addresses for a DAO and destination chain
+    function getBridgeAddresses(bytes32 _daoId, uint256 _destinationChainId)
+        external
+        view
+        returns (IManager.BridgeAddresses memory)
+    {
+        BridgeAddressesV2 memory addresses_ = bridgeAddressesByDaoByChain[_daoId][_destinationChainId];
+        return
+            IManager.BridgeAddresses({
+                sourceBridgeAdapter: addresses_.sourceBridgeAdapter,
+                destinationExecutor: addresses_.destinationExecutor,
+                transportAdapter: addresses_.transportAdapter,
+                safeWalletAdapter: addresses_.safeWalletAdapter,
+                verificationPolicy: addresses_.verificationPolicy
+            });
+    }
+
+    /// @notice Sets a source bridge adapter for a DAO
+    function setSourceBridgeAdapter(bytes32 _daoId, address _sourceBridgeAdapter) external onlyOwner {
+        if (_sourceBridgeAdapter == address(0)) revert ADDRESS_ZERO();
+        sourceBridgeAdapterByDao[_daoId] = _sourceBridgeAdapter;
+        emit SourceBridgeAdapterSet(_daoId, _sourceBridgeAdapter);
+    }
+
+    /// @notice Sets bridge infra addresses for a DAO and destination chain
+    function setBridgeAddresses(
+        bytes32 _daoId,
+        uint256 _destinationChainId,
+        IManager.BridgeAddresses calldata _bridgeAddresses
+    )
+        external
+        onlyOwner
+    {
+        if (
+            _bridgeAddresses.sourceBridgeAdapter == address(0) || _bridgeAddresses.destinationExecutor == address(0)
+                || _bridgeAddresses.transportAdapter == address(0) || _bridgeAddresses.safeWalletAdapter == address(0)
+                || _bridgeAddresses.verificationPolicy == address(0)
+        ) revert ADDRESS_ZERO();
+
+        bridgeAddressesByDaoByChain[_daoId][_destinationChainId] = BridgeAddressesV2({
+            sourceBridgeAdapter: _bridgeAddresses.sourceBridgeAdapter,
+            destinationExecutor: _bridgeAddresses.destinationExecutor,
+            transportAdapter: _bridgeAddresses.transportAdapter,
+            safeWalletAdapter: _bridgeAddresses.safeWalletAdapter,
+            verificationPolicy: _bridgeAddresses.verificationPolicy
+        });
+
+        emit BridgeAddressesSet(
+            _daoId,
+            _destinationChainId,
+            _bridgeAddresses.sourceBridgeAdapter,
+            _bridgeAddresses.destinationExecutor,
+            _bridgeAddresses.transportAdapter,
+            _bridgeAddresses.safeWalletAdapter,
+            _bridgeAddresses.verificationPolicy
+        );
+    }
+
+    /// @notice Deploys managed bridge infra for a DAO and destination chain
+    function deployBridgeInfrastructure(BridgeDeployParams calldata _params)
+        external
+        onlyOwner
+        returns (IManager.BridgeAddresses memory bridgeAddresses)
+    {
+        if (_params.daoId == bytes32(0)) revert ADDRESS_ZERO();
+        if (_params.sourceTreasury == address(0) || _params.layerZeroEndpoint == address(0)) revert ADDRESS_ZERO();
+        if (_params.modeChangeMinDelay == 0) revert ADDRESS_ZERO();
+
+        address bridgeOwner = _params.bridgeOwner == address(0) ? owner() : _params.bridgeOwner;
+        address managedAdmin = _params.destinationManagedAdmin == address(0) ? bridgeOwner : _params.destinationManagedAdmin;
+        address guardian = _params.destinationGuardian == address(0) ? managedAdmin : _params.destinationGuardian;
+
+        address payable sourceBridgeAdapter = payable(sourceBridgeAdapterByDao[_params.daoId]);
+
+        if (sourceBridgeAdapter == address(0)) {
+            SourceBridgeAdapter sourceAdapter = new SourceBridgeAdapter(address(this), _params.sourceTreasury, _params.daoId);
+            sourceBridgeAdapter = payable(address(sourceAdapter));
+            sourceBridgeAdapterByDao[_params.daoId] = sourceBridgeAdapter;
+        }
+
+        SingleAdapterPolicy verificationPolicy = new SingleAdapterPolicy();
+
+        DestinationExecutor destinationExecutor = _deployDestinationExecutor(
+            _params,
+            sourceBridgeAdapter,
+            address(verificationPolicy)
+        );
+
+        LayerZeroTransportAdapter transportAdapter = _deployLayerZeroTransportAdapter(_params);
+        transportAdapter.setDestinationEid(_params.destinationChainId, _params.destinationEid);
+
+        destinationExecutor.setTransportAdapterManaged(_params.transportAdapterId, address(transportAdapter));
+        destinationExecutor.setManagedAdmin(managedAdmin);
+        destinationExecutor.setGuardian(guardian);
+        destinationExecutor.transferOwnership(bridgeOwner);
+
+        SourceBridgeAdapter(sourceBridgeAdapter).setTransportAdapter(_params.transportAdapterId, address(transportAdapter));
+        SourceBridgeAdapter(sourceBridgeAdapter).setDestinationExecutor(
+            _params.destinationChainId, address(destinationExecutor)
+        );
+
+        SafeWalletAdapter safeWalletAdapter = new SafeWalletAdapter(address(destinationExecutor));
+
+        bridgeAddresses = IManager.BridgeAddresses({
+            sourceBridgeAdapter: sourceBridgeAdapter,
+            destinationExecutor: address(destinationExecutor),
+            transportAdapter: address(transportAdapter),
+            safeWalletAdapter: address(safeWalletAdapter),
+            verificationPolicy: address(verificationPolicy)
+        });
+
+        bridgeAddressesByDaoByChain[_params.daoId][_params.destinationChainId] = BridgeAddressesV2({
+            sourceBridgeAdapter: bridgeAddresses.sourceBridgeAdapter,
+            destinationExecutor: bridgeAddresses.destinationExecutor,
+            transportAdapter: bridgeAddresses.transportAdapter,
+            safeWalletAdapter: bridgeAddresses.safeWalletAdapter,
+            verificationPolicy: bridgeAddresses.verificationPolicy
+        });
+
+        emit SourceBridgeAdapterSet(_params.daoId, sourceBridgeAdapter);
+        emit BridgeAddressesSet(
+            _params.daoId,
+            _params.destinationChainId,
+            bridgeAddresses.sourceBridgeAdapter,
+            bridgeAddresses.destinationExecutor,
+            bridgeAddresses.transportAdapter,
+            bridgeAddresses.safeWalletAdapter,
+            bridgeAddresses.verificationPolicy
+        );
+        emit BridgeInfrastructureDeployed(
+            _params.daoId,
+            _params.destinationChainId,
+            bridgeAddresses.sourceBridgeAdapter,
+            bridgeAddresses.destinationExecutor,
+            bridgeAddresses.transportAdapter,
+            bridgeAddresses.safeWalletAdapter,
+            bridgeAddresses.verificationPolicy
+        );
+    }
+
+    function _deployDestinationExecutor(
+        BridgeDeployParams calldata _params,
+        address _sourceBridgeAdapter,
+        address _verificationPolicy
+    ) internal returns (DestinationExecutor destinationExecutor) {
+        destinationExecutor = new DestinationExecutor(
+            address(this),
+            _params.daoId,
+            _params.sourceChainId,
+            _sourceBridgeAdapter,
+            address(this),
+            address(this),
+            _params.mode,
+            _verificationPolicy,
+            _params.verificationThreshold,
+            _params.modeChangeMinDelay,
+            _params.modeChangeCooldown
+        );
+    }
+
+    function _deployLayerZeroTransportAdapter(BridgeDeployParams calldata _params)
+        internal
+        returns (LayerZeroTransportAdapter transportAdapter)
+    {
+        transportAdapter = new LayerZeroTransportAdapter(address(this), _params.layerZeroEndpoint);
     }
 
     /// @notice Safely get the contract version of a target contract.

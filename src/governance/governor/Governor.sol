@@ -9,7 +9,7 @@ import { SafeCast } from "../../lib/utils/SafeCast.sol";
 import { GovernorStorageV1 } from "./storage/GovernorStorageV1.sol";
 import { GovernorStorageV2 } from "./storage/GovernorStorageV2.sol";
 import { Token } from "../../token/Token.sol";
-import { Treasury } from "../treasury/Treasury.sol";
+import { ITreasury } from "../treasury/ITreasury.sol";
 import { IManager } from "../../manager/IManager.sol";
 import { IGovernor } from "./IGovernor.sol";
 import { ProposalHasher } from "./ProposalHasher.sol";
@@ -112,7 +112,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (_votingPeriod < MIN_VOTING_PERIOD || _votingPeriod > MAX_VOTING_PERIOD) revert INVALID_VOTING_PERIOD();
 
         // Store the governor settings
-        settings.treasury = Treasury(payable(_treasury));
+        settings.treasury = ITreasury(payable(_treasury));
         settings.token = Token(_token);
         settings.votingDelay = SafeCast.toUint48(_votingDelay);
         settings.votingPeriod = SafeCast.toUint48(_votingPeriod);

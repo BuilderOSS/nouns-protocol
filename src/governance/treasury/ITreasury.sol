@@ -8,6 +8,22 @@ import { IUUPS } from "../../lib/interfaces/IUUPS.sol";
 /// @author Rohan Kulkarni
 /// @notice The external Treasury events, errors and functions
 interface ITreasury is IUUPS, IOwnable {
+    /// @notice Safe-level treasury execution configuration
+    struct SafeConfig {
+        address safe;
+        address execModule;
+        address policy;
+        bytes32 policyHash;
+        bool active;
+    }
+
+    /// @notice Optional global policy baseline metadata
+    struct GlobalPolicy {
+        address policy;
+        bytes32 policyHash;
+        bool enforce;
+    }
+
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
@@ -26,6 +42,50 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @notice Emitted when the grace period is updated
     event GracePeriodUpdated(uint256 prevGracePeriod, uint256 newGracePeriod);
+
+    /// @notice Emitted when a safe is registered
+    event SafeRegistered(
+        uint32 indexed safeId,
+        address indexed safe,
+        address execModule,
+        address policy,
+        bytes32 policyHash
+    );
+
+    /// @notice Emitted when a safe is updated
+    event SafeUpdated(uint32 indexed safeId, bool active, address execModule, address policy, bytes32 policyHash);
+
+    /// @notice Emitted when global policy metadata is updated
+    event GlobalPolicyUpdated(address indexed policy, bytes32 policyHash, bool enforce);
+
+    /// @notice Emitted when execution is routed through a safe
+    event SafeExecution(
+        uint32 indexed safeId,
+        address indexed safe,
+        address indexed target,
+        uint256 value,
+        uint8 operation,
+        bytes data,
+        bytes returnData
+    );
+
+    /// @notice Emitted when safe spending limit is updated
+    event SafeSpendingLimitUpdated(uint32 indexed safeId, uint256 perTxLimit, uint256 dailyLimit);
+
+    /// @notice Emitted when a safe is paused
+    event SafePaused(uint32 indexed safeId, address indexed pausedBy);
+
+    /// @notice Emitted when a safe is unpaused
+    event SafeUnpaused(uint32 indexed safeId, address indexed unpausedBy);
+
+    /// @notice Emitted when all safes are paused
+    event AllSafesPaused(address indexed pausedBy);
+
+    /// @notice Emitted when all safes are unpaused
+    event AllSafesUnpaused(address indexed unpausedBy);
+
+    /// @notice Emitted when guardian is updated
+    event GuardianUpdated(address indexed previousGuardian, address indexed newGuardian);
 
     ///                                                          ///
     ///                            ERRORS                        ///
@@ -53,6 +113,45 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @dev Reverts if the caller was not the contract manager
     error ONLY_MANAGER();
+
+    /// @dev Reverts if a safe id does not exist
+    error INVALID_SAFE_ID();
+
+    /// @dev Reverts if a safe is inactive
+    error SAFE_INACTIVE();
+
+    /// @dev Reverts if safe is already registered
+    error SAFE_ALREADY_REGISTERED();
+
+    /// @dev Reverts if safe does not exist for an update
+    error SAFE_NOT_REGISTERED();
+
+    /// @dev Reverts if module address is invalid
+    error INVALID_MODULE();
+
+    /// @dev Reverts if operation type is invalid
+    error INVALID_OPERATION();
+
+    /// @dev Reverts if safe module execution failed
+    error SAFE_EXECUTION_FAILED();
+
+    /// @dev Reverts if module is not enabled on safe
+    error MODULE_NOT_ENABLED();
+
+    /// @dev Reverts if safe execution is paused
+    error SAFE_PAUSED();
+
+    /// @dev Reverts if all safe execution is paused
+    error ALL_SAFES_PAUSED();
+
+    /// @dev Reverts if spending limit exceeded
+    error SPENDING_LIMIT_EXCEEDED();
+
+    /// @dev Reverts if daily spending limit exceeded
+    error DAILY_LIMIT_EXCEEDED();
+
+    /// @dev Reverts if caller is not guardian
+    error ONLY_GUARDIAN();
 
     ///                                                          ///
     ///                          FUNCTIONS                       ///
@@ -114,4 +213,49 @@ interface ITreasury is IUUPS, IOwnable {
     /// @notice Updates the grace period
     /// @param newGracePeriod The grace period
     function updateGracePeriod(uint256 newGracePeriod) external;
+
+    /// @notice Registers a new treasury safe
+    /// @param safe The safe address
+    /// @param execModule The safe module address used for execution routing
+    /// @param policy Optional policy reference for this safe
+    /// @param policyHash Policy configuration hash
+    function registerSafe(address safe, address execModule, address policy, bytes32 policyHash) external;
+
+    /// @notice Updates an existing safe config
+    /// @param safeId The safe id
+    /// @param active Whether the safe is active
+    /// @param execModule Updated module address
+    /// @param policy Updated policy reference
+    /// @param policyHash Updated policy config hash
+    function updateSafe(uint32 safeId, bool active, address execModule, address policy, bytes32 policyHash) external;
+
+    /// @notice Sets global policy metadata
+    /// @param policy Policy contract address
+    /// @param policyHash Policy configuration hash
+    /// @param enforce If true, global policy is enforced as baseline
+    function setGlobalPolicy(address policy, bytes32 policyHash, bool enforce) external;
+
+    /// @notice Executes an action through a registered safe
+    /// @param safeId The safe id to route execution through
+    /// @param target The call target
+    /// @param value The call value
+    /// @param data The call data
+    /// @param operation Safe operation (0 = call)
+    function execOnSafe(uint32 safeId, address target, uint256 value, bytes calldata data, uint8 operation)
+        external
+        returns (bytes memory returnData);
+
+    /// @notice Gets a safe config
+    /// @param safeId The safe id
+    function getSafe(uint32 safeId) external view returns (SafeConfig memory);
+
+    /// @notice Gets global policy metadata
+    function getGlobalPolicy() external view returns (GlobalPolicy memory);
+
+    /// @notice Gets number of registered safes
+    function safeCount() external view returns (uint32);
+
+    /// @notice Gets the safe id for an address
+    /// @param safe The safe address
+    function getSafeIdByAddress(address safe) external view returns (uint32);
 }

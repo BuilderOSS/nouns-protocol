@@ -3,6 +3,7 @@ pragma solidity 0.8.16;
 
 import { IUUPS } from "../lib/interfaces/IUUPS.sol";
 import { IOwnable } from "../lib/interfaces/IOwnable.sol";
+import { BridgeTypes } from "../bridge/types/BridgeTypes.sol";
 
 /// @title IManager
 /// @author Rohan Kulkarni
@@ -34,6 +35,31 @@ interface IManager is IUUPS, IOwnable {
     /// @param sender address of the updater
     /// @param renderer new metadata renderer address
     event MetadataRendererUpdated(address sender, address renderer);
+
+    /// @notice Emitted when a source bridge adapter is set for a DAO
+    event SourceBridgeAdapterSet(bytes32 indexed daoId, address indexed sourceBridgeAdapter);
+
+    /// @notice Emitted when bridge infra addresses are set for a DAO and chain
+    event BridgeAddressesSet(
+        bytes32 indexed daoId,
+        uint256 indexed destinationChainId,
+        address sourceBridgeAdapter,
+        address destinationExecutor,
+        address transportAdapter,
+        address safeWalletAdapter,
+        address verificationPolicy
+    );
+
+    /// @notice Emitted when bridge infra is deployed for a DAO and chain
+    event BridgeInfrastructureDeployed(
+        bytes32 indexed daoId,
+        uint256 indexed destinationChainId,
+        address sourceBridgeAdapter,
+        address destinationExecutor,
+        address transportAdapter,
+        address safeWalletAdapter,
+        address verificationPolicy
+    );
 
     ///                                                          ///
     ///                            ERRORS                        ///
@@ -106,6 +132,33 @@ interface IManager is IUUPS, IOwnable {
         address vetoer;
     }
 
+    /// @notice Stores bridge addresses for a DAO on a destination chain
+    struct BridgeAddresses {
+        address sourceBridgeAdapter;
+        address destinationExecutor;
+        address transportAdapter;
+        address safeWalletAdapter;
+        address verificationPolicy;
+    }
+
+    /// @notice Input config for managed bridge infra deployment
+    struct BridgeDeployParams {
+        bytes32 daoId;
+        address sourceTreasury;
+        uint256 sourceChainId;
+        uint256 destinationChainId;
+        uint32 destinationEid;
+        uint8 transportAdapterId;
+        address layerZeroEndpoint;
+        address bridgeOwner;
+        address destinationManagedAdmin;
+        address destinationGuardian;
+        BridgeTypes.BridgeMode mode;
+        uint8 verificationThreshold;
+        uint64 modeChangeMinDelay;
+        uint64 modeChangeCooldown;
+    }
+
     ///                                                          ///
     ///                           FUNCTIONS                      ///
     ///                                                          ///
@@ -170,4 +223,22 @@ interface IManager is IUUPS, IOwnable {
     /// @param baseImpl The base implementation address
     /// @param upgradeImpl The upgrade implementation address
     function removeUpgrade(address baseImpl, address upgradeImpl) external;
+
+    /// @notice Gets a DAO source bridge adapter by DAO id
+    function getSourceBridgeAdapter(bytes32 daoId) external view returns (address);
+
+    /// @notice Gets bridge infrastructure addresses for a DAO and destination chain
+    function getBridgeAddresses(bytes32 daoId, uint256 destinationChainId) external view returns (BridgeAddresses memory);
+
+    /// @notice Sets a source bridge adapter for a DAO
+    function setSourceBridgeAdapter(bytes32 daoId, address sourceBridgeAdapter) external;
+
+    /// @notice Sets bridge infrastructure addresses for a DAO and destination chain
+    function setBridgeAddresses(bytes32 daoId, uint256 destinationChainId, BridgeAddresses calldata bridgeAddresses)
+        external;
+
+    /// @notice Deploys managed bridge infra contracts for a DAO and destination chain
+    function deployBridgeInfrastructure(BridgeDeployParams calldata params)
+        external
+        returns (BridgeAddresses memory bridgeAddresses);
 }
