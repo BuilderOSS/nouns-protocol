@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title MockERC1271Wallet
 /// @notice Mock smart contract wallet implementing ERC-1271 signature verification

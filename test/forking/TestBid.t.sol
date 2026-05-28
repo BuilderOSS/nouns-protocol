@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { Test } from "forge-std/Test.sol";
 import { Treasury } from "../../src/governance/treasury/Treasury.sol";
-import { Auction } from "../../src/auction/Auction.sol";
-import { IAuction } from "../../src/auction/IAuction.sol";
 import { Token } from "../../src/token/Token.sol";
-import { Governor } from "../../src/governance/governor/Governor.sol";
-import { IManager } from "../../src/manager/IManager.sol";
 import { Manager } from "../../src/manager/Manager.sol";
-import { UUPS } from "../../src/lib/proxy/UUPS.sol";
 
 contract TestBidError is Test {
     Manager internal immutable manager = Manager(0xd310A3041dFcF14Def5ccBc508668974b5da7174);

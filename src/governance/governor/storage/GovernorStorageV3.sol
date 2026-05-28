@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title GovernorStorageV3
 /// @notice Additional Governor storage for signed proposal flows and updates

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IOwnable } from "../../lib/utils/Ownable.sol";
 import { IUUPS } from "../../lib/interfaces/IUUPS.sol";

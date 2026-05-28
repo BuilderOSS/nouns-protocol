@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { UUPS } from "../../../src/lib/proxy/UUPS.sol";
 import { Ownable } from "../../../src/lib/utils/Ownable.sol";
