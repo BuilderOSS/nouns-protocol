@@ -51,15 +51,8 @@ contract DeployContracts is Script {
         address metadataRendererImpl = address(new MetadataRenderer(address(manager)));
 
         // Deploy auction house implementation
-        address auctionImpl = address(
-            new Auction(
-                address(manager),
-                _getKey("ProtocolRewards"),
-                weth,
-                Constants.REWARD_BUILDER_BPS,
-                Constants.REWARD_REFERRAL_BPS
-            )
-        );
+        address auctionImpl =
+            address(new Auction(address(manager), _getKey("ProtocolRewards"), weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS));
 
         // Deploy treasury implementation
         address treasuryImpl = address(new Treasury(address(manager)));
@@ -67,9 +60,8 @@ contract DeployContracts is Script {
         // Deploy governor implementation
         address governorImpl = address(new Governor(address(manager)));
 
-        address managerImpl = address(
-            new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, _getKey("BuilderRewardsRecipient"))
-        );
+        address managerImpl =
+            address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, _getKey("BuilderRewardsRecipient")));
 
         manager.upgradeTo(managerImpl);
 
@@ -115,7 +107,7 @@ contract DeployContracts is Script {
     function addressToString(address _addr) private pure returns (string memory) {
         bytes memory s = new bytes(40);
         for (uint256 i = 0; i < 20; i++) {
-            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2**(8 * (19 - i)))));
+            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - i)))));
             bytes1 hi = bytes1(uint8(b) / 16);
             bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
             s[2 * i] = char(hi);

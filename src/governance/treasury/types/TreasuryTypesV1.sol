@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-/// @notice TreasuryTypesV1
+/// @title TreasuryTypesV1
 /// @author Rohan Kulkarni
 /// @notice The treasury's custom data types
 contract TreasuryTypesV1 {

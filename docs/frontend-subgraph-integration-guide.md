@@ -60,31 +60,34 @@ BPS_PER_100_PERCENT = 10000                 // 100%
 The function signature has changed from v1 to v2. **Old voting code will break immediately after upgrade.**
 
 #### V1 (Old - DO NOT USE)
+
 ```solidity
 function castVoteBySig(
-    address voter,
-    bytes32 proposalId,
-    uint256 support,
-    uint256 deadline,
-    uint8 v,
-    bytes32 r,
-    bytes32 s
+  address voter,
+  bytes32 proposalId,
+  uint256 support,
+  uint256 deadline,
+  uint8 v,
+  bytes32 r,
+  bytes32 s
 ) external returns (uint256);
 ```
 
 #### V2 (New - REQUIRED)
+
 ```solidity
 function castVoteBySig(
-    address voter,
-    bytes32 proposalId,
-    uint256 support,
-    uint256 nonce,      // NEW: Added before deadline
-    uint256 deadline,
-    bytes calldata sig  // NEW: Replaces v,r,s
+  address voter,
+  bytes32 proposalId,
+  uint256 support,
+  uint256 nonce, // NEW: Added before deadline
+  uint256 deadline,
+  bytes calldata sig // NEW: Replaces v,r,s
 ) external returns (uint256);
 ```
 
 **Changes:**
+
 1. Added `nonce` parameter (4th position)
 2. Replaced `v, r, s` with single `bytes sig` parameter
 3. Parameter order changed
@@ -96,27 +99,30 @@ function castVoteBySig(
 ### NEW Events (v2.1.0)
 
 #### 1. ProposalUpdated
+
 Emitted when a proposal is updated and replaced with a new proposal ID.
 
 ```solidity
 event ProposalUpdated(
-    bytes32 oldProposalId,
-    bytes32 newProposalId,
-    address proposer,
-    address[] targets,
-    uint256[] values,
-    bytes[] calldatas,
-    string description,
-    string updateMessage
+  bytes32 oldProposalId,
+  bytes32 newProposalId,
+  address proposer,
+  address[] targets,
+  uint256[] values,
+  bytes[] calldatas,
+  string description,
+  string updateMessage
 );
 ```
 
 **Subgraph Usage:**
+
 - Track proposal replacement chains
 - Store update history with messages
 - Link old and new proposal entities
 
 **Frontend Usage:**
+
 - Display update notifications
 - Show update message in proposal timeline
 - Redirect users to latest proposal version
@@ -124,21 +130,21 @@ event ProposalUpdated(
 ---
 
 #### 2. ProposalSignersSet
+
 Emitted when signers are registered for a signed proposal.
 
 ```solidity
-event ProposalSignersSet(
-    bytes32 proposalId,
-    address[] signers
-);
+event ProposalSignersSet(bytes32 proposalId, address[] signers);
 ```
 
 **Subgraph Usage:**
+
 - Create Signer entities linked to proposals
 - Index signer participation metrics
 - Enable filtering proposals by signer
 
 **Frontend Usage:**
+
 - Display proposal sponsors
 - Show signer badges/avatars
 - Calculate total voting power behind proposal
@@ -146,20 +152,23 @@ event ProposalSignersSet(
 ---
 
 #### 3. ProposalUpdatablePeriodUpdated
+
 Emitted when the governance setting for updatable period changes.
 
 ```solidity
 event ProposalUpdatablePeriodUpdated(
-    uint256 prevProposalUpdatablePeriod,
-    uint256 newProposalUpdatablePeriod
+  uint256 prevProposalUpdatablePeriod,
+  uint256 newProposalUpdatablePeriod
 );
 ```
 
 **Subgraph Usage:**
+
 - Track governance parameter changes
 - Store historical settings
 
 **Frontend Usage:**
+
 - Update UI calculations for proposal timelines
 - Show governance setting changes
 
@@ -168,49 +177,53 @@ event ProposalUpdatablePeriodUpdated(
 ### Existing Events (Enhanced)
 
 #### 4. ProposalCreated
+
 ```solidity
 event ProposalCreated(
-    bytes32 proposalId,
-    address[] targets,
-    uint256[] values,
-    bytes[] calldatas,
-    string description,
-    bytes32 descriptionHash,
-    Proposal proposal  // Struct with metadata
+  bytes32 proposalId,
+  address[] targets,
+  uint256[] values,
+  bytes[] calldatas,
+  string description,
+  bytes32 descriptionHash,
+  Proposal proposal // Struct with metadata
 );
 ```
 
 **Important:** The `Proposal` struct parameter contains:
+
 ```solidity
 struct Proposal {
-    address proposer;
-    uint32 timeCreated;
-    uint32 againstVotes;
-    uint32 forVotes;
-    uint32 abstainVotes;
-    uint32 voteStart;
-    uint32 voteEnd;
-    uint32 proposalThreshold;
-    uint32 quorumVotes;
-    bool executed;
-    bool canceled;
-    bool vetoed;
+  address proposer;
+  uint32 timeCreated;
+  uint32 againstVotes;
+  uint32 forVotes;
+  uint32 abstainVotes;
+  uint32 voteStart;
+  uint32 voteEnd;
+  uint32 proposalThreshold;
+  uint32 quorumVotes;
+  bool executed;
+  bool canceled;
+  bool vetoed;
 }
 ```
 
 ---
 
 #### 5. ProposalQueued
+
 ```solidity
 event ProposalQueued(
-    bytes32 proposalId,
-    uint256 eta  // Estimated time of execution
+  bytes32 proposalId,
+  uint256 eta // Estimated time of execution
 );
 ```
 
 ---
 
 #### 6. ProposalExecuted
+
 ```solidity
 event ProposalExecuted(bytes32 proposalId);
 ```
@@ -218,6 +231,7 @@ event ProposalExecuted(bytes32 proposalId);
 ---
 
 #### 7. ProposalCanceled
+
 ```solidity
 event ProposalCanceled(bytes32 proposalId);
 ```
@@ -225,6 +239,7 @@ event ProposalCanceled(bytes32 proposalId);
 ---
 
 #### 8. ProposalVetoed
+
 ```solidity
 event ProposalVetoed(bytes32 proposalId);
 ```
@@ -232,74 +247,63 @@ event ProposalVetoed(bytes32 proposalId);
 ---
 
 #### 9. VoteCast
+
 ```solidity
 event VoteCast(
-    address voter,
-    bytes32 proposalId,
-    uint256 support,  // 0=Against, 1=For, 2=Abstain
-    uint256 weight,   // Voting power used
-    string reason     // Optional reason (empty string if none)
+  address voter,
+  bytes32 proposalId,
+  uint256 support, // 0=Against, 1=For, 2=Abstain
+  uint256 weight, // Voting power used
+  string reason // Optional reason (empty string if none)
 );
 ```
 
 ---
 
 #### 10. VotingDelayUpdated
+
 ```solidity
-event VotingDelayUpdated(
-    uint256 prevVotingDelay,
-    uint256 newVotingDelay
-);
+event VotingDelayUpdated(uint256 prevVotingDelay, uint256 newVotingDelay);
 ```
 
 ---
 
 #### 11. VotingPeriodUpdated
+
 ```solidity
-event VotingPeriodUpdated(
-    uint256 prevVotingPeriod,
-    uint256 newVotingPeriod
-);
+event VotingPeriodUpdated(uint256 prevVotingPeriod, uint256 newVotingPeriod);
 ```
 
 ---
 
 #### 12. ProposalThresholdBpsUpdated
+
 ```solidity
-event ProposalThresholdBpsUpdated(
-    uint256 prevBps,
-    uint256 newBps
-);
+event ProposalThresholdBpsUpdated(uint256 prevBps, uint256 newBps);
 ```
 
 ---
 
 #### 13. QuorumVotesBpsUpdated
+
 ```solidity
-event QuorumVotesBpsUpdated(
-    uint256 prevBps,
-    uint256 newBps
-);
+event QuorumVotesBpsUpdated(uint256 prevBps, uint256 newBps);
 ```
 
 ---
 
 #### 14. VetoerUpdated
+
 ```solidity
-event VetoerUpdated(
-    address prevVetoer,
-    address newVetoer
-);
+event VetoerUpdated(address prevVetoer, address newVetoer);
 ```
 
 ---
 
 #### 15. DelayedGovernanceExpirationTimestampUpdated
+
 ```solidity
-event DelayedGovernanceExpirationTimestampUpdated(
-    uint256 prevTimestamp,
-    uint256 newTimestamp
-);
+event DelayedGovernanceExpirationTimestampUpdated(uint256 prevTimestamp, uint256 newTimestamp);
 ```
 
 ---
@@ -309,19 +313,21 @@ event DelayedGovernanceExpirationTimestampUpdated(
 ### NEW Functions (v2.1.0)
 
 #### 1. proposeBySigs
+
 Creates a proposal from msg.sender backed by offchain signer sponsorships.
 
 ```solidity
 function proposeBySigs(
-    ProposerSignature[] memory proposerSignatures,
-    address[] memory targets,
-    uint256[] memory values,
-    bytes[] memory calldatas,
-    string memory description
+  ProposerSignature[] memory proposerSignatures,
+  address[] memory targets,
+  uint256[] memory values,
+  bytes[] memory calldatas,
+  string memory description
 ) external returns (bytes32);
 ```
 
 **Parameters:**
+
 - `proposerSignatures`: Array of sponsor signatures (max 16, sorted by signer address)
 - `targets`: Array of contract addresses to call
 - `values`: Array of ETH values for each call
@@ -331,6 +337,7 @@ function proposeBySigs(
 **Returns:** New proposal ID (bytes32)
 
 **Requirements:**
+
 - Signers must be in ascending address order
 - Proposer (msg.sender) cannot be a signer
 - Total voting power (proposer + signers) must meet proposal threshold
@@ -339,20 +346,22 @@ function proposeBySigs(
 ---
 
 #### 2. updateProposal
+
 Updates an existing proposal during the updatable period (proposer-only, no signatures required).
 
 ```solidity
 function updateProposal(
-    bytes32 proposalId,
-    address[] memory targets,
-    uint256[] memory values,
-    bytes[] memory calldatas,
-    string memory description,
-    string memory updateMessage
+  bytes32 proposalId,
+  address[] memory targets,
+  uint256[] memory values,
+  bytes[] memory calldatas,
+  string memory description,
+  string memory updateMessage
 ) external returns (bytes32);
 ```
 
 **Parameters:**
+
 - `proposalId`: ID of the proposal to update
 - `targets`: New target addresses
 - `values`: New ETH values
@@ -363,6 +372,7 @@ function updateProposal(
 **Returns:** New proposal ID (bytes32)
 
 **Requirements:**
+
 - Caller must be the original proposer
 - Proposal state must be `Updatable`
 - Must be within updatable period
@@ -372,21 +382,23 @@ function updateProposal(
 ---
 
 #### 3. updateProposalBySigs
+
 Updates a signed proposal with new signer approvals.
 
 ```solidity
 function updateProposalBySigs(
-    bytes32 proposalId,
-    ProposerSignature[] memory proposerSignatures,
-    address[] memory targets,
-    uint256[] memory values,
-    bytes[] memory calldatas,
-    string memory description,
-    string memory updateMessage
+  bytes32 proposalId,
+  ProposerSignature[] memory proposerSignatures,
+  address[] memory targets,
+  uint256[] memory values,
+  bytes[] memory calldatas,
+  string memory description,
+  string memory updateMessage
 ) external returns (bytes32);
 ```
 
 **Parameters:**
+
 - `proposalId`: ID of the proposal to update
 - `proposerSignatures`: New set of sponsor signatures (can differ from original)
 - `targets`: New target addresses
@@ -398,6 +410,7 @@ function updateProposalBySigs(
 **Returns:** New proposal ID (bytes32)
 
 **Requirements:**
+
 - Caller must be the original proposer
 - Proposal state must be `Updatable`
 - Original proposal must have been created with signatures
@@ -407,6 +420,7 @@ function updateProposalBySigs(
 ---
 
 #### 4. getProposalSigners
+
 Returns the addresses that sponsored a signed proposal.
 
 ```solidity
@@ -418,6 +432,7 @@ function getProposalSigners(bytes32 proposalId) external view returns (address[]
 ---
 
 #### 5. proposalUpdatePeriodEnd
+
 Returns the timestamp until which a proposal can be updated.
 
 ```solidity
@@ -427,6 +442,7 @@ function proposalUpdatePeriodEnd(bytes32 proposalId) external view returns (uint
 **Returns:** Unix timestamp (seconds)
 
 **Usage:**
+
 ```javascript
 const updateDeadline = await governor.proposalUpdatePeriodEnd(proposalId);
 const canUpdate = Date.now() / 1000 < updateDeadline;
@@ -435,6 +451,7 @@ const canUpdate = Date.now() / 1000 < updateDeadline;
 ---
 
 #### 6. proposalUpdatablePeriod
+
 Returns the global setting for how long proposals are editable.
 
 ```solidity
@@ -446,6 +463,7 @@ function proposalUpdatablePeriod() external view returns (uint256);
 ---
 
 #### 7. proposeSignatureNonce
+
 Returns the current proposal-signature nonce for an account.
 
 ```solidity
@@ -459,6 +477,7 @@ function proposeSignatureNonce(address account) external view returns (uint256);
 ---
 
 #### 8. updateProposalUpdatablePeriod
+
 Updates the governance setting for proposal updatable period.
 
 ```solidity
@@ -466,6 +485,7 @@ function updateProposalUpdatablePeriod(uint256 newProposalUpdatablePeriod) exter
 ```
 
 **Requirements:**
+
 - Only callable by governance (via proposal execution)
 - Must be between 0 and `MAX_PROPOSAL_UPDATABLE_PERIOD` (24 weeks)
 
@@ -474,30 +494,33 @@ function updateProposalUpdatablePeriod(uint256 newProposalUpdatablePeriod) exter
 ### Core Functions (Updated)
 
 #### 9. propose
+
 Standard proposal creation by a qualified proposer.
 
 ```solidity
 function propose(
-    address[] memory targets,
-    uint256[] memory values,
-    bytes[] memory calldatas,
-    string memory description
+  address[] memory targets,
+  uint256[] memory values,
+  bytes[] memory calldatas,
+  string memory description
 ) external returns (bytes32);
 ```
 
 **Requirements:**
+
 - Caller must have voting power >= proposal threshold
 - Cannot propose during delayed governance period
 
 ---
 
 #### 10. castVote
+
 Cast a vote on an active proposal.
 
 ```solidity
 function castVote(
-    bytes32 proposalId,
-    uint256 support  // 0=Against, 1=For, 2=Abstain
+  bytes32 proposalId,
+  uint256 support // 0=Against, 1=For, 2=Abstain
 ) external returns (uint256);
 ```
 
@@ -506,29 +529,31 @@ function castVote(
 ---
 
 #### 11. castVoteWithReason
+
 Cast a vote with an explanation.
 
 ```solidity
 function castVoteWithReason(
-    bytes32 proposalId,
-    uint256 support,
-    string memory reason
+  bytes32 proposalId,
+  uint256 support,
+  string memory reason
 ) external returns (uint256);
 ```
 
 ---
 
 #### 12. castVoteBySig (NEW SIGNATURE)
+
 Cast a vote using an EIP-712 signature.
 
 ```solidity
 function castVoteBySig(
-    address voter,
-    bytes32 proposalId,
-    uint256 support,
-    uint256 nonce,      // NEW in v2
-    uint256 deadline,
-    bytes calldata sig  // NEW in v2 (replaces v,r,s)
+  address voter,
+  bytes32 proposalId,
+  uint256 support,
+  uint256 nonce, // NEW in v2
+  uint256 deadline,
+  bytes calldata sig // NEW in v2 (replaces v,r,s)
 ) external returns (uint256);
 ```
 
@@ -537,6 +562,7 @@ function castVoteBySig(
 ---
 
 #### 13. queue
+
 Queue a successful proposal for execution.
 
 ```solidity
@@ -544,24 +570,27 @@ function queue(bytes32 proposalId) external returns (uint256 eta);
 ```
 
 **Requirements:**
+
 - Proposal state must be `Succeeded`
 
 ---
 
 #### 14. execute
+
 Execute a queued proposal.
 
 ```solidity
 function execute(
-    address[] memory targets,
-    uint256[] memory values,
-    bytes[] memory calldatas,
-    bytes32 descriptionHash,
-    address proposer
+  address[] memory targets,
+  uint256[] memory values,
+  bytes[] memory calldatas,
+  bytes32 descriptionHash,
+  address proposer
 ) external payable returns (bytes32);
 ```
 
 **Requirements:**
+
 - Proposal must be queued
 - Current time must be >= ETA
 - Must provide original proposal parameters
@@ -569,6 +598,7 @@ function execute(
 ---
 
 #### 15. cancel
+
 Cancel a proposal.
 
 ```solidity
@@ -576,12 +606,14 @@ function cancel(bytes32 proposalId) external;
 ```
 
 **Requirements:**
+
 - Callable by proposer OR
 - Callable by anyone if proposer's voting power dropped below threshold
 
 ---
 
 #### 16. veto
+
 Veto a proposal (vetoer only).
 
 ```solidity
@@ -589,6 +621,7 @@ function veto(bytes32 proposalId) external;
 ```
 
 **Requirements:**
+
 - Caller must be the vetoer
 - Proposal cannot already be executed
 
@@ -597,6 +630,7 @@ function veto(bytes32 proposalId) external;
 ### View Functions
 
 #### 17. state
+
 Get the current state of a proposal.
 
 ```solidity
@@ -608,6 +642,7 @@ function state(bytes32 proposalId) external view returns (ProposalState);
 ---
 
 #### 18. getVotes
+
 Get voting power of an account at a specific timestamp.
 
 ```solidity
@@ -617,6 +652,7 @@ function getVotes(address account, uint256 timestamp) external view returns (uin
 ---
 
 #### 19. proposalThreshold
+
 Get current minimum voting power needed to create a proposal.
 
 ```solidity
@@ -628,6 +664,7 @@ function proposalThreshold() external view returns (uint256);
 ---
 
 #### 20. quorum
+
 Get current minimum votes needed for a proposal to pass.
 
 ```solidity
@@ -639,6 +676,7 @@ function quorum() external view returns (uint256);
 ---
 
 #### 21. getProposal
+
 Get full proposal details.
 
 ```solidity
@@ -648,6 +686,7 @@ function getProposal(bytes32 proposalId) external view returns (Proposal memory)
 ---
 
 #### 22. proposalSnapshot
+
 Get timestamp when voting starts.
 
 ```solidity
@@ -657,6 +696,7 @@ function proposalSnapshot(bytes32 proposalId) external view returns (uint256);
 ---
 
 #### 23. proposalDeadline
+
 Get timestamp when voting ends.
 
 ```solidity
@@ -666,19 +706,19 @@ function proposalDeadline(bytes32 proposalId) external view returns (uint256);
 ---
 
 #### 24. proposalVotes
+
 Get vote tallies for a proposal.
 
 ```solidity
-function proposalVotes(bytes32 proposalId) external view returns (
-    uint256 againstVotes,
-    uint256 forVotes,
-    uint256 abstainVotes
-);
+function proposalVotes(
+  bytes32 proposalId
+) external view returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes);
 ```
 
 ---
 
 #### 25. proposalEta
+
 Get execution timestamp for a queued proposal.
 
 ```solidity
@@ -691,13 +731,21 @@ function proposalEta(bytes32 proposalId) external view returns (uint256);
 
 ```solidity
 function proposalThresholdBps() external view returns (uint256);
+
 function quorumThresholdBps() external view returns (uint256);
+
 function votingDelay() external view returns (uint256);
+
 function votingPeriod() external view returns (uint256);
+
 function vetoer() external view returns (address);
+
 function token() external view returns (address);
+
 function treasury() external view returns (address);
-function nonce(address account) external view returns (uint256);  // For vote signatures
+
+function nonce(address account) external view returns (uint256); // For vote signatures
+
 function VOTE_TYPEHASH() external view returns (bytes32);
 ```
 
@@ -709,17 +757,17 @@ function VOTE_TYPEHASH() external view returns (bytes32);
 
 ```solidity
 enum ProposalState {
-    Pending,      // 0 - Updatable period ended, voting not started
-    Active,       // 1 - Voting is open
-    Canceled,     // 2 - Proposal was canceled
-    Defeated,     // 3 - Proposal failed (didn't reach quorum or majority)
-    Succeeded,    // 4 - Proposal passed, ready to queue
-    Queued,       // 5 - Proposal queued in treasury
-    Expired,      // 6 - Execution deadline passed
-    Executed,     // 7 - Proposal was executed
-    Vetoed,       // 8 - Proposal was vetoed
-    Updatable,    // 9 - NEW: Proposal can be edited
-    Replaced      // 10 - NEW: Proposal was replaced by an update
+  Pending, // 0 - Updatable period ended, voting not started
+  Active, // 1 - Voting is open
+  Canceled, // 2 - Proposal was canceled
+  Defeated, // 3 - Proposal failed (didn't reach quorum or majority)
+  Succeeded, // 4 - Proposal passed, ready to queue
+  Queued, // 5 - Proposal queued in treasury
+  Expired, // 6 - Execution deadline passed
+  Executed, // 7 - Proposal was executed
+  Vetoed, // 8 - Proposal was vetoed
+  Updatable, // 9 - NEW: Proposal can be edited
+  Replaced // 10 - NEW: Proposal was replaced by an update
 }
 ```
 
@@ -741,18 +789,18 @@ Updatable → Replaced (when updated)
 
 ```solidity
 struct Proposal {
-    address proposer;           // Creator address
-    uint32 timeCreated;         // Creation timestamp
-    uint32 againstVotes;        // Against vote count
-    uint32 forVotes;            // For vote count
-    uint32 abstainVotes;        // Abstain vote count
-    uint32 voteStart;           // Voting start timestamp
-    uint32 voteEnd;             // Voting end timestamp
-    uint32 proposalThreshold;   // Required threshold at creation
-    uint32 quorumVotes;         // Required quorum at creation
-    bool executed;              // Execution flag
-    bool canceled;              // Cancelation flag
-    bool vetoed;                // Veto flag
+  address proposer; // Creator address
+  uint32 timeCreated; // Creation timestamp
+  uint32 againstVotes; // Against vote count
+  uint32 forVotes; // For vote count
+  uint32 abstainVotes; // Abstain vote count
+  uint32 voteStart; // Voting start timestamp
+  uint32 voteEnd; // Voting end timestamp
+  uint32 proposalThreshold; // Required threshold at creation
+  uint32 quorumVotes; // Required quorum at creation
+  bool executed; // Execution flag
+  bool canceled; // Cancelation flag
+  bool vetoed; // Veto flag
 }
 ```
 
@@ -762,10 +810,10 @@ struct Proposal {
 
 ```solidity
 struct ProposerSignature {
-    address signer;     // Address of sponsor
-    uint256 nonce;      // Current nonce for this signer
-    uint256 deadline;   // Signature expiry timestamp
-    bytes sig;          // EIP-712 signature bytes
+  address signer; // Address of sponsor
+  uint256 nonce; // Current nonce for this signer
+  uint256 deadline; // Signature expiry timestamp
+  bytes sig; // EIP-712 signature bytes
 }
 ```
 
@@ -800,7 +848,7 @@ UPDATE_PROPOSAL_TYPEHASH = keccak256(
 
 ```graphql
 type Proposal @entity {
-  id: ID!  # proposalId (bytes32 as hex string)
+  id: ID! # proposalId (bytes32 as hex string)
   proposalNumber: BigInt!
   proposer: Bytes!
   targets: [Bytes!]!
@@ -809,14 +857,12 @@ type Proposal @entity {
   description: String!
   descriptionHash: Bytes!
   createdAt: BigInt!
-  updatedAt: BigInt  # NEW: Last update timestamp
-
+  updatedAt: BigInt # NEW: Last update timestamp
   # NEW: Update tracking
-  replacedBy: Proposal  # Points to newer version if updated
-  replaces: Proposal    # Points to older version
+  replacedBy: Proposal # Points to newer version if updated
+  replaces: Proposal # Points to older version
   updateMessage: String # Reason for update
-  updateCount: BigInt!  # Number of times updated
-
+  updateCount: BigInt! # Number of times updated
   # NEW: Signed proposal support
   signers: [ProposalSigner!]! @derivedFrom(field: "proposal")
   isSigned: Boolean!
@@ -825,7 +871,7 @@ type Proposal @entity {
   state: ProposalState!
 
   # Timing
-  updatePeriodEnd: BigInt!  # NEW
+  updatePeriodEnd: BigInt! # NEW
   voteStart: BigInt!
   voteEnd: BigInt!
   executionETA: BigInt
@@ -855,10 +901,10 @@ type Proposal @entity {
 
 ```graphql
 type ProposalSigner @entity {
-  id: ID!  # proposalId-signerAddress
+  id: ID! # proposalId-signerAddress
   proposal: Proposal!
   signer: Bytes!
-  votingPower: BigInt!  # At time of signing
+  votingPower: BigInt! # At time of signing
   timestamp: BigInt!
   signature: Bytes!
 }
@@ -871,7 +917,7 @@ type ProposalSigner @entity {
 ```graphql
 enum ProposalEventType {
   CREATED
-  UPDATED      # NEW
+  UPDATED # NEW
   QUEUED
   EXECUTED
   CANCELED
@@ -879,7 +925,7 @@ enum ProposalEventType {
 }
 
 type ProposalEvent @entity {
-  id: ID!  # txHash-logIndex
+  id: ID! # txHash-logIndex
   proposal: Proposal!
   type: ProposalEventType!
   timestamp: BigInt!
@@ -897,7 +943,7 @@ type ProposalEvent @entity {
 
 ```graphql
 type Vote @entity {
-  id: ID!  # proposalId-voterAddress
+  id: ID! # proposalId-voterAddress
   proposal: Proposal!
   voter: Bytes!
   support: VoteType!
@@ -920,12 +966,12 @@ enum VoteType {
 
 ```graphql
 type GovernorSettings @entity {
-  id: ID!  # "SETTINGS"
+  id: ID! # "SETTINGS"
   votingDelay: BigInt!
   votingPeriod: BigInt!
   proposalThresholdBps: BigInt!
   quorumThresholdBps: BigInt!
-  proposalUpdatablePeriod: BigInt!  # NEW
+  proposalUpdatablePeriod: BigInt! # NEW
   vetoer: Bytes!
 
   # Historical tracking
@@ -963,7 +1009,7 @@ export function handleProposalCreated(event: ProposalCreatedEvent): void {
   // Calculate timestamps
   let governor = GovernorContract.bind(event.address);
   proposal.updatePeriodEnd = event.params.proposal.timeCreated.plus(
-    governor.proposalUpdatablePeriod()
+    governor.proposalUpdatablePeriod(),
   );
   proposal.voteStart = event.params.proposal.voteStart;
   proposal.voteEnd = event.params.proposal.voteEnd;
@@ -985,13 +1031,7 @@ export function handleProposalCreated(event: ProposalCreatedEvent): void {
   proposal.save();
 
   // Create event
-  createProposalEvent(
-    event,
-    proposal,
-    "CREATED",
-    null,
-    null
-  );
+  createProposalEvent(event, proposal, "CREATED", null, null);
 }
 ```
 
@@ -1004,9 +1044,7 @@ export function handleProposalUpdated(event: ProposalUpdatedEvent): void {
   // Load old proposal
   let oldProposal = Proposal.load(event.params.oldProposalId.toHexString());
   if (!oldProposal) {
-    log.warning("Old proposal {} not found for update", [
-      event.params.oldProposalId.toHexString()
-    ]);
+    log.warning("Old proposal {} not found for update", [event.params.oldProposalId.toHexString()]);
     return;
   }
 
@@ -1026,9 +1064,9 @@ export function handleProposalUpdated(event: ProposalUpdatedEvent): void {
   newProposal.calldatas = event.params.calldatas;
   newProposal.description = event.params.description;
   newProposal.descriptionHash = Bytes.fromByteArray(
-    crypto.keccak256(ByteArray.fromUTF8(event.params.description))
+    crypto.keccak256(ByteArray.fromUTF8(event.params.description)),
   );
-  newProposal.createdAt = oldProposal.createdAt;  // Keep original creation time
+  newProposal.createdAt = oldProposal.createdAt; // Keep original creation time
   newProposal.updatedAt = event.block.timestamp;
 
   // Update tracking
@@ -1042,9 +1080,7 @@ export function handleProposalUpdated(event: ProposalUpdatedEvent): void {
   let governor = GovernorContract.bind(event.address);
   let proposalData = governor.getProposal(event.params.newProposalId);
 
-  newProposal.updatePeriodEnd = proposalData.timeCreated.plus(
-    governor.proposalUpdatablePeriod()
-  );
+  newProposal.updatePeriodEnd = proposalData.timeCreated.plus(governor.proposalUpdatablePeriod());
   newProposal.voteStart = proposalData.voteStart;
   newProposal.voteEnd = proposalData.voteEnd;
 
@@ -1070,7 +1106,7 @@ export function handleProposalUpdated(event: ProposalUpdatedEvent): void {
     newProposal,
     "UPDATED",
     event.params.updateMessage,
-    event.params.newProposalId
+    event.params.newProposalId,
   );
 }
 ```
@@ -1083,9 +1119,7 @@ export function handleProposalUpdated(event: ProposalUpdatedEvent): void {
 export function handleProposalSignersSet(event: ProposalSignersSetEvent): void {
   let proposal = Proposal.load(event.params.proposalId.toHexString());
   if (!proposal) {
-    log.warning("Proposal {} not found for signers", [
-      event.params.proposalId.toHexString()
-    ]);
+    log.warning("Proposal {} not found for signers", [event.params.proposalId.toHexString()]);
     return;
   }
 
@@ -1106,7 +1140,7 @@ export function handleProposalSignersSet(event: ProposalSignersSetEvent): void {
     proposalSigner.signer = signer;
     proposalSigner.votingPower = token.getVotes(signer, proposal.voteStart);
     proposalSigner.timestamp = event.block.timestamp;
-    proposalSigner.signature = Bytes.empty();  // Not stored on-chain
+    proposalSigner.signature = Bytes.empty(); // Not stored on-chain
 
     proposalSigner.save();
   }
@@ -1119,7 +1153,7 @@ export function handleProposalSignersSet(event: ProposalSignersSetEvent): void {
 
 ```typescript
 export function handleProposalUpdatablePeriodUpdated(
-  event: ProposalUpdatablePeriodUpdatedEvent
+  event: ProposalUpdatablePeriodUpdatedEvent,
 ): void {
   let settings = loadOrCreateSettings();
 
@@ -1131,7 +1165,7 @@ export function handleProposalUpdatablePeriodUpdated(
     event,
     "PROPOSAL_UPDATABLE_PERIOD",
     event.params.prevProposalUpdatablePeriod,
-    event.params.newProposalUpdatablePeriod
+    event.params.newProposalUpdatablePeriod,
   );
 }
 ```
@@ -1186,11 +1220,7 @@ query GetLatestProposal($proposalId: ID!) {
 
 ```graphql
 query GetProposalHistory($proposalNumber: BigInt!) {
-  proposals(
-    where: { proposalNumber: $proposalNumber }
-    orderBy: updatedAt
-    orderDirection: asc
-  ) {
+  proposals(where: { proposalNumber: $proposalNumber }, orderBy: updatedAt, orderDirection: asc) {
     id
     description
     updateMessage
@@ -1255,7 +1285,7 @@ interface ProposalTimeline {
 
 async function getProposalTimeline(
   governor: Contract,
-  proposalId: string
+  proposalId: string,
 ): Promise<ProposalTimeline> {
   const proposal = await governor.getProposal(proposalId);
   const updatePeriodEnd = await governor.proposalUpdatePeriodEnd(proposalId);
@@ -1266,7 +1296,7 @@ async function getProposalTimeline(
     updateDeadline: new Date(updatePeriodEnd.toNumber() * 1000),
     votingStarts: new Date(proposal.voteStart.toNumber() * 1000),
     votingEnds: new Date(proposal.voteEnd.toNumber() * 1000),
-    executionETA: eta.gt(0) ? new Date(eta.toNumber() * 1000) : null
+    executionETA: eta.gt(0) ? new Date(eta.toNumber() * 1000) : null,
   };
 }
 ```
@@ -1278,66 +1308,75 @@ async function getProposalTimeline(
 ```typescript
 const ProposalStateConfig = {
   PENDING: {
-    label: 'Pending',
-    color: 'gray',
-    description: 'Waiting for voting to begin'
+    label: "Pending",
+    color: "gray",
+    description: "Waiting for voting to begin",
   },
   ACTIVE: {
-    label: 'Active',
-    color: 'blue',
-    description: 'Voting in progress'
+    label: "Active",
+    color: "blue",
+    description: "Voting in progress",
   },
   CANCELED: {
-    label: 'Canceled',
-    color: 'red',
-    description: 'Proposal was canceled'
+    label: "Canceled",
+    color: "red",
+    description: "Proposal was canceled",
   },
   DEFEATED: {
-    label: 'Defeated',
-    color: 'red',
-    description: 'Proposal did not pass'
+    label: "Defeated",
+    color: "red",
+    description: "Proposal did not pass",
   },
   SUCCEEDED: {
-    label: 'Succeeded',
-    color: 'green',
-    description: 'Proposal passed, ready to queue'
+    label: "Succeeded",
+    color: "green",
+    description: "Proposal passed, ready to queue",
   },
   QUEUED: {
-    label: 'Queued',
-    color: 'yellow',
-    description: 'Queued for execution'
+    label: "Queued",
+    color: "yellow",
+    description: "Queued for execution",
   },
   EXPIRED: {
-    label: 'Expired',
-    color: 'gray',
-    description: 'Execution window passed'
+    label: "Expired",
+    color: "gray",
+    description: "Execution window passed",
   },
   EXECUTED: {
-    label: 'Executed',
-    color: 'green',
-    description: 'Proposal was executed'
+    label: "Executed",
+    color: "green",
+    description: "Proposal was executed",
   },
   VETOED: {
-    label: 'Vetoed',
-    color: 'red',
-    description: 'Proposal was vetoed'
+    label: "Vetoed",
+    color: "red",
+    description: "Proposal was vetoed",
   },
   UPDATABLE: {
-    label: 'Updatable',
-    color: 'purple',
-    description: 'Proposal can be edited'
+    label: "Updatable",
+    color: "purple",
+    description: "Proposal can be edited",
   },
   REPLACED: {
-    label: 'Replaced',
-    color: 'orange',
-    description: 'Proposal was updated'
-  }
+    label: "Replaced",
+    color: "orange",
+    description: "Proposal was updated",
+  },
 };
 
 function ProposalStateBadge({ state }: { state: number }) {
   const stateNames = [
-    'PENDING', 'ACTIVE', 'CANCELED', 'DEFEATED', 'SUCCEEDED',
-    'QUEUED', 'EXPIRED', 'EXECUTED', 'VETOED', 'UPDATABLE', 'REPLACED'
+    "PENDING",
+    "ACTIVE",
+    "CANCELED",
+    "DEFEATED",
+    "SUCCEEDED",
+    "QUEUED",
+    "EXPIRED",
+    "EXECUTED",
+    "VETOED",
+    "UPDATABLE",
+    "REPLACED",
   ];
 
   const stateName = stateNames[state];
@@ -1356,10 +1395,7 @@ function ProposalStateBadge({ state }: { state: number }) {
 ### 3. Follow Proposal Replacement Chain
 
 ```typescript
-async function getLatestProposalVersion(
-  governor: Contract,
-  proposalId: string
-): Promise<string> {
+async function getLatestProposalVersion(governor: Contract, proposalId: string): Promise<string> {
   let currentId = proposalId;
   let replacedBy = await governor.proposalIdReplacedBy(currentId);
 
@@ -1393,25 +1429,26 @@ useEffect(() => {
 async function canUpdateProposal(
   governor: Contract,
   proposalId: string,
-  userAddress: string
+  userAddress: string,
 ): Promise<{ canUpdate: boolean; reason?: string }> {
   // Check state
   const state = await governor.state(proposalId);
-  if (state !== 9) { // Not UPDATABLE
-    return { canUpdate: false, reason: 'Proposal is no longer updatable' };
+  if (state !== 9) {
+    // Not UPDATABLE
+    return { canUpdate: false, reason: "Proposal is no longer updatable" };
   }
 
   // Check if user is proposer
   const proposal = await governor.getProposal(proposalId);
   if (proposal.proposer.toLowerCase() !== userAddress.toLowerCase()) {
-    return { canUpdate: false, reason: 'Only the proposer can update' };
+    return { canUpdate: false, reason: "Only the proposer can update" };
   }
 
   // Check time window
   const updateDeadline = await governor.proposalUpdatePeriodEnd(proposalId);
   const now = Math.floor(Date.now() / 1000);
   if (now > updateDeadline.toNumber()) {
-    return { canUpdate: false, reason: 'Update period has ended' };
+    return { canUpdate: false, reason: "Update period has ended" };
   }
 
   return { canUpdate: true };
@@ -1446,7 +1483,7 @@ async function getProposalSigners(
       return {
         address,
         votingPower,
-        ensName: ensName || undefined
+        ensName: ensName || undefined,
       };
     })
   );
@@ -1459,17 +1496,18 @@ function ProposalSigners({ proposalId }: { proposalId: string }) {
   const [signers, setSigners] = useState<ProposalSigner[]>([]);
 
   useEffect(() => {
-    getProposalSigners(governor, token, proposalId, provider)
-      .then(setSigners);
+    getProposalSigners(governor, token, proposalId, provider).then(setSigners);
   }, [proposalId]);
 
   if (signers.length === 0) return null;
 
   return (
     <div className="proposal-signers">
-      <h3>Sponsored by {signers.length} signer{signers.length > 1 ? 's' : ''}</h3>
+      <h3>
+        Sponsored by {signers.length} signer{signers.length > 1 ? "s" : ""}
+      </h3>
       <ul>
-        {signers.map(signer => (
+        {signers.map((signer) => (
           <li key={signer.address}>
             <Address address={signer.address} ensName={signer.ensName} />
             <span className="voting-power">
@@ -1490,7 +1528,7 @@ function ProposalSigners({ proposalId }: { proposalId: string }) {
 ### 1. Vote Signature (Updated for v2)
 
 ```typescript
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
 
 interface VoteSignature {
   voter: string;
@@ -1506,8 +1544,8 @@ async function generateVoteSignature(
   token: ethers.Contract,
   signer: ethers.Signer,
   proposalId: string,
-  support: 0 | 1 | 2,  // 0=Against, 1=For, 2=Abstain
-  deadlineMinutes: number = 60
+  support: 0 | 1 | 2, // 0=Against, 1=For, 2=Abstain
+  deadlineMinutes: number = 60,
 ): Promise<VoteSignature> {
   const voter = await signer.getAddress();
   const chainId = (await signer.provider!.getNetwork()).chainId;
@@ -1519,25 +1557,25 @@ async function generateVoteSignature(
   const nonce = await governor.nonce(voter);
 
   // Set deadline
-  const deadline = Math.floor(Date.now() / 1000) + (deadlineMinutes * 60);
+  const deadline = Math.floor(Date.now() / 1000) + deadlineMinutes * 60;
 
   // EIP-712 domain
   const domain = {
     name: `${symbol} GOV`,
-    version: '1',
+    version: "1",
     chainId: chainId,
-    verifyingContract: governor.address
+    verifyingContract: governor.address,
   };
 
   // EIP-712 types
   const types = {
     Vote: [
-      { name: 'voter', type: 'address' },
-      { name: 'proposalId', type: 'bytes32' },
-      { name: 'support', type: 'uint256' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ]
+      { name: "voter", type: "address" },
+      { name: "proposalId", type: "bytes32" },
+      { name: "support", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
   };
 
   // Message
@@ -1546,7 +1584,7 @@ async function generateVoteSignature(
     proposalId,
     support,
     nonce,
-    deadline
+    deadline,
   };
 
   // Sign (ethers v5)
@@ -1558,14 +1596,14 @@ async function generateVoteSignature(
     support,
     nonce,
     deadline,
-    sig
+    sig,
   };
 }
 
 // Submit vote signature
 async function submitVoteSignature(
   governor: ethers.Contract,
-  voteSignature: VoteSignature
+  voteSignature: VoteSignature,
 ): Promise<ethers.ContractTransaction> {
   return governor.castVoteBySig(
     voteSignature.voter,
@@ -1573,7 +1611,7 @@ async function submitVoteSignature(
     voteSignature.support,
     voteSignature.nonce,
     voteSignature.deadline,
-    voteSignature.sig
+    voteSignature.sig,
   );
 }
 ```
@@ -1601,20 +1639,18 @@ async function generateProposalSignature(
   values: ethers.BigNumber[],
   calldatas: string[],
   description: string,
-  deadlineMinutes: number = 60
+  deadlineMinutes: number = 60,
 ): Promise<ProposalSignature> {
   const signerAddress = await signer.getAddress();
   const chainId = (await signer.provider!.getNetwork()).chainId;
 
   // Calculate proposal ID
-  const descriptionHash = ethers.utils.keccak256(
-    ethers.utils.toUtf8Bytes(description)
-  );
+  const descriptionHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(description));
   const proposalId = ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
-      ['address[]', 'uint256[]', 'bytes[]', 'bytes32', 'address'],
-      [targets, values, calldatas, descriptionHash, proposer]
-    )
+      ["address[]", "uint256[]", "bytes[]", "bytes32", "address"],
+      [targets, values, calldatas, descriptionHash, proposer],
+    ),
   );
 
   // Get token symbol
@@ -1624,24 +1660,24 @@ async function generateProposalSignature(
   const nonce = await governor.proposeSignatureNonce(signerAddress);
 
   // Set deadline
-  const deadline = Math.floor(Date.now() / 1000) + (deadlineMinutes * 60);
+  const deadline = Math.floor(Date.now() / 1000) + deadlineMinutes * 60;
 
   // EIP-712 domain
   const domain = {
     name: `${symbol} GOV`,
-    version: '1',
+    version: "1",
     chainId: chainId,
-    verifyingContract: governor.address
+    verifyingContract: governor.address,
   };
 
   // EIP-712 types
   const types = {
     Proposal: [
-      { name: 'proposer', type: 'address' },
-      { name: 'proposalId', type: 'bytes32' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ]
+      { name: "proposer", type: "address" },
+      { name: "proposalId", type: "bytes32" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
   };
 
   // Message
@@ -1649,7 +1685,7 @@ async function generateProposalSignature(
     proposer,
     proposalId,
     nonce,
-    deadline
+    deadline,
   };
 
   // Sign
@@ -1661,7 +1697,7 @@ async function generateProposalSignature(
     proposalId,
     nonce,
     deadline,
-    sig
+    sig,
   };
 }
 
@@ -1673,13 +1709,13 @@ async function createSignedProposal(
   targets: string[],
   values: ethers.BigNumber[],
   calldatas: string[],
-  description: string
+  description: string,
 ): Promise<ethers.ContractTransaction> {
   const proposer = await proposerSigner.getAddress();
 
   // Collect signatures from sponsors
   const signatures = await Promise.all(
-    sponsorSigners.map(signer =>
+    sponsorSigners.map((signer) =>
       generateProposalSignature(
         governor,
         token,
@@ -1688,32 +1724,26 @@ async function createSignedProposal(
         targets,
         values,
         calldatas,
-        description
-      )
-    )
+        description,
+      ),
+    ),
   );
 
   // Sort by signer address (REQUIRED)
-  signatures.sort((a, b) =>
-    a.signer.toLowerCase() < b.signer.toLowerCase() ? -1 : 1
-  );
+  signatures.sort((a, b) => (a.signer.toLowerCase() < b.signer.toLowerCase() ? -1 : 1));
 
   // Format for contract
-  const proposerSignatures = signatures.map(sig => ({
+  const proposerSignatures = signatures.map((sig) => ({
     signer: sig.signer,
     nonce: sig.nonce,
     deadline: sig.deadline,
-    sig: sig.sig
+    sig: sig.sig,
   }));
 
   // Submit with proposer's wallet
-  return governor.connect(proposerSigner).proposeBySigs(
-    proposerSignatures,
-    targets,
-    values,
-    calldatas,
-    description
-  );
+  return governor
+    .connect(proposerSigner)
+    .proposeBySigs(proposerSignatures, targets, values, calldatas, description);
 }
 ```
 
@@ -1742,20 +1772,18 @@ async function generateUpdateSignature(
   newValues: ethers.BigNumber[],
   newCalldatas: string[],
   newDescription: string,
-  deadlineMinutes: number = 60
+  deadlineMinutes: number = 60,
 ): Promise<UpdateProposalSignature> {
   const signerAddress = await signer.getAddress();
   const chainId = (await signer.provider!.getNetwork()).chainId;
 
   // Calculate new proposal ID
-  const newDescriptionHash = ethers.utils.keccak256(
-    ethers.utils.toUtf8Bytes(newDescription)
-  );
+  const newDescriptionHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(newDescription));
   const newProposalId = ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
-      ['address[]', 'uint256[]', 'bytes[]', 'bytes32', 'address'],
-      [newTargets, newValues, newCalldatas, newDescriptionHash, proposer]
-    )
+      ["address[]", "uint256[]", "bytes[]", "bytes32", "address"],
+      [newTargets, newValues, newCalldatas, newDescriptionHash, proposer],
+    ),
   );
 
   // Get token symbol
@@ -1765,25 +1793,25 @@ async function generateUpdateSignature(
   const nonce = await governor.proposeSignatureNonce(signerAddress);
 
   // Set deadline
-  const deadline = Math.floor(Date.now() / 1000) + (deadlineMinutes * 60);
+  const deadline = Math.floor(Date.now() / 1000) + deadlineMinutes * 60;
 
   // EIP-712 domain
   const domain = {
     name: `${symbol} GOV`,
-    version: '1',
+    version: "1",
     chainId: chainId,
-    verifyingContract: governor.address
+    verifyingContract: governor.address,
   };
 
   // EIP-712 types
   const types = {
     UpdateProposal: [
-      { name: 'proposalId', type: 'bytes32' },
-      { name: 'updatedProposalId', type: 'bytes32' },
-      { name: 'proposer', type: 'address' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ]
+      { name: "proposalId", type: "bytes32" },
+      { name: "updatedProposalId", type: "bytes32" },
+      { name: "proposer", type: "address" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
   };
 
   // Message
@@ -1792,7 +1820,7 @@ async function generateUpdateSignature(
     updatedProposalId: newProposalId,
     proposer,
     nonce,
-    deadline
+    deadline,
   };
 
   // Sign
@@ -1805,7 +1833,7 @@ async function generateUpdateSignature(
     newProposalId,
     nonce,
     deadline,
-    sig
+    sig,
   };
 }
 ```
@@ -1816,7 +1844,7 @@ async function generateUpdateSignature(
 
 ```typescript
 // For ethers v6, use signTypedData instead of _signTypedData
-import { ethers } from 'ethers'; // v6
+import { ethers } from "ethers"; // v6
 
 // Replace this line:
 const sig = await signer._signTypedData(domain, types, value);
@@ -1872,8 +1900,8 @@ const sig = await signer.signTypedData(domain, types, value);
 #### Test Vote Signature
 
 ```typescript
-import { ethers } from 'ethers';
-import GovernorABI from './abis/Governor.json';
+import { ethers } from "ethers";
+import GovernorABI from "./abis/Governor.json";
 
 async function testVoteSignature() {
   const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
@@ -1881,28 +1909,21 @@ async function testVoteSignature() {
   const governor = new ethers.Contract(GOVERNOR_ADDRESS, GovernorABI, signer);
   const token = new ethers.Contract(TOKEN_ADDRESS, TokenABI, signer);
 
-  const proposalId = '0x...';
+  const proposalId = "0x...";
   const support = 1; // For
 
-  console.log('Generating vote signature...');
-  const voteSig = await generateVoteSignature(
-    governor,
-    token,
-    signer,
-    proposalId,
-    support,
-    60
-  );
+  console.log("Generating vote signature...");
+  const voteSig = await generateVoteSignature(governor, token, signer, proposalId, support, 60);
 
-  console.log('Vote signature:', voteSig);
+  console.log("Vote signature:", voteSig);
 
-  console.log('Submitting vote...');
+  console.log("Submitting vote...");
   const tx = await submitVoteSignature(governor, voteSig);
 
-  console.log('Transaction:', tx.hash);
+  console.log("Transaction:", tx.hash);
   const receipt = await tx.wait();
 
-  console.log('Vote cast successfully!', receipt.status === 1 ? '✅' : '❌');
+  console.log("Vote cast successfully!", receipt.status === 1 ? "✅" : "❌");
 }
 ```
 
@@ -1917,11 +1938,11 @@ async function testSignedProposal() {
   const signer2 = new ethers.Wallet(SIGNER2_KEY, provider);
 
   const targets = [TREASURY_ADDRESS];
-  const values = [ethers.utils.parseEther('1')];
-  const calldatas = ['0x'];
-  const description = 'Test signed proposal';
+  const values = [ethers.utils.parseEther("1")];
+  const calldatas = ["0x"];
+  const description = "Test signed proposal";
 
-  console.log('Creating signed proposal...');
+  console.log("Creating signed proposal...");
   const tx = await createSignedProposal(
     governor,
     proposer,
@@ -1929,21 +1950,21 @@ async function testSignedProposal() {
     targets,
     values,
     calldatas,
-    description
+    description,
   );
 
-  console.log('Transaction:', tx.hash);
+  console.log("Transaction:", tx.hash);
   const receipt = await tx.wait();
 
   // Extract proposal ID from event
-  const event = receipt.events?.find(e => e.event === 'ProposalCreated');
+  const event = receipt.events?.find((e) => e.event === "ProposalCreated");
   const proposalId = event?.args?.proposalId;
 
-  console.log('Proposal created!', proposalId);
+  console.log("Proposal created!", proposalId);
 
   // Verify signers
   const signers = await governor.getProposalSigners(proposalId);
-  console.log('Signers:', signers);
+  console.log("Signers:", signers);
 }
 ```
 
@@ -1952,6 +1973,7 @@ async function testSignedProposal() {
 ## Migration Checklist
 
 ### Subgraph Migration
+
 - [ ] Update schema with new entities (ProposalSigner)
 - [ ] Add new fields to Proposal entity
 - [ ] Add ProposalUpdated event handler
@@ -1964,6 +1986,7 @@ async function testSignedProposal() {
 - [ ] Deploy and sync subgraph
 
 ### Frontend Migration
+
 - [ ] Update Governor ABI
 - [ ] Update castVoteBySig implementation
 - [ ] Add proposal update UI

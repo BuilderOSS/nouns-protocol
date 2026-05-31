@@ -46,13 +46,11 @@ Common env variables used by those sections:
 ## Main Deploy Commands
 
 - `yarn deploy:v2-core`
-
   - Deploy a full fresh v2 core stack (manager proxy + all impls).
   - Output file: `deploys/<chainid>.version2_core.txt` (from `block.chainid`).
   - Use for new environments, not mainnet upgrade migration.
 
 - `yarn deploy:v2-upgrade`
-
   - Deploy only new v2 upgrade impls for existing manager deployments.
   - Deploys: Token, Auction, Governor, Manager impl.
   - Auction implementation is configured with `builderRewardsBPS=250` and `referralRewardsBPS=250`.
@@ -60,18 +58,15 @@ Common env variables used by those sections:
   - Output file: `deploys/<chainid>.version2_upgrade.txt`.
 
 - `yarn deploy:v2-new`
-
   - Deploys MerkleReserveMinter plus L2MigrationDeployer.
   - Requires `CrossDomainMessenger` in `addresses/<chainid>.json`.
   - Output file: `deploys/<chainid>.version2_new.txt`.
 
 - `yarn deploy:erc721-redeem-minter`
-
   - Deploys ERC721 redeem minter only.
   - Output file: `deploys/<chainid>.erc721_redeem_minter.txt`.
 
 - `yarn deploy:dao`
-
   - Runs `DeployNewDAO.s.sol` sample DAO deployment flow.
   - Intended for controlled deployment/testing flows.
 
@@ -82,27 +77,22 @@ Common env variables used by those sections:
 ## Ownership and Address Maintenance
 
 - `yarn addresses:check-manager-owner`
-
   - Reads live `Manager.owner()` on supported networks.
   - Compares against `ManagerOwner` in `addresses/*.json`.
   - Non-zero exit when drift exists.
 
 - `yarn addresses:sync-manager-owner`
-
   - Same as check, but writes updates to `addresses/*.json`.
 
 - `yarn addresses:check-builder-rewards`
-
   - Reads live `manager.builderRewardsRecipient()` where available.
   - Compares against `BuilderRewardsRecipient` in `addresses/*.json`.
   - Prints current Auction `builderRewardsBPS/referralRewardsBPS` for each network when callable.
 
 - `yarn addresses:sync-builder-rewards`
-
   - Same as check, but writes `BuilderRewardsRecipient` updates when on-chain value is available.
 
 - `yarn upgrade:check-status`
-
   - Prints manager owner/latest implementation/version status.
   - Checks registered upgrades against known legacy base impls (mainnet matrix).
   - Uses upgrade targets from `addresses/<chainid>.json`.

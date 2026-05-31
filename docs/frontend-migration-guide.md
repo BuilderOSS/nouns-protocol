@@ -11,31 +11,34 @@ This guide helps frontend developers migrate their applications to support the u
 **⚠️ IMPORTANT**: Old vote-signing code will **stop working** immediately after a DAO upgrades to Governor v2.1.0. Frontends must coordinate their deployment with the on-chain upgrade. See the `upgrade-runbook.md` for rollout sequencing guidance.
 
 #### Old ABI (V1)
+
 ```solidity
 function castVoteBySig(
-    address voter,
-    bytes32 proposalId,
-    uint256 support,
-    uint256 deadline,
-    uint8 v,
-    bytes32 r,
-    bytes32 s
+  address voter,
+  bytes32 proposalId,
+  uint256 support,
+  uint256 deadline,
+  uint8 v,
+  bytes32 r,
+  bytes32 s
 ) external returns (uint256);
 ```
 
 #### New ABI (V2)
+
 ```solidity
 function castVoteBySig(
-    address voter,
-    bytes32 proposalId,
-    uint256 support,
-    uint256 nonce,
-    uint256 deadline,
-    bytes calldata sig
+  address voter,
+  bytes32 proposalId,
+  uint256 support,
+  uint256 nonce,
+  uint256 deadline,
+  bytes calldata sig
 ) external returns (uint256);
 ```
 
 #### Key Differences
+
 1. **Added `nonce` parameter** (before `deadline`)
 2. **Replaced `v, r, s` with `bytes sig`** (supports both ECDSA and ERC-1271)
 3. **Parameter order changed**
@@ -47,29 +50,30 @@ function castVoteBySig(
 ### Step 1: Update Vote Signature Construction
 
 #### Old Code (V1)
+
 ```javascript
 // V1 - Using ethers.js v5
 const domain = {
   name: `${tokenSymbol} GOV`,
-  version: '1',
+  version: "1",
   chainId: chainId,
-  verifyingContract: governorAddress
+  verifyingContract: governorAddress,
 };
 
 const types = {
   Vote: [
-    { name: 'voter', type: 'address' },
-    { name: 'proposalId', type: 'bytes32' },
-    { name: 'support', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' }
-  ]
+    { name: "voter", type: "address" },
+    { name: "proposalId", type: "bytes32" },
+    { name: "support", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
 };
 
 const value = {
   voter: voterAddress,
   proposalId: proposalId,
   support: support, // 0 = Against, 1 = For, 2 = Abstain
-  deadline: deadline
+  deadline: deadline,
 };
 
 const signature = await signer._signTypedData(domain, types, value);
@@ -80,23 +84,24 @@ await governor.castVoteBySig(voterAddress, proposalId, support, deadline, v, r, 
 ```
 
 #### New Code (V2)
+
 ```javascript
 // V2 - Using ethers.js v5
 const domain = {
   name: `${tokenSymbol} GOV`,
-  version: '1',
+  version: "1",
   chainId: chainId,
-  verifyingContract: governorAddress
+  verifyingContract: governorAddress,
 };
 
 const types = {
   Vote: [
-    { name: 'voter', type: 'address' },
-    { name: 'proposalId', type: 'bytes32' },
-    { name: 'support', type: 'uint256' },
-    { name: 'nonce', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' }
-  ]
+    { name: "voter", type: "address" },
+    { name: "proposalId", type: "bytes32" },
+    { name: "support", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
 };
 
 // Fetch current nonce for voter
@@ -107,7 +112,7 @@ const value = {
   proposalId: proposalId,
   support: support, // 0 = Against, 1 = For, 2 = Abstain
   nonce: nonce,
-  deadline: deadline
+  deadline: deadline,
 };
 
 const signature = await signer._signTypedData(domain, types, value);
@@ -117,24 +122,25 @@ await governor.castVoteBySig(voterAddress, proposalId, support, nonce, deadline,
 ```
 
 #### Using ethers.js v6
+
 ```javascript
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
 
 const domain = {
   name: `${tokenSymbol} GOV`,
-  version: '1',
+  version: "1",
   chainId: chainId,
-  verifyingContract: governorAddress
+  verifyingContract: governorAddress,
 };
 
 const types = {
   Vote: [
-    { name: 'voter', type: 'address' },
-    { name: 'proposalId', type: 'bytes32' },
-    { name: 'support', type: 'uint256' },
-    { name: 'nonce', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' }
-  ]
+    { name: "voter", type: "address" },
+    { name: "proposalId", type: "bytes32" },
+    { name: "support", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
 };
 
 const nonce = await governor.nonce(voterAddress);
@@ -144,7 +150,7 @@ const value = {
   proposalId: proposalId,
   support: support,
   nonce: nonce,
-  deadline: deadline
+  deadline: deadline,
 };
 
 const signature = await signer.signTypedData(domain, types, value);
@@ -164,31 +170,31 @@ const proposerAddress = await signer.getAddress();
 
 const domain = {
   name: `${tokenSymbol} GOV`,
-  version: '1',
+  version: "1",
   chainId: chainId,
-  verifyingContract: governorAddress
+  verifyingContract: governorAddress,
 };
 
 const types = {
   Proposal: [
-    { name: 'proposer', type: 'address' },
-    { name: 'proposalId', type: 'bytes32' },
-    { name: 'nonce', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' }
-  ]
+    { name: "proposer", type: "address" },
+    { name: "proposalId", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
 };
 
 // Calculate proposal ID
 const descriptionHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(description));
 const proposalId = ethers.utils.keccak256(
   ethers.utils.defaultAbiCoder.encode(
-    ['address[]', 'uint256[]', 'bytes[]', 'bytes32', 'address'],
-    [targets, values, calldatas, descriptionHash, proposerAddress]
-  )
+    ["address[]", "uint256[]", "bytes[]", "bytes32", "address"],
+    [targets, values, calldatas, descriptionHash, proposerAddress],
+  ),
 );
 
 // Collect signatures from sponsors (must be sorted by address ascending)
-const signers = ['0x123...', '0x456...', '0x789...'].sort(); // MUST be sorted
+const signers = ["0x123...", "0x456...", "0x789..."].sort(); // MUST be sorted
 const proposerSignatures = [];
 
 for (const signerAddress of signers) {
@@ -198,7 +204,7 @@ for (const signerAddress of signers) {
     proposer: proposerAddress,
     proposalId: proposalId,
     nonce: nonce,
-    deadline: deadline
+    deadline: deadline,
   };
 
   // Get signature from signer
@@ -208,18 +214,14 @@ for (const signerAddress of signers) {
     signer: signerAddress,
     nonce: nonce,
     deadline: deadline,
-    sig: signature
+    sig: signature,
   });
 }
 
 // Submit signed proposal
-await governor.connect(signer).proposeBySigs(
-  proposerSignatures,
-  targets,
-  values,
-  calldatas,
-  description
-);
+await governor
+  .connect(signer)
+  .proposeBySigs(proposerSignatures, targets, values, calldatas, description);
 ```
 
 #### Proposal Updates
@@ -232,34 +234,34 @@ await governor.updateProposal(
   newValues,
   newCalldatas,
   newDescription,
-  'Updated to fix typo in description'
+  "Updated to fix typo in description",
 );
 
 // New feature: updateProposalBySigs (requires signer re-approval)
 const domain = {
   name: `${tokenSymbol} GOV`,
-  version: '1',
+  version: "1",
   chainId: chainId,
-  verifyingContract: governorAddress
+  verifyingContract: governorAddress,
 };
 
 const types = {
   UpdateProposal: [
-    { name: 'proposalId', type: 'bytes32' },
-    { name: 'updatedProposalId', type: 'bytes32' },
-    { name: 'proposer', type: 'address' },
-    { name: 'nonce', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' }
-  ]
+    { name: "proposalId", type: "bytes32" },
+    { name: "updatedProposalId", type: "bytes32" },
+    { name: "proposer", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
 };
 
 // Calculate new proposal ID
 const updatedDescriptionHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(newDescription));
 const updatedProposalId = ethers.utils.keccak256(
   ethers.utils.defaultAbiCoder.encode(
-    ['address[]', 'uint256[]', 'bytes[]', 'bytes32', 'address'],
-    [newTargets, newValues, newCalldatas, updatedDescriptionHash, proposerAddress]
-  )
+    ["address[]", "uint256[]", "bytes[]", "bytes32", "address"],
+    [newTargets, newValues, newCalldatas, updatedDescriptionHash, proposerAddress],
+  ),
 );
 
 // Collect signatures from the sponsor set for this update.
@@ -277,7 +279,7 @@ for (const signerAddress of updateSigners) {
     updatedProposalId: updatedProposalId,
     proposer: proposerAddress,
     nonce: nonce,
-    deadline: deadline
+    deadline: deadline,
   };
 
   const signature = await signerWallet._signTypedData(domain, types, value);
@@ -286,7 +288,7 @@ for (const signerAddress of updateSigners) {
     signer: signerAddress,
     nonce: nonce,
     deadline: deadline,
-    sig: signature
+    sig: signature,
   });
 }
 
@@ -297,7 +299,7 @@ await governor.updateProposalBySigs(
   newValues,
   newCalldatas,
   newDescription,
-  'Updated with signer approval'
+  "Updated with signer approval",
 );
 ```
 
@@ -319,17 +321,17 @@ const ProposalState = {
   Expired: 6,
   Executed: 7,
   Vetoed: 8,
-  Updatable: 9,    // NEW
-  Replaced: 10      // NEW
+  Updatable: 9, // NEW
+  Replaced: 10, // NEW
 };
 
 // Update state display logic
 function getProposalStateLabel(state) {
-  switch(state) {
+  switch (state) {
     case ProposalState.Updatable:
-      return 'Updatable';
+      return "Updatable";
     case ProposalState.Replaced:
-      return 'Replaced';
+      return "Replaced";
     // ... other states
   }
 }
@@ -380,12 +382,14 @@ if (canUpdate) {
 ### Step 5: Update Timeline Calculations
 
 #### Old Timeline (V1)
+
 ```javascript
 const voteStart = creationTime + votingDelay;
 const voteEnd = voteStart + votingPeriod;
 ```
 
 #### New Timeline (V2)
+
 ```javascript
 const proposalUpdatablePeriod = await governor.proposalUpdatablePeriod();
 const votingDelay = await governor.votingDelay();
@@ -420,18 +424,21 @@ The new signature system supports ERC-1271 smart contract wallets:
 ## Nonce Management
 
 ### Vote Nonces
+
 ```javascript
 // Each voter has a separate nonce for vote signatures
 const voteNonce = await governor.nonce(voterAddress);
 ```
 
 ### Propose/Update Nonces
+
 ```javascript
 // Each proposer/signer has a separate nonce for proposal signatures
 const proposeNonce = await governor.proposeSignatureNonce(signerAddress);
 ```
 
 ### Important
+
 - Nonces increment with each signature use
 - Nonces prevent signature replay
 - Track nonces separately for votes vs proposals
@@ -459,7 +466,7 @@ const proposeNonce = await governor.proposeSignatureNonce(signerAddress);
 ## Example: Complete Vote-by-Signature Flow
 
 ```javascript
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
 
 async function castVoteBySig(governor, voter, signer, proposalId, support) {
   // 1. Get token symbol for domain
@@ -476,19 +483,19 @@ async function castVoteBySig(governor, voter, signer, proposalId, support) {
   // 4. Prepare EIP-712 domain and types
   const domain = {
     name: `${symbol} GOV`,
-    version: '1',
+    version: "1",
     chainId: (await provider.getNetwork()).chainId,
-    verifyingContract: governor.address
+    verifyingContract: governor.address,
   };
 
   const types = {
     Vote: [
-      { name: 'voter', type: 'address' },
-      { name: 'proposalId', type: 'bytes32' },
-      { name: 'support', type: 'uint256' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ]
+      { name: "voter", type: "address" },
+      { name: "proposalId", type: "bytes32" },
+      { name: "support", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+    ],
   };
 
   const value = {
@@ -496,24 +503,17 @@ async function castVoteBySig(governor, voter, signer, proposalId, support) {
     proposalId: proposalId,
     support: support,
     nonce: nonce,
-    deadline: deadline
+    deadline: deadline,
   };
 
   // 5. Sign
   const signature = await signer._signTypedData(domain, types, value);
 
   // 6. Submit to contract
-  const tx = await governor.castVoteBySig(
-    voter,
-    proposalId,
-    support,
-    nonce,
-    deadline,
-    signature
-  );
+  const tx = await governor.castVoteBySig(voter, proposalId, support, nonce, deadline, signature);
 
   await tx.wait();
-  console.log('Vote cast successfully!');
+  console.log("Vote cast successfully!");
 }
 ```
 
@@ -538,14 +538,14 @@ async function castVoteBySig(governor, voter, signer, proposalId, support) {
 // Test that signature construction works
 const testVoteSignature = async () => {
   const nonce = await governor.nonce(voterAddress);
-  console.log('Current nonce:', nonce.toString());
+  console.log("Current nonce:", nonce.toString());
 
   // Try to cast vote
   try {
     await castVoteBySig(governor, voterAddress, signer, proposalId, 1);
-    console.log('✅ Vote signature working');
+    console.log("✅ Vote signature working");
   } catch (error) {
-    console.error('❌ Vote signature failed:', error);
+    console.error("❌ Vote signature failed:", error);
   }
 };
 ```

@@ -15,8 +15,9 @@ contract ERC721RedeemMinter is ReentrancyGuard {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Event for mint settings updated
+    /// @param tokenContract The address of the token contract
+    /// @param redeemSettings The redeem settings
     event MinterSet(address indexed tokenContract, RedeemSettings redeemSettings);
 
     ///                                                          ///
@@ -127,6 +128,8 @@ contract ERC721RedeemMinter is ReentrancyGuard {
     ///                                                          ///
 
     /// @notice gets the total fees for minting
+    /// @param tokenContract The address of the token contract
+    /// @param quantity The number of tokens to mint
     function getTotalFeesForMint(address tokenContract, uint256 quantity) public view returns (uint256) {
         return _getTotalFeesForMint(redeemSettings[tokenContract].pricePerToken, quantity);
     }

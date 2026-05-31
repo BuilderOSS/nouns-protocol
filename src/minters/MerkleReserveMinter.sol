@@ -14,8 +14,9 @@ contract MerkleReserveMinter {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Event for mint settings updated
+    /// @param tokenContract The address of the token contract
+    /// @param merkleSaleSettings The merkle sale settings
     event MinterSet(address indexed tokenContract, MerkleMinterSettings merkleSaleSettings);
 
     ///                                                          ///
@@ -213,6 +214,8 @@ contract MerkleReserveMinter {
     ///                                                          ///
 
     /// @notice gets the total fees for minting
+    /// @param tokenContract The address of the token contract
+    /// @param quantity The number of tokens to mint
     function getTotalFeesForMint(address tokenContract, uint256 quantity) public view returns (uint256) {
         return _getTotalFeesForMint(allowedMerkles[tokenContract].pricePerToken, quantity);
     }
@@ -226,7 +229,7 @@ contract MerkleReserveMinter {
         uint256 builderFee = quantity * BUILDER_DAO_FEE;
         uint256 value = msg.value;
 
-        (, , address treasury, ) = manager.getAddresses(tokenContract);
+        (,, address treasury,) = manager.getAddresses(tokenContract);
         address builderRecipient = manager.builderRewardsRecipient();
 
         // Pay out fees to the Builder DAO
@@ -234,7 +237,7 @@ contract MerkleReserveMinter {
 
         // Pay out remaining funds to the treasury
         if (value > builderFee) {
-            (bool treasurySuccess, ) = treasury.call{ value: value - builderFee }("");
+            (bool treasurySuccess,) = treasury.call{ value: value - builderFee }("");
 
             // Revert if treasury cannot accept funds
             if (!treasurySuccess) {

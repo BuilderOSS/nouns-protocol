@@ -19,20 +19,11 @@ contract MockProtocolRewards {
         return address(this).balance;
     }
 
-    function deposit(
-        address to,
-        bytes4,
-        string calldata
-    ) external payable {
+    function deposit(address to, bytes4, string calldata) external payable {
         balanceOf[to] += msg.value;
     }
 
-    function depositBatch(
-        address[] calldata recipients,
-        uint256[] calldata amounts,
-        bytes4[] calldata reasons,
-        string calldata
-    ) external payable {
+    function depositBatch(address[] calldata recipients, uint256[] calldata amounts, bytes4[] calldata reasons, string calldata) external payable {
         uint256 numRecipients = recipients.length;
 
         if (numRecipients != amounts.length || numRecipients != reasons.length) {
@@ -41,7 +32,7 @@ contract MockProtocolRewards {
 
         uint256 expectedTotalValue;
 
-        for (uint256 i; i < numRecipients; ) {
+        for (uint256 i; i < numRecipients;) {
             expectedTotalValue += amounts[i];
 
             unchecked {
@@ -56,7 +47,7 @@ contract MockProtocolRewards {
         address currentRecipient;
         uint256 currentAmount;
 
-        for (uint256 i; i < numRecipients; ) {
+        for (uint256 i; i < numRecipients;) {
             currentRecipient = recipients[i];
             currentAmount = amounts[i];
 
@@ -84,7 +75,7 @@ contract MockProtocolRewards {
 
         balanceOf[owner] -= amount;
 
-        (bool success, ) = to.call{ value: amount }("");
+        (bool success,) = to.call{ value: amount }("");
 
         require(success);
     }

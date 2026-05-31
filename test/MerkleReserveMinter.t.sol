@@ -33,11 +33,10 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         setMockMetadata();
     }
 
-    function deployAltMockAndSetMinter(
-        uint256 _reservedUntilTokenId,
-        address _minter,
-        MerkleReserveMinter.MerkleMinterSettings memory _minterData
-    ) internal virtual {
+    function deployAltMockAndSetMinter(uint256 _reservedUntilTokenId, address _minter, MerkleReserveMinter.MerkleMinterSettings memory _minterData)
+        internal
+        virtual
+    {
         setMockFounderParams();
 
         setMockTokenParamsWithReserve(_reservedUntilTokenId);
@@ -65,10 +64,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -103,10 +99,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -142,10 +135,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -173,10 +163,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.5 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.5 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -210,10 +197,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.5 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.5 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -251,12 +235,8 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
 
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
-        MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0,
-            merkleRoot: root
-        });
+        MerkleReserveMinter.MerkleMinterSettings memory settings =
+            MerkleReserveMinter.MerkleMinterSettings({ mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0, merkleRoot: root });
 
         vm.prank(address(founder));
         minter.setMintSettings(address(token), settings);
@@ -291,12 +271,8 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
 
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
-        MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0,
-            merkleRoot: root
-        });
+        MerkleReserveMinter.MerkleMinterSettings memory settings =
+            MerkleReserveMinter.MerkleMinterSettings({ mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0, merkleRoot: root });
 
         vm.prank(address(founder));
         minter.setMintSettings(address(token), settings);
@@ -332,10 +308,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.5 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.5 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -374,10 +347,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.5 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.5 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -415,10 +385,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: uint64(block.timestamp + 999),
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: uint64(block.timestamp + 999), mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -445,12 +412,8 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
 
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
-        MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: uint64(0),
-            mintEnd: uint64(1),
-            pricePerToken: 0 ether,
-            merkleRoot: root
-        });
+        MerkleReserveMinter.MerkleMinterSettings memory settings =
+            MerkleReserveMinter.MerkleMinterSettings({ mintStart: uint64(0), mintEnd: uint64(1), pricePerToken: 0 ether, merkleRoot: root });
 
         vm.prank(address(founder));
         minter.setMintSettings(address(token), settings);
@@ -478,10 +441,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: uint64(0),
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: uint64(0), mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -509,10 +469,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));
@@ -534,10 +491,7 @@ contract MerkleReserveMinterTest is NounsBuilderTest {
         bytes32 root = bytes32(0x5e0da80989496579de029b8ad2f9c234e8de75f5487035210bfb7676e386af8b);
 
         MerkleReserveMinter.MerkleMinterSettings memory settings = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            merkleRoot: root
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, merkleRoot: root
         });
 
         vm.prank(address(founder));

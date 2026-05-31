@@ -76,7 +76,7 @@ function main() {
 
   if (chainId !== cfg.chainId) {
     console.error(
-      `Chain mismatch: NETWORK=${NETWORK} expects chain ${cfg.chainId} but RPC alias '${rpcAlias}' resolved to chain ${chainId}. Aborting to prevent cross-chain report.`
+      `Chain mismatch: NETWORK=${NETWORK} expects chain ${cfg.chainId} but RPC alias '${rpcAlias}' resolved to chain ${chainId}. Aborting to prevent cross-chain report.`,
     );
     process.exit(1);
   }
@@ -103,8 +103,8 @@ function main() {
   if (missingKeys.length > 0) {
     console.error(
       `Config error in addresses/${chainId}.json: missing or invalid fields: ${missingKeys.join(
-        ", "
-      )}.`
+        ", ",
+      )}.`,
     );
     process.exit(1);
   }
@@ -124,7 +124,7 @@ function main() {
   console.log("governorImpl:", safeCall(manager, "governorImpl()(address)", rpcAlias));
   console.log(
     "getLatestVersions:",
-    safeCall(manager, "getLatestVersions()((string,string,string,string,string))", rpcAlias)
+    safeCall(manager, "getLatestVersions()((string,string,string,string,string))", rpcAlias),
   );
   console.log("");
 
@@ -144,19 +144,19 @@ function main() {
   for (const base of legacyBases.token) {
     console.log(
       `token ${base} -> ${tokenUpgradeImpl}:`,
-      boolRegistered(manager, base, tokenUpgradeImpl, rpcAlias)
+      boolRegistered(manager, base, tokenUpgradeImpl, rpcAlias),
     );
   }
   for (const base of legacyBases.auction) {
     console.log(
       `auction ${base} -> ${auctionUpgradeImpl}:`,
-      boolRegistered(manager, base, auctionUpgradeImpl, rpcAlias)
+      boolRegistered(manager, base, auctionUpgradeImpl, rpcAlias),
     );
   }
   for (const base of legacyBases.governor) {
     console.log(
       `governor ${base} -> ${governorUpgradeImpl}:`,
-      boolRegistered(manager, base, governorUpgradeImpl, rpcAlias)
+      boolRegistered(manager, base, governorUpgradeImpl, rpcAlias),
     );
   }
 
@@ -165,11 +165,11 @@ function main() {
   console.log("token version:", safeCall(tokenUpgradeImpl, "contractVersion()(string)", rpcAlias));
   console.log(
     "auction version:",
-    safeCall(auctionUpgradeImpl, "contractVersion()(string)", rpcAlias)
+    safeCall(auctionUpgradeImpl, "contractVersion()(string)", rpcAlias),
   );
   console.log(
     "governor version:",
-    safeCall(governorUpgradeImpl, "contractVersion()(string)", rpcAlias)
+    safeCall(governorUpgradeImpl, "contractVersion()(string)", rpcAlias),
   );
 }
 

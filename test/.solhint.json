@@ -6,7 +6,7 @@
     "var-name-mixedcase": "off",
     "const-name-snakecase": "off",
     "interface-starts-with-i": "off",
-    "function-max-lines": ["warn", 80],
+    "function-max-lines": "off",
     "no-empty-blocks": "off",
     "no-inline-assembly": "off",
     "avoid-low-level-calls": "off",
@@ -23,7 +23,10 @@
     "gas-increment-by-one": "off",
     "gas-strict-inequalities": "off",
     "gas-calldata-parameters": "off",
-    "gas-small-strings": "off"
-  },
-  "excludedFiles": ["src/lib/**/*.sol"]
+    "gas-small-strings": "off",
+    "gas-custom-errors": "off",
+    "reason-string": "off",
+    "max-states-count": "off",
+    "use-natspec": "off"
+  }
 }

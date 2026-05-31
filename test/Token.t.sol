@@ -344,7 +344,7 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         assertEq(token.getVotes(founder), 1);
         assertEq(token.delegates(founder), founder);
 
-        (uint256 nextTokenId, , , , , ) = auction.auction();
+        (uint256 nextTokenId,,,,,) = auction.auction();
 
         vm.deal(founder, 1 ether);
 
@@ -432,13 +432,8 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         deployMock();
 
         vm.assume(
-            newMinter != nonMinter &&
-                newMinter != founder &&
-                newMinter != address(0) &&
-                newMinter != address(auction) &&
-                nonMinter != founder &&
-                nonMinter != address(0) &&
-                nonMinter != address(auction)
+            newMinter != nonMinter && newMinter != founder && newMinter != address(0) && newMinter != address(auction) && nonMinter != founder
+                && nonMinter != address(0) && nonMinter != address(auction)
         );
         vm.assume(nonMinter != founder && nonMinter != address(0) && nonMinter != address(auction));
 
@@ -481,13 +476,8 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         deployMock();
 
         vm.assume(
-            newMinter != nonMinter &&
-                newMinter != founder &&
-                newMinter != address(0) &&
-                newMinter != address(auction) &&
-                recipient != address(0) &&
-                amount > 0 &&
-                amount < 100
+            newMinter != nonMinter && newMinter != founder && newMinter != address(0) && newMinter != address(auction) && recipient != address(0)
+                && amount > 0 && amount < 100
         );
         vm.assume(nonMinter != founder && nonMinter != address(0) && nonMinter != address(auction));
 
@@ -631,16 +621,10 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         deployMock();
 
         IManager.FounderParams[] memory newFoundersArr = new IManager.FounderParams[](2);
-        newFoundersArr[0] = IManager.FounderParams({
-            wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3),
-            ownershipPct: 0,
-            vestExpiry: 2556057600
-        });
-        newFoundersArr[1] = IManager.FounderParams({
-            wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3),
-            ownershipPct: 10,
-            vestExpiry: 2556057600
-        });
+        newFoundersArr[0] =
+            IManager.FounderParams({ wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3), ownershipPct: 0, vestExpiry: 2556057600 });
+        newFoundersArr[1] =
+            IManager.FounderParams({ wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3), ownershipPct: 10, vestExpiry: 2556057600 });
 
         vm.prank(address(founder));
         token.updateFounders(newFoundersArr);

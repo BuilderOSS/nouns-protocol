@@ -14,7 +14,6 @@ contract ERC1967Proxy is IERC1967Upgrade, Proxy, ERC1967Upgrade {
     ///                                                          ///
     ///                         CONSTRUCTOR                      ///
     ///                                                          ///
-
     /// @dev Initializes the proxy with an implementation contract and encoded function call
     /// @param _logic The implementation address
     /// @param _data The encoded function call

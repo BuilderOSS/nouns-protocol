@@ -19,7 +19,6 @@ contract L2MigrationDeployer {
     ///                                                          ///
     ///                            STRUCTS                       ///
     ///                                                          ///
-
     /// @notice The migration configuration for a deployment
     /// @param tokenAddress The address of the deployed token
     /// @param minimumMetadataCalls The minimum number of metadata calls expected to be made
@@ -35,9 +34,13 @@ contract L2MigrationDeployer {
     ///                                                          ///
 
     /// @notice Deployer has been set
+    /// @param token The token address
+    /// @param deployer The deployer address
     event DeployerSet(address indexed token, address indexed deployer);
 
     /// @notice Ownership has been renounced
+    /// @param token The token address
+    /// @param deployer The deployer address
     event OwnershipRenounced(address indexed token, address indexed deployer);
 
     ///                                                          ///
@@ -86,11 +89,7 @@ contract L2MigrationDeployer {
     ///                            CONSTRUCTOR                   ///
     ///                                                          ///
 
-    constructor(
-        address _manager,
-        address _merkleMinter,
-        address _crossDomainMessenger
-    ) {
+    constructor(address _manager, address _merkleMinter, address _crossDomainMessenger) {
         manager = _manager;
         merkleMinter = _merkleMinter;
         crossDomainMessenger = _crossDomainMessenger;
@@ -108,6 +107,8 @@ contract L2MigrationDeployer {
     /// @param _govParams The governance settings
     /// @param _minterParams The minter settings
     /// @param _delayedGovernanceAmount The amount of time to delay governance by
+    /// @param _minimumMetadataCalls The minimum number of metadata calls required
+    /// @return token The deployed token address
     function deploy(
         IManager.FounderParams[] calldata _founderParams,
         IManager.TokenParams calldata _tokenParams,
@@ -122,7 +123,7 @@ contract L2MigrationDeployer {
         }
 
         // Deploy the DAO
-        (address _token, , , , address _governor) = IManager(manager).deploy(_founderParams, _tokenParams, _auctionParams, _govParams);
+        (address _token,,,, address _governor) = IManager(manager).deploy(_founderParams, _tokenParams, _auctionParams, _govParams);
 
         // Set the governance expiration
         IGovernor(_governor).updateDelayedGovernanceExpirationTimestamp(block.timestamp + _delayedGovernanceAmount);
@@ -164,13 +165,13 @@ contract L2MigrationDeployer {
     ///@notice Helper method to pass a call along to the deployed metadata renderer
     /// @param _data The names of the properties to add
     function callMetadataRenderer(bytes memory _data) external {
-        (, address metadata, , , ) = _getDAOAddressesFromSender();
+        (, address metadata,,,) = _getDAOAddressesFromSender();
 
         // Increment the number of metadata calls
         crossDomainDeployerToMigration[_xMsgSender()].executedMetadataCalls++;
 
         // Call the metadata renderer
-        (bool success, ) = metadata.call(_data);
+        (bool success,) = metadata.call(_data);
 
         // Revert if metadata call fails
         if (!success) {
@@ -180,10 +181,10 @@ contract L2MigrationDeployer {
 
     ///@notice Helper method to deposit ether from L1 DAO treasury to L2 DAO treasury
     function depositToTreasury() external payable {
-        (, , , address treasury, ) = _getDAOAddressesFromSender();
+        (,,, address treasury,) = _getDAOAddressesFromSender();
 
         // Transfer ether to treasury
-        (bool success, ) = treasury.call{ value: msg.value }("");
+        (bool success,) = treasury.call{ value: msg.value }("");
 
         // Revert if transfer fails
         if (!success) {
@@ -193,7 +194,7 @@ contract L2MigrationDeployer {
 
     ///@notice Transfers ownership of migrated DAO contracts to treasury
     function renounceOwnership() external {
-        (address token, , address auction, address treasury, ) = _getDAOAddressesFromSender();
+        (address token,, address auction, address treasury,) = _getDAOAddressesFromSender();
 
         MigrationConfig storage migration = crossDomainDeployerToMigration[_xMsgSender()];
 
@@ -218,10 +219,9 @@ contract L2MigrationDeployer {
 
     function _xMsgSender() private view returns (address) {
         // Return the xDomain message sender
-        return
-            msg.sender == crossDomainMessenger
-                ? ICrossDomainMessenger(crossDomainMessenger).xDomainMessageSender()
-                : OPAddressAliasHelper.undoL1ToL2Alias(msg.sender);
+        return msg.sender == crossDomainMessenger
+            ? ICrossDomainMessenger(crossDomainMessenger).xDomainMessageSender()
+            : OPAddressAliasHelper.undoL1ToL2Alias(msg.sender);
     }
 
     function _setMigrationConfig(address token, uint256 minimumMetadataCalls) private returns (address deployer) {
@@ -242,16 +242,7 @@ contract L2MigrationDeployer {
         return crossDomainDeployerToMigration[_xMsgSender()].tokenAddress;
     }
 
-    function _getDAOAddressesFromSender()
-        private
-        returns (
-            address token,
-            address metadata,
-            address auction,
-            address treasury,
-            address governor
-        )
-    {
+    function _getDAOAddressesFromSender() private returns (address token, address metadata, address auction, address treasury, address governor) {
         address _token = _getTokenFromSender();
 
         // Revert if no token has been deployed

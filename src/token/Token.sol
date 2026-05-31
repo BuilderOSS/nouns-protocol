@@ -23,7 +23,6 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     ///                                                          ///
     ///                         IMMUTABLES                       ///
     ///                                                          ///
-
     /// @notice The contract upgrade manager
     IManager private immutable manager;
 
@@ -53,6 +52,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     ///                         CONSTRUCTOR                      ///
     ///                                                          ///
 
+    /// @notice Initializes the token contract with the manager address
     /// @param _manager The contract upgrade manager address
     constructor(address _manager) payable initializer {
         manager = IManager(_manager);
@@ -92,7 +92,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
         _addFounders(_founders);
 
         // Decode the token name and symbol
-        (string memory _name, string memory _symbol, , , , ) = abi.decode(_initStrings, (string, string, string, string, string, string));
+        (string memory _name, string memory _symbol,,,,) = abi.decode(_initStrings, (string, string, string, string, string, string));
 
         // Initialize the ERC-721 token
         __ERC721_init(_name, _symbol);
@@ -181,7 +181,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
         }
     }
 
-    /// @dev Finds the next available base token id for a founder
+    /// @notice Finds the next available base token id for a founder
     /// @param _tokenId The ERC-721 token id
     function _getNextTokenId(uint256 _tokenId) internal view returns (uint256) {
         unchecked {
@@ -198,16 +198,21 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     ///                                                          ///
 
     /// @notice Mints tokens to the caller and handles founder vesting
+    /// @return tokenId The ID of the minted token
     function mint() external nonReentrant onlyAuctionOrMinter returns (uint256 tokenId) {
         tokenId = _mintWithVesting(msg.sender);
     }
 
     /// @notice Mints tokens to the recipient and handles founder vesting
+    /// @param recipient The address to receive the minted token
+    /// @return tokenId The ID of the minted token
     function mintTo(address recipient) external nonReentrant onlyAuctionOrMinter returns (uint256 tokenId) {
         tokenId = _mintWithVesting(recipient);
     }
 
     /// @notice Mints tokens from the reserve to the recipient
+    /// @param recipient The address to receive the reserved token
+    /// @param tokenId The ID of the reserved token to mint
     function mintFromReserveTo(address recipient, uint256 tokenId) external nonReentrant onlyMinter {
         // Token must be reserved
         if (tokenId >= reservedUntilTokenId) revert TOKEN_NOT_RESERVED();
@@ -217,9 +222,12 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     }
 
     /// @notice Mints the specified amount of tokens to the recipient and handles founder vesting
+    /// @param amount The number of tokens to mint
+    /// @param recipient The address to receive the minted tokens
+    /// @return tokenIds Array of IDs of the minted tokens
     function mintBatchTo(uint256 amount, address recipient) external nonReentrant onlyAuctionOrMinter returns (uint256[] memory tokenIds) {
         tokenIds = new uint256[](amount);
-        for (uint256 i = 0; i < amount; ) {
+        for (uint256 i = 0; i < amount;) {
             tokenIds[i] = _mintWithVesting(recipient);
             unchecked {
                 ++i;
@@ -242,7 +250,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
         _mint(recipient, tokenId);
     }
 
-    /// @dev Overrides _mint to include attribute generation
+    /// @notice Overrides _mint to include attribute generation
     /// @param _to The token recipient
     /// @param _tokenId The ERC-721 token id
     function _mint(address _to, uint256 _tokenId) internal override {
@@ -258,7 +266,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
         if (!settings.metadataRenderer.onMinted(_tokenId)) revert NO_METADATA_GENERATED();
     }
 
-    /// @dev Checks if a given token is for a founder and mints accordingly
+    /// @notice Checks if a given token is for a founder and mints accordingly
     /// @param _tokenId The ERC-721 token id
     function _isForFounder(uint256 _tokenId) private returns (bool) {
         // Get the base token id

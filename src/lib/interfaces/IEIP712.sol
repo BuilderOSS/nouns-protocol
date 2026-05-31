@@ -8,7 +8,6 @@ interface IEIP712 {
     ///                                                          ///
     ///                            ERRORS                        ///
     ///                                                          ///
-
     /// @dev Reverts if the deadline has passed to submit a signature
     error EXPIRED_SIGNATURE();
 

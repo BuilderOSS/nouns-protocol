@@ -123,7 +123,7 @@ contract AuctionTest is NounsBuilderTest {
         // 0 value bid placed
         auction.createBid{ value: 0 }(2);
 
-        (, uint256 highestBidOriginal, address highestBidderOriginal, , , ) = auction.auction();
+        (, uint256 highestBidOriginal, address highestBidderOriginal,,,) = auction.auction();
         assertEq(highestBidOriginal, 0);
         assertEq(highestBidderOriginal, bidder1);
 
@@ -132,7 +132,7 @@ contract AuctionTest is NounsBuilderTest {
         vm.prank(bidder2);
         auction.createBid{ value: _amount }(2);
 
-        (, uint256 highestBid, address highestBidder, , , ) = auction.auction();
+        (, uint256 highestBid, address highestBidder,,,) = auction.auction();
         assertEq(highestBid, _amount);
         assertEq(highestBidder, bidder2);
         assertEq(bidder2BalanceBefore - bidder2.balance, _amount);
@@ -174,7 +174,7 @@ contract AuctionTest is NounsBuilderTest {
         vm.prank(bidder1);
         auction.createBid{ value: _amount }(2);
 
-        (, uint256 highestBid, address highestBidder, , , ) = auction.auction();
+        (, uint256 highestBid, address highestBidder,,,) = auction.auction();
 
         assertEq(highestBid, _amount);
         assertEq(highestBidder, bidder1);
@@ -194,7 +194,7 @@ contract AuctionTest is NounsBuilderTest {
 
         vm.prank(bidder1);
         vm.expectRevert(abi.encodeWithSignature("INVALID_TOKEN_ID()"));
-        auction.createBid{ value: 0.420 ether }(3);
+        auction.createBid{ value: 0.42 ether }(3);
     }
 
     function testRevert_MustMeetReservePrice() public {
@@ -232,7 +232,7 @@ contract AuctionTest is NounsBuilderTest {
         assertEq(bidder2BeforeBalance - bidder2AfterBalance, 0.5 ether);
         assertEq(address(auction).balance, 0.5 ether);
 
-        (, uint256 highestBid, address highestBidder, , , ) = auction.auction();
+        (, uint256 highestBid, address highestBidder,,,) = auction.auction();
 
         assertEq(highestBid, 0.5 ether);
         assertEq(highestBidder, bidder2);
@@ -264,7 +264,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.warp(5 minutes);
 
@@ -280,14 +280,14 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.warp(9 minutes);
 
         vm.prank(bidder2);
         auction.createBid{ value: 1 ether }(2);
 
-        (, , , , uint256 endTime, ) = auction.auction();
+        (,,,, uint256 endTime,) = auction.auction();
 
         assertEq(endTime, 14 minutes);
     }
@@ -302,7 +302,7 @@ contract AuctionTest is NounsBuilderTest {
 
         vm.prank(bidder1);
         vm.expectRevert(abi.encodeWithSignature("AUCTION_OVER()"));
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
     }
 
     function test_SettleAuction() public {
@@ -312,7 +312,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.prank(bidder2);
         auction.createBid{ value: 1 ether }(2);
@@ -334,7 +334,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.warp(10 minutes + 1 seconds);
 
@@ -360,7 +360,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.warp(5 minutes);
 
@@ -393,7 +393,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.prank(bidder2);
         auction.createBid{ value: 1 ether }(2);
@@ -405,7 +405,7 @@ contract AuctionTest is NounsBuilderTest {
 
         auction.settleAuction();
 
-        (, , , , , bool settled) = auction.auction();
+        (,,,,, bool settled) = auction.auction();
 
         assertEq(settled, true);
     }
@@ -437,7 +437,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.prank(bidder2);
         auction.createBid{ value: 1 ether }(2);
@@ -461,7 +461,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(0);
+        auction.createBid{ value: 0.42 ether }(0);
 
         vm.startPrank(address(treasury));
 
@@ -620,7 +620,7 @@ contract AuctionTest is NounsBuilderTest {
         auction.unpause();
 
         vm.prank(bidder1);
-        auction.createBid{ value: 0.420 ether }(2);
+        auction.createBid{ value: 0.42 ether }(2);
 
         vm.prank(bidder2);
         auction.createBid{ value: 1 ether }(2);

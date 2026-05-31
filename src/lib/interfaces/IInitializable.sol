@@ -8,7 +8,6 @@ interface IInitializable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when the contract has been initialized or reinitialized
     event Initialized(uint256 version);
 

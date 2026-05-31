@@ -48,10 +48,7 @@ contract GovUpgrade is GovTest {
         manager.registerUpgrade(address(governorImpl), address(newGovernorImpl));
 
         // Verify registration
-        assertTrue(
-            manager.isRegisteredUpgrade(address(governorImpl), address(newGovernorImpl)),
-            "Upgrade should be registered"
-        );
+        assertTrue(manager.isRegisteredUpgrade(address(governorImpl), address(newGovernorImpl)), "Upgrade should be registered");
 
         // Step 5: Upgrade the Governor proxy
         vm.prank(address(treasury));
@@ -97,14 +94,8 @@ contract GovUpgrade is GovTest {
         assertTrue(governor.state(newProposalId) == ProposalState.Updatable, "New proposal should be updatable");
 
         vm.prank(voter1);
-        bytes32 updatedProposalId = governor.updateProposal(
-            newProposalId,
-            targets,
-            values,
-            calldatas,
-            "Updated proposal after upgrade",
-            "Testing upgrade path"
-        );
+        bytes32 updatedProposalId =
+            governor.updateProposal(newProposalId, targets, values, calldatas, "Updated proposal after upgrade", "Testing upgrade path");
 
         // Verify replacement mapping (new feature)
         assertEq(governor.proposalIdReplacedBy(newProposalId), updatedProposalId, "Replacement mapping should be set");
@@ -151,14 +142,7 @@ contract GovUpgrade is GovTest {
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
         bytes32 proposalId = _computeProposalId(targets, values, calldatas, "test", founder);
 
-        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(
-            2,
-            founder,
-            proposalId,
-            0,
-            block.timestamp + 1 days,
-            false
-        );
+        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(2, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
         bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");

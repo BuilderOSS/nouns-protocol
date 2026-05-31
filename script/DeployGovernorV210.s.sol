@@ -4,12 +4,11 @@ pragma solidity ^0.8.35;
 import "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
-import { IManager, Manager } from "../src/manager/Manager.sol";
-import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
-import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
-import { L2MigrationDeployer } from "../src/deployers/L2MigrationDeployer.sol";
+import { IManager } from "../src/manager/IManager.sol";
+import { Manager } from "../src/manager/Manager.sol";
+import { Governor } from "../src/governance/governor/Governor.sol";
 
-contract DeployContracts is Script {
+contract DeployGovernorV210 is Script {
     using Strings for uint256;
 
     string configFile;
@@ -25,38 +24,34 @@ contract DeployContracts is Script {
         configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
 
         address deployerAddress = vm.addr(key);
-        address managerAddress = _getKey("Manager");
-        address protocolRewards = _getKey("ProtocolRewards");
-        address crossDomainMessenger = _getKey("CrossDomainMessenger");
+        address managerProxy = _getKey("Manager");
+        address oldGovernorImpl = _getKey("Governor");
 
         console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
         console2.log(chainID);
-
         console2.log("~~~~~~~~~~ DEPLOYER ~~~~~~~~~~~");
         console2.log(deployerAddress);
-
-        console2.log("~~~~~~~~~~ MANAGER ~~~~~~~~~~~");
-        console2.log(managerAddress);
+        console2.log("~~~~~~~~~~ MANAGER PROXY ~~~~~~~~~~~");
+        console2.logAddress(managerProxy);
+        console2.log("~~~~~~~~~~ OLD GOVERNOR IMPL ~~~~~~~~~~~");
+        console2.logAddress(oldGovernorImpl);
 
         vm.startBroadcast(deployerAddress);
 
-        address merkleMinter = address(new MerkleReserveMinter(managerAddress, protocolRewards));
-
-        address migrationDeployer = address(new L2MigrationDeployer(managerAddress, merkleMinter, crossDomainMessenger));
+        address newGovernorImpl = address(new Governor(managerProxy));
+        Manager(managerProxy).registerUpgrade(oldGovernorImpl, newGovernorImpl);
 
         vm.stopBroadcast();
 
-        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version2_new.txt"));
+        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version2_1_0_governor.txt"));
 
         vm.writeFile(filePath, "");
-        vm.writeLine(filePath, string(abi.encodePacked("Merkle Reserve Minter: ", addressToString(merkleMinter))));
-        vm.writeLine(filePath, string(abi.encodePacked("Migration Deployer: ", addressToString(migrationDeployer))));
+        vm.writeLine(filePath, string(abi.encodePacked("Old Governor implementation: ", addressToString(oldGovernorImpl))));
+        vm.writeLine(filePath, string(abi.encodePacked("New Governor implementation: ", addressToString(newGovernorImpl))));
+        vm.writeLine(filePath, string(abi.encodePacked("Manager proxy: ", addressToString(managerProxy))));
 
-        console2.log("~~~~~~~~~~ MERKLE RESERVE MINTER ~~~~~~~~~~~");
-        console2.logAddress(merkleMinter);
-
-        console2.log("~~~~~~~~~~ MIGRATION DEPLOYER ~~~~~~~~~~~");
-        console2.logAddress(migrationDeployer);
+        console2.log("~~~~~~~~~~ NEW GOVERNOR IMPL ~~~~~~~~~~~");
+        console2.logAddress(newGovernorImpl);
     }
 
     function addressToString(address _addr) private pure returns (string memory) {

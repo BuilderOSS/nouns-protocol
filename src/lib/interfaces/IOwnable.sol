@@ -8,7 +8,6 @@ interface IOwnable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when ownership has been updated
     /// @param prevOwner The previous owner address
     /// @param newOwner The new owner address

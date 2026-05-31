@@ -24,14 +24,7 @@ contract GovFuzz is GovTest {
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
         bytes32 proposalId = _computeProposalId(targets, values, calldatas, "test", founder);
 
-        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(
-            signerCount,
-            founder,
-            proposalId,
-            0,
-            block.timestamp + 1 days,
-            false
-        );
+        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(signerCount, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
         bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
@@ -173,12 +166,8 @@ contract GovFuzz is GovTest {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(otherUsersPKs[0], digest);
 
-        signatures[0] = ProposerSignature({
-            signer: otherUsers[0],
-            nonce: invalidNonce,
-            deadline: block.timestamp + 1 days,
-            sig: _encodeSignature(v, r, s)
-        });
+        signatures[0] =
+            ProposerSignature({ signer: otherUsers[0], nonce: invalidNonce, deadline: block.timestamp + 1 days, sig: _encodeSignature(v, r, s) });
 
         vm.prank(founder);
         vm.expectRevert(abi.encodeWithSignature("INVALID_SIGNATURE_NONCE()"));
@@ -230,48 +219,25 @@ contract GovFuzz is GovTest {
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = mockProposal();
         bytes32 proposalId = _computeProposalId(targets, values, calldatas, "test", founder);
 
-        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(
-            signerCount,
-            founder,
-            proposalId,
-            0,
-            block.timestamp + 1 days,
-            false
-        );
+        ProposerSignature[] memory signatures = _buildOrderedProposeSignatures(signerCount, founder, proposalId, 0, block.timestamp + 1 days, false);
 
         vm.prank(founder);
         bytes32 createdProposalId = governor.proposeBySigs(signatures, targets, values, calldatas, "test");
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
-        ProposerSignature[] memory updateSigs = _buildOrderedUpdateSignatures(
-            signerCount,
-            createdProposalId,
-            updatedProposalId,
-            founder,
-            1,
-            block.timestamp + 1 days
-        );
+        ProposerSignature[] memory updateSigs =
+            _buildOrderedUpdateSignatures(signerCount, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
 
         vm.prank(founder);
-        bytes32 newProposalId = governor.updateProposalBySigs(
-            createdProposalId,
-            updateSigs,
-            targets,
-            values,
-            calldatas,
-            "updated",
-            "Fuzz test update"
-        );
+        bytes32 newProposalId =
+            governor.updateProposalBySigs(createdProposalId, updateSigs, targets, values, calldatas, "updated", "Fuzz test update");
 
         // Verify replacement mapping
         assertEq(governor.proposalIdReplacedBy(createdProposalId), newProposalId, "Replacement mapping should be set");
 
         // Verify old proposal is in Replaced state
-        assertTrue(
-            governor.state(createdProposalId) == ProposalState.Replaced,
-            "Old proposal should be in Replaced state"
-        );
+        assertTrue(governor.state(createdProposalId) == ProposalState.Replaced, "Old proposal should be in Replaced state");
     }
 
     /// @notice Fuzz test: Cancel with varying combined vote thresholds
@@ -358,12 +324,7 @@ contract GovFuzz is GovTest {
 
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(sortedSignerPks[i], digest);
 
-            signatures[i] = ProposerSignature({
-                signer: sortedSigners[i],
-                nonce: nonce,
-                deadline: deadline,
-                sig: _encodeSignature(v, r, s)
-            });
+            signatures[i] = ProposerSignature({ signer: sortedSigners[i], nonce: nonce, deadline: deadline, sig: _encodeSignature(v, r, s) });
         }
     }
 

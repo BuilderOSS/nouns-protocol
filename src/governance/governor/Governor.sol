@@ -28,7 +28,6 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     ///                                                          ///
     ///                         IMMUTABLES                       ///
     ///                                                          ///
-
     /// @notice The EIP-712 typehash to vote with a signature
     bytes32 public immutable VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 proposalId,uint256 support,uint256 nonce,uint256 deadline)");
 
@@ -85,6 +84,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     ///                         CONSTRUCTOR                      ///
     ///                                                          ///
 
+    /// @notice Initializes the governor with the manager address
     /// @param _manager The contract upgrade manager address
     constructor(address _manager) payable initializer {
         manager = IManager(_manager);
@@ -122,8 +122,9 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (_vetoer != address(0)) settings.vetoer = _vetoer;
 
         // Ensure the specified governance settings are valid
-        if (_proposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _proposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS)
+        if (_proposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _proposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS) {
             revert INVALID_PROPOSAL_THRESHOLD_BPS();
+        }
         if (_quorumThresholdBps < MIN_QUORUM_THRESHOLD_BPS || _quorumThresholdBps > MAX_QUORUM_THRESHOLD_BPS) revert INVALID_QUORUM_THRESHOLD_BPS();
         if (_proposalThresholdBps >= _quorumThresholdBps) revert INVALID_PROPOSAL_THRESHOLD_BPS();
         if (_votingDelay < MIN_VOTING_DELAY || _votingDelay > MAX_VOTING_DELAY) revert INVALID_VOTING_DELAY();
@@ -154,12 +155,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _values The ETH values of each call
     /// @param _calldatas The calldata of each call
     /// @param _description The proposal description
-    function propose(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description
-    ) external returns (bytes32) {
+    function propose(address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas, string memory _description)
+        external
+        returns (bytes32)
+    {
         // Ensure governance is not delayed or all reserved tokens have been minted
         if (block.timestamp < delayedGovernanceExpirationTimestamp && settings.token.remainingTokensInReserve() > 0) {
             revert WAITING_FOR_TOKENS_TO_CLAIM_OR_EXPIRATION();
@@ -182,6 +181,11 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     }
 
     /// @notice Creates a proposal backed by signer approvals
+    /// @param _proposerSignatures The proposer signatures
+    /// @param _targets The target addresses to call
+    /// @param _values The ETH values of each call
+    /// @param _calldatas The calldata of each call
+    /// @param _description The proposal description
     function proposeBySigs(
         ProposerSignature[] memory _proposerSignatures,
         address[] memory _targets,
@@ -220,6 +224,12 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     }
 
     /// @notice Updates an existing proposal during updatable period
+    /// @param _proposalId The proposal ID
+    /// @param _targets The target addresses
+    /// @param _values The ETH values
+    /// @param _calldatas The calldatas
+    /// @param _description The proposal description
+    /// @param _updateMessage The message explaining the update
     function updateProposal(
         bytes32 _proposalId,
         address[] memory _targets,
@@ -254,6 +264,13 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     }
 
     /// @notice Updates a signed proposal with signer approvals
+    /// @param _proposalId The proposal ID
+    /// @param _proposerSignatures The proposer signatures
+    /// @param _targets The target addresses
+    /// @param _values The ETH values
+    /// @param _calldatas The calldatas
+    /// @param _description The proposal description
+    /// @param _updateMessage The message explaining the update
     function updateProposalBySigs(
         bytes32 _proposalId,
         ProposerSignature[] memory _proposerSignatures,
@@ -268,15 +285,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
         address proposer = msg.sender;
 
-        bytes32 newProposalId = _updateProposalBySigsInternal(
-            _proposalId,
-            proposer,
-            _proposerSignatures,
-            _targets,
-            _values,
-            _calldatas,
-            _description
-        );
+        bytes32 newProposalId = _updateProposalBySigsInternal(_proposalId, proposer, _proposerSignatures, _targets, _values, _calldatas, _description);
 
         emit ProposalUpdated(_proposalId, newProposalId, msg.sender, _targets, _values, _calldatas, _description, _updateMessage);
 
@@ -298,11 +307,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _proposalId The proposal id
     /// @param _support The support value (0 = Against, 1 = For, 2 = Abstain)
     /// @param _reason The vote reason
-    function castVoteWithReason(
-        bytes32 _proposalId,
-        uint256 _support,
-        string memory _reason
-    ) external returns (uint256) {
+    function castVoteWithReason(bytes32 _proposalId, uint256 _support, string memory _reason) external returns (uint256) {
         return _castVote(_proposalId, msg.sender, _support, _reason);
     }
 
@@ -313,14 +318,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _nonce The expected nonce for the voter signature
     /// @param _deadline The signature deadline
     /// @param _sig The full EIP-712 signature bytes
-    function castVoteBySig(
-        address _voter,
-        bytes32 _proposalId,
-        uint256 _support,
-        uint256 _nonce,
-        uint256 _deadline,
-        bytes calldata _sig
-    ) external returns (uint256) {
+    function castVoteBySig(address _voter, bytes32 _proposalId, uint256 _support, uint256 _nonce, uint256 _deadline, bytes calldata _sig)
+        external
+        returns (uint256)
+    {
         // Ensure the deadline has not passed
         if (block.timestamp > _deadline) revert EXPIRED_SIGNATURE();
 
@@ -337,16 +338,12 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         return _castVote(_proposalId, _voter, _support, "");
     }
 
-    /// @dev Stores a vote
+    /// @notice Stores a vote
     /// @param _proposalId The proposal id
     /// @param _voter The voter address
     /// @param _support The vote choice
-    function _castVote(
-        bytes32 _proposalId,
-        address _voter,
-        uint256 _support,
-        string memory _reason
-    ) internal returns (uint256) {
+    /// @param _reason The vote reason
+    function _castVote(bytes32 _proposalId, address _voter, uint256 _support, string memory _reason) internal returns (uint256) {
         // Ensure voting is active
         if (state(_proposalId) != ProposalState.Active) revert VOTING_NOT_STARTED();
 
@@ -398,6 +395,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     /// @notice Queues a proposal
     /// @param _proposalId The proposal id
+    /// @return eta The execution timestamp
     function queue(bytes32 _proposalId) external returns (uint256 eta) {
         // Ensure the proposal has succeeded
         if (state(_proposalId) != ProposalState.Succeeded) revert PROPOSAL_UNSUCCESSFUL();
@@ -454,11 +452,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (currentState == ProposalState.Executed) {
             revert PROPOSAL_ALREADY_EXECUTED();
         }
-        if (
-            currentState == ProposalState.Canceled ||
-            currentState == ProposalState.Replaced ||
-            currentState == ProposalState.Vetoed
-        ) {
+        if (currentState == ProposalState.Canceled || currentState == ProposalState.Replaced || currentState == ProposalState.Vetoed) {
             revert PROPOSAL_IN_TERMINAL_STATE();
         }
 
@@ -521,11 +515,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // Ensure the proposal is in a live state
         ProposalState currentState = state(_proposalId);
         if (currentState == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
-        if (
-            currentState == ProposalState.Canceled ||
-            currentState == ProposalState.Replaced ||
-            currentState == ProposalState.Vetoed
-        ) {
+        if (currentState == ProposalState.Canceled || currentState == ProposalState.Replaced || currentState == ProposalState.Vetoed) {
             revert PROPOSAL_IN_TERMINAL_STATE();
         }
 
@@ -656,15 +646,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     /// @notice The vote counts for a proposal
     /// @param _proposalId The proposal id
-    function proposalVotes(bytes32 _proposalId)
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
+    function proposalVotes(bytes32 _proposalId) external view returns (uint256, uint256, uint256) {
         Proposal memory proposal = proposals[_proposalId];
 
         return (proposal.againstVotes, proposal.forVotes, proposal.abstainVotes);
@@ -764,9 +746,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _newProposalThresholdBps The new proposal threshold basis points
     function updateProposalThresholdBps(uint256 _newProposalThresholdBps) external onlyOwner {
         if (
-            _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS ||
-            _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS ||
-            _newProposalThresholdBps >= settings.quorumThresholdBps
+            _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
+                || _newProposalThresholdBps >= settings.quorumThresholdBps
         ) revert INVALID_PROPOSAL_THRESHOLD_BPS();
 
         emit ProposalThresholdBpsUpdated(settings.proposalThresholdBps, _newProposalThresholdBps);
@@ -778,9 +759,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _newQuorumVotesBps The new quorum votes basis points
     function updateQuorumThresholdBps(uint256 _newQuorumVotesBps) external onlyOwner {
         if (
-            _newQuorumVotesBps < MIN_QUORUM_THRESHOLD_BPS ||
-            _newQuorumVotesBps > MAX_QUORUM_THRESHOLD_BPS ||
-            settings.proposalThresholdBps >= _newQuorumVotesBps
+            _newQuorumVotesBps < MIN_QUORUM_THRESHOLD_BPS || _newQuorumVotesBps > MAX_QUORUM_THRESHOLD_BPS
+                || settings.proposalThresholdBps >= _newQuorumVotesBps
         ) revert INVALID_QUORUM_THRESHOLD_BPS();
 
         emit QuorumVotesBpsUpdated(settings.quorumThresholdBps, _newQuorumVotesBps);
@@ -865,11 +845,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         emit ProposalCreated(proposalId, _targets, _values, _calldatas, _description, descriptionHash, proposal);
     }
 
-    function _validateProposalArrays(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas
-    ) internal pure {
+    function _validateProposalArrays(address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas) internal pure {
         uint256 numTargets = _targets.length;
         if (numTargets == 0) revert PROPOSAL_TARGET_MISSING();
         if (numTargets != _values.length || numTargets != _calldatas.length) revert PROPOSAL_LENGTH_MISMATCH();
@@ -964,11 +940,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         return newProposalId;
     }
 
-    function _verifyProposeSignature(
-        address _proposer,
-        bytes32 _proposalId,
-        ProposerSignature memory _proposerSignature
-    ) internal {
+    function _verifyProposeSignature(address _proposer, bytes32 _proposalId, ProposerSignature memory _proposerSignature) internal {
         if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
         if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
 
@@ -982,24 +954,14 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
     }
 
-    function _verifyUpdateSignature(
-        bytes32 _proposalId,
-        bytes32 _updatedProposalId,
-        address _proposer,
-        ProposerSignature memory _proposerSignature
-    ) internal {
+    function _verifyUpdateSignature(bytes32 _proposalId, bytes32 _updatedProposalId, address _proposer, ProposerSignature memory _proposerSignature)
+        internal
+    {
         if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
         if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
 
         bytes32 structHash = keccak256(
-            abi.encode(
-                UPDATE_PROPOSAL_TYPEHASH,
-                _proposalId,
-                _updatedProposalId,
-                _proposer,
-                _proposerSignature.nonce,
-                _proposerSignature.deadline
-            )
+            abi.encode(UPDATE_PROPOSAL_TYPEHASH, _proposalId, _updatedProposalId, _proposer, _proposerSignature.nonce, _proposerSignature.deadline)
         );
         bytes32 digest = _hashTypedData(structHash);
 
@@ -1010,11 +972,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
     }
 
-    function _validateProposerSignaturesAndGetVotes(
-        address _proposer,
-        bytes32 _proposalId,
-        ProposerSignature[] memory _proposerSignatures
-    ) internal returns (uint256 votes, address[] memory signers) {
+    function _validateProposerSignaturesAndGetVotes(address _proposer, bytes32 _proposalId, ProposerSignature[] memory _proposerSignatures)
+        internal
+        returns (uint256 votes, address[] memory signers)
+    {
         votes = getVotes(_proposer, block.timestamp - 1);
         signers = new address[](_proposerSignatures.length);
 

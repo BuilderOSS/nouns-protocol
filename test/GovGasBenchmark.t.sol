@@ -121,7 +121,8 @@ contract GovGasBenchmark is GovTest {
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
-        ProposerSignature[] memory updateSigs = _buildOrderedUpdateSignatures(1, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
+        ProposerSignature[] memory updateSigs =
+            _buildOrderedUpdateSignatures(1, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
@@ -147,7 +148,8 @@ contract GovGasBenchmark is GovTest {
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
-        ProposerSignature[] memory updateSigs = _buildOrderedUpdateSignatures(8, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
+        ProposerSignature[] memory updateSigs =
+            _buildOrderedUpdateSignatures(8, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
@@ -173,7 +175,8 @@ contract GovGasBenchmark is GovTest {
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
-        ProposerSignature[] memory updateSigs = _buildOrderedUpdateSignatures(16, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
+        ProposerSignature[] memory updateSigs =
+            _buildOrderedUpdateSignatures(16, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
@@ -199,7 +202,8 @@ contract GovGasBenchmark is GovTest {
 
         // Create update signatures
         bytes32 updatedProposalId = _computeProposalId(targets, values, calldatas, "updated", founder);
-        ProposerSignature[] memory updateSigs = _buildOrderedUpdateSignatures(16, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
+        ProposerSignature[] memory updateSigs =
+            _buildOrderedUpdateSignatures(16, createdProposalId, updatedProposalId, founder, 1, block.timestamp + 1 days);
 
         vm.prank(founder);
         uint256 gasBefore = gasleft();
@@ -373,12 +377,7 @@ contract GovGasBenchmark is GovTest {
 
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(sortedSignerPks[i], digest);
 
-            signatures[i] = ProposerSignature({
-                signer: sortedSigners[i],
-                nonce: nonce,
-                deadline: deadline,
-                sig: _encodeSignature(v, r, s)
-            });
+            signatures[i] = ProposerSignature({ signer: sortedSigners[i], nonce: nonce, deadline: deadline, sig: _encodeSignature(v, r, s) });
         }
     }
 

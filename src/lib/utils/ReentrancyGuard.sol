@@ -9,7 +9,6 @@ abstract contract ReentrancyGuard is Initializable {
     ///                                                          ///
     ///                            STORAGE                       ///
     ///                                                          ///
-
     /// @dev Indicates a function has not been entered
     uint256 internal constant _NOT_ENTERED = 1;
 

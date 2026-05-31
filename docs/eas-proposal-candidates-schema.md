@@ -57,12 +57,16 @@ Proposal Candidates are **draft proposals** that exist off-chain before being su
 
 ```javascript
 // Schema UIDs for Sepolia testnet
-const PROPOSAL_CANDIDATE_SCHEMA_UID = "0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3";
-const CANDIDATE_COMMENT_SCHEMA_UID = "0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2";
-const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID = "0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5";
+const PROPOSAL_CANDIDATE_SCHEMA_UID =
+  "0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3";
+const CANDIDATE_COMMENT_SCHEMA_UID =
+  "0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2";
+const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID =
+  "0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5";
 ```
 
 **EAS Scan Links:**
+
 - [ProposalCandidate](https://sepolia.easscan.org/schema/view/0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3)
 - [CandidateComment](https://sepolia.easscan.org/schema/view/0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2)
 - [CandidateSponsorSignature](https://sepolia.easscan.org/schema/view/0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5)
@@ -132,11 +136,11 @@ const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID = "TBD";
 
 ### Schema Relationships
 
-| Schema | References | Purpose |
-|--------|-----------|---------|
-| **ProposalCandidate** | - | Proposal version (self-contained) |
-| **CandidateComment** | candidateId | Discussion + sentiment (FOR/AGAINST/ABSTAIN/NONE) |
-| **CandidateSponsorSignature** | candidateVersionUID | Formal EIP-712 signature for specific version |
+| Schema                        | References          | Purpose                                           |
+| ----------------------------- | ------------------- | ------------------------------------------------- |
+| **ProposalCandidate**         | -                   | Proposal version (self-contained)                 |
+| **CandidateComment**          | candidateId         | Discussion + sentiment (FOR/AGAINST/ABSTAIN/NONE) |
+| **CandidateSponsorSignature** | candidateVersionUID | Formal EIP-712 signature for specific version     |
 
 ---
 
@@ -150,26 +154,28 @@ const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID = "TBD";
 **Resolver:** None
 
 **Deployed Schema UIDs:**
+
 - **Sepolia**: `0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3`
 - **Mainnet**: TBD
 
 #### Schema String
+
 ```
 bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId
 ```
 
 #### Field Definitions
 
-| Field | Type | Description | Constraints |
-|-------|------|-------------|-------------|
-| `candidateId` | bytes32 | Unique candidate identifier | `keccak256(abi.encodePacked(attester, salt))` |
-| `salt` | bytes32 | Random salt for grouping versions | Generated on v1, reused for all versions |
-| `versionNumber` | uint64 | Version number (1, 2, 3...) | Increments with each edit |
-| `targets` | address[] | Target contract addresses | Length must match values/calldatas |
-| `values` | uint256[] | ETH values for each call | Length must match targets/calldatas |
-| `calldatas` | bytes[] | Encoded function calls | Length must match targets/values |
-| `description` | string | JSON-stringified proposal metadata | See description format below |
-| `proposalId` | bytes32 | Pre-calculated proposal ID | `keccak256(abi.encode(targets, values, calldatas, descriptionHash, attester))` |
+| Field           | Type      | Description                        | Constraints                                                                    |
+| --------------- | --------- | ---------------------------------- | ------------------------------------------------------------------------------ |
+| `candidateId`   | bytes32   | Unique candidate identifier        | `keccak256(abi.encodePacked(attester, salt))`                                  |
+| `salt`          | bytes32   | Random salt for grouping versions  | Generated on v1, reused for all versions                                       |
+| `versionNumber` | uint64    | Version number (1, 2, 3...)        | Increments with each edit                                                      |
+| `targets`       | address[] | Target contract addresses          | Length must match values/calldatas                                             |
+| `values`        | uint256[] | ETH values for each call           | Length must match targets/calldatas                                            |
+| `calldatas`     | bytes[]   | Encoded function calls             | Length must match targets/values                                               |
+| `description`   | string    | JSON-stringified proposal metadata | See description format below                                                   |
+| `proposalId`    | bytes32   | Pre-calculated proposal ID         | `keccak256(abi.encode(targets, values, calldatas, descriptionHash, attester))` |
 
 **Note:** The `attester` field (implicit in EAS) is the proposer/creator address. The creation timestamp is available from EAS via `event.block.timestamp` in subgraph or `attestation.time` in SDK queries.
 
@@ -195,6 +201,7 @@ The `description` field is a **JSON string** matching your existing proposal for
 ```
 
 **Frontend Extracts:**
+
 - Title from `JSON.parse(description).title`
 - Summary from `JSON.parse(description).description`
 - Transaction details from `transactionBundles`
@@ -208,6 +215,7 @@ bytes32 candidateId = keccak256(abi.encodePacked(attester, salt));
 ```
 
 **Why it works:**
+
 - `attester`: Same for all versions (creator doesn't change)
 - `salt`: Stored in v1, reused in v2, v3, etc.
 - Result: Same candidateId across all versions!
@@ -237,6 +245,7 @@ This ensures signatures collected for this version will work with `proposeBySigs
 #### Example Attestation Data
 
 **Version 1 (First):**
+
 ```javascript
 {
   candidateId: "0xabc123...", // keccak256(attester, salt)
@@ -253,6 +262,7 @@ This ensures signatures collected for this version will work with `proposeBySigs
 ```
 
 **Version 2 (Revision):**
+
 ```javascript
 {
   candidateId: "0xabc123...", // SAME as v1
@@ -278,49 +288,54 @@ This ensures signatures collected for this version will work with `proposeBySigs
 **Resolver:** None
 
 **Deployed Schema UIDs:**
+
 - **Sepolia**: `0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2`
 - **Mainnet**: TBD
 
 #### Schema String
+
 ```
 bytes32 candidateId,uint8 support,string comment,bytes32 parentCommentUID
 ```
 
 #### Field Definitions
 
-| Field | Type | Description | Constraints |
-|-------|------|-------------|-------------|
-| `candidateId` | bytes32 | Candidate identifier | Must exist |
-| `support` | uint8 | Sentiment/vote | 0=FOR, 1=AGAINST, 2=ABSTAIN, 3=NONE |
-| `comment` | string | Comment text (markdown) | Can be empty for vote-only; max 5000 chars |
-| `parentCommentUID` | bytes32 | UID of parent comment (for threading) | 0x0 if top-level comment |
+| Field              | Type    | Description                           | Constraints                                |
+| ------------------ | ------- | ------------------------------------- | ------------------------------------------ |
+| `candidateId`      | bytes32 | Candidate identifier                  | Must exist                                 |
+| `support`          | uint8   | Sentiment/vote                        | 0=FOR, 1=AGAINST, 2=ABSTAIN, 3=NONE        |
+| `comment`          | string  | Comment text (markdown)               | Can be empty for vote-only; max 5000 chars |
+| `parentCommentUID` | bytes32 | UID of parent comment (for threading) | 0x0 if top-level comment                   |
 
 **Note:** The `attester` field (implicit in EAS) is the commenter's address.
 
 #### Support Values
 
-| Value | Name | Meaning | Use Case |
-|-------|------|---------|----------|
-| 0 | FOR | Support | "I like this idea" |
-| 1 | AGAINST | Opposition | "I disagree with this approach" |
-| 2 | ABSTAIN | Neutral | "I see both sides" or "Needs more info" |
-| 3 | NONE | No sentiment | Pure comment/question |
+| Value | Name    | Meaning      | Use Case                                |
+| ----- | ------- | ------------ | --------------------------------------- |
+| 0     | FOR     | Support      | "I like this idea"                      |
+| 1     | AGAINST | Opposition   | "I disagree with this approach"         |
+| 2     | ABSTAIN | Neutral      | "I see both sides" or "Needs more info" |
+| 3     | NONE    | No sentiment | Pure comment/question                   |
 
 #### Key Design Principles
 
 **Revocable for Flexibility:**
+
 - Comments can be revoked/deleted by the commenter
 - Users can either delete old comments or create new ones to express evolving opinions
 - Frontend should handle revoked comments gracefully (filter them out)
 - Example: User posts FOR on v1, then either revokes it or posts new AGAINST on v2
 
 **Candidate-Level (Not Version-Specific):**
+
 - All comments reference the overall candidateId
 - Users naturally update their view as new versions are released
 - Latest non-revoked comment from a user shows their current opinion
 - Frontend aggregates "current sentiment" = latest non-revoked comment from each user
 
 **Comment + Vote Unified:**
+
 - Can vote with explanation: `support=FOR, comment="Great idea because..."`
 - Can vote without comment: `support=FOR, comment=""`
 - Can comment without vote: `support=NONE, comment="Question: how does X work?"`
@@ -396,6 +411,7 @@ Time +4 days (v3 released, concerns addressed):
 ```
 
 **Frontend displays:**
+
 - Alice's current sentiment: FOR (latest)
 - Alice's comment history: Shows evolution (FOR → AGAINST → FOR)
 - Aggregate sentiment: Count latest comment from each unique user
@@ -410,23 +426,25 @@ Time +4 days (v3 released, concerns addressed):
 **Resolver:** None
 
 **Deployed Schema UIDs:**
+
 - **Sepolia**: `0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5`
 - **Mainnet**: TBD
 
 #### Schema String
+
 ```
 bytes32 candidateVersionUID,bytes32 proposalId,uint256 nonce,uint256 deadline,bytes signature
 ```
 
 #### Field Definitions
 
-| Field | Type | Description | Constraints |
-|-------|------|-------------|-------------|
-| `candidateVersionUID` | bytes32 | UID of specific ProposalCandidate version attestation | Must exist |
-| `proposalId` | bytes32 | Proposal ID being signed | Must match version's proposalId |
-| `nonce` | uint256 | Signer's nonce at signing time | From `proposeSignatureNonce(signer)` |
-| `deadline` | uint256 | Signature expiration timestamp | Must be future timestamp |
-| `signature` | bytes | Full EIP-712 signature | 65 bytes (ECDSA) or variable (ERC-1271) |
+| Field                 | Type    | Description                                           | Constraints                             |
+| --------------------- | ------- | ----------------------------------------------------- | --------------------------------------- |
+| `candidateVersionUID` | bytes32 | UID of specific ProposalCandidate version attestation | Must exist                              |
+| `proposalId`          | bytes32 | Proposal ID being signed                              | Must match version's proposalId         |
+| `nonce`               | uint256 | Signer's nonce at signing time                        | From `proposeSignatureNonce(signer)`    |
+| `deadline`            | uint256 | Signature expiration timestamp                        | Must be future timestamp                |
+| `signature`           | bytes   | Full EIP-712 signature                                | 65 bytes (ECDSA) or variable (ERC-1271) |
 
 **Note:** The `attester` field (implicit in EAS) is the signer/sponsor's address.
 
@@ -435,6 +453,7 @@ bytes32 candidateVersionUID,bytes32 proposalId,uint256 nonce,uint256 deadline,by
 #### Signature Validation
 
 Before accepting a signature attestation, validate:
+
 1. ✅ Signature not expired (`block.timestamp < deadline`)
 2. ✅ Nonce matches current on-chain nonce
 3. ✅ Signature is valid EIP-712 signature
@@ -706,7 +725,7 @@ Sponsors can revoke their signature by revoking the EAS attestation.
 ### 1. Salt Generation (First Version)
 
 ```javascript
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
 
 function generateSalt(): string {
   // Generate random 32 bytes
@@ -724,10 +743,7 @@ const salt = generateSalt();
 function calculateCandidateId(attester: string, salt: string): string {
   // candidateId = keccak256(abi.encodePacked(attester, salt))
   const candidateId = ethers.utils.keccak256(
-    ethers.utils.solidityPack(
-      ['address', 'bytes32'],
-      [attester, salt]
-    )
+    ethers.utils.solidityPack(["address", "bytes32"], [attester, salt])
   );
   return candidateId;
 }
@@ -750,14 +766,12 @@ function calculateProposalId(
   proposer: string
 ): string {
   // Calculate description hash
-  const descriptionHash = ethers.utils.keccak256(
-    ethers.utils.toUtf8Bytes(description)
-  );
+  const descriptionHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(description));
 
   // Encode and hash (same as Governor contract)
   const proposalId = ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
-      ['address[]', 'uint256[]', 'bytes[]', 'bytes32', 'address'],
+      ["address[]", "uint256[]", "bytes[]", "bytes32", "address"],
       [targets, values, calldatas, descriptionHash, proposer]
     )
   );
@@ -775,9 +789,9 @@ function buildDescriptionJSON(
   title: string,
   description: string,
   transactionBundles: Array<{
-    type: string;
-    summary: string;
-    callCount: number;
+    type: string,
+    summary: string,
+    callCount: number,
   }>,
   representedAddress?: string,
   discussionUrl?: string
@@ -788,7 +802,7 @@ function buildDescriptionJSON(
     description: description.trim(),
     transactionBundles,
     ...(representedAddress ? { representedAddress: representedAddress.trim() } : {}),
-    ...(discussionUrl ? { discussionUrl: discussionUrl.trim() } : {})
+    ...(discussionUrl ? { discussionUrl: discussionUrl.trim() } : {}),
   };
 
   return JSON.stringify(metadata);
@@ -802,8 +816,8 @@ const descriptionJSON = buildDescriptionJSON(
     {
       type: "transfer",
       summary: "Transfer 100 ETH to Diversification Multisig",
-      callCount: 1
-    }
+      callCount: 1,
+    },
   ],
   undefined,
   "https://forum.dao.org/proposal-123"
@@ -815,12 +829,12 @@ const descriptionJSON = buildDescriptionJSON(
 ### 5. Extracting Previous Salt (For New Versions)
 
 ```javascript
-import { GraphQLClient, gql } from 'graphql-request';
+import { GraphQLClient, gql } from "graphql-request";
 
 async function getPreviousVersionSalt(
   graphqlClient: GraphQLClient,
   candidateId: string
-): Promise<{ salt: string; latestVersion: number } | null> {
+): Promise<{ salt: string, latestVersion: number } | null> {
   const query = gql`
     query GetLatestVersion($candidateId: String!) {
       attestations(
@@ -844,12 +858,12 @@ async function getPreviousVersionSalt(
   }
 
   const decoded = JSON.parse(data.attestations[0].decodedDataJson);
-  const salt = decoded.find(d => d.name === 'salt').value.value;
-  const versionNumber = parseInt(decoded.find(d => d.name === 'versionNumber').value.value);
+  const salt = decoded.find((d) => d.name === "salt").value.value;
+  const versionNumber = parseInt(decoded.find((d) => d.name === "versionNumber").value.value);
 
   return {
     salt,
-    latestVersion: versionNumber
+    latestVersion: versionNumber,
   };
 }
 
@@ -868,26 +882,26 @@ if (previous) {
 ### Example 1: Create First Version (v1)
 
 ```javascript
-import { EAS, SchemaEncoder } from '@ethereum-attestation-service/eas-sdk';
-import { ethers } from 'ethers';
+import { EAS, SchemaEncoder } from "@ethereum-attestation-service/eas-sdk";
+import { ethers } from "ethers";
 
 async function createFirstCandidateVersion(
   eas: EAS,
   signer: ethers.Signer,
   proposalData: {
-    title: string;
-    description: string;
-    targets: string[];
-    values: ethers.BigNumber[];
-    calldatas: string[];
-    transactionBundles: Array<any>;
-    representedAddress?: string;
-    discussionUrl?: string;
+    title: string,
+    description: string,
+    targets: string[],
+    values: ethers.BigNumber[],
+    calldatas: string[],
+    transactionBundles: Array<any>,
+    representedAddress?: string,
+    discussionUrl?: string,
   }
 ): Promise<{
-  candidateId: string;
-  candidateVersionUID: string;
-  salt: string;
+  candidateId: string,
+  candidateVersionUID: string,
+  salt: string,
 }> {
   const proposer = await signer.getAddress();
 
@@ -917,18 +931,18 @@ async function createFirstCandidateVersion(
 
   // 5. Encode schema data (note: proposer is implicit via EAS attester, timestamp from event.block.timestamp)
   const schemaEncoder = new SchemaEncoder(
-    'bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId'
+    "bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId"
   );
 
   const encodedData = schemaEncoder.encodeData([
-    { name: 'candidateId', value: candidateId, type: 'bytes32' },
-    { name: 'salt', value: salt, type: 'bytes32' },
-    { name: 'versionNumber', value: 1, type: 'uint64' },
-    { name: 'targets', value: proposalData.targets, type: 'address[]' },
-    { name: 'values', value: proposalData.values, type: 'uint256[]' },
-    { name: 'calldatas', value: proposalData.calldatas, type: 'bytes[]' },
-    { name: 'description', value: descriptionJSON, type: 'string' },
-    { name: 'proposalId', value: proposalId, type: 'bytes32' }
+    { name: "candidateId", value: candidateId, type: "bytes32" },
+    { name: "salt", value: salt, type: "bytes32" },
+    { name: "versionNumber", value: 1, type: "uint64" },
+    { name: "targets", value: proposalData.targets, type: "address[]" },
+    { name: "values", value: proposalData.values, type: "uint256[]" },
+    { name: "calldatas", value: proposalData.calldatas, type: "bytes[]" },
+    { name: "description", value: descriptionJSON, type: "string" },
+    { name: "proposalId", value: proposalId, type: "bytes32" },
   ]);
 
   // 6. Create attestation (revocable so proposer can clean up old versions)
@@ -938,17 +952,17 @@ async function createFirstCandidateVersion(
       recipient: ethers.constants.AddressZero,
       expirationTime: 0,
       revocable: true,
-      data: encodedData
-    }
+      data: encodedData,
+    },
   });
 
   const receipt = await tx.wait();
   const candidateVersionUID = receipt.logs[0].topics[1];
 
-  console.log('Created Version 1!');
-  console.log('  candidateId:', candidateId);
-  console.log('  candidateVersionUID:', candidateVersionUID);
-  console.log('  salt:', salt);
+  console.log("Created Version 1!");
+  console.log("  candidateId:", candidateId);
+  console.log("  candidateVersionUID:", candidateVersionUID);
+  console.log("  salt:", salt);
 
   return { candidateId, candidateVersionUID, salt };
 }
@@ -965,18 +979,18 @@ async function createNewCandidateVersion(
   signer: ethers.Signer,
   candidateId: string, // Existing candidate
   proposalData: {
-    title: string;
-    description: string;
-    targets: string[];
-    values: ethers.BigNumber[];
-    calldatas: string[];
-    transactionBundles: Array<any>;
-    representedAddress?: string;
-    discussionUrl?: string;
+    title: string,
+    description: string,
+    targets: string[],
+    values: ethers.BigNumber[],
+    calldatas: string[],
+    transactionBundles: Array<any>,
+    representedAddress?: string,
+    discussionUrl?: string,
   }
 ): Promise<{
-  candidateVersionUID: string;
-  versionNumber: number;
+  candidateVersionUID: string,
+  versionNumber: number,
 }> {
   const proposer = await signer.getAddress();
 
@@ -984,7 +998,7 @@ async function createNewCandidateVersion(
   const previous = await getPreviousVersionSalt(graphqlClient, candidateId);
 
   if (!previous) {
-    throw new Error('Candidate not found');
+    throw new Error("Candidate not found");
   }
 
   const salt = previous.salt; // REUSE SALT!
@@ -993,7 +1007,7 @@ async function createNewCandidateVersion(
   // 2. Verify candidateId matches
   const verifiedCandidateId = calculateCandidateId(proposer, salt);
   if (verifiedCandidateId !== candidateId) {
-    throw new Error('CandidateId mismatch - wrong proposer or salt');
+    throw new Error("CandidateId mismatch - wrong proposer or salt");
   }
 
   // 3. Build description JSON
@@ -1016,18 +1030,18 @@ async function createNewCandidateVersion(
 
   // 5. Encode schema data (note: proposer is implicit via EAS attester, timestamp from event.block.timestamp)
   const schemaEncoder = new SchemaEncoder(
-    'bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId'
+    "bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId"
   );
 
   const encodedData = schemaEncoder.encodeData([
-    { name: 'candidateId', value: candidateId, type: 'bytes32' },
-    { name: 'salt', value: salt, type: 'bytes32' }, // SAME salt
-    { name: 'versionNumber', value: nextVersionNumber, type: 'uint64' }, // Incremented
-    { name: 'targets', value: proposalData.targets, type: 'address[]' },
-    { name: 'values', value: proposalData.values, type: 'uint256[]' },
-    { name: 'calldatas', value: proposalData.calldatas, type: 'bytes[]' },
-    { name: 'description', value: descriptionJSON, type: 'string' },
-    { name: 'proposalId', value: proposalId, type: 'bytes32' } // NEW proposalId
+    { name: "candidateId", value: candidateId, type: "bytes32" },
+    { name: "salt", value: salt, type: "bytes32" }, // SAME salt
+    { name: "versionNumber", value: nextVersionNumber, type: "uint64" }, // Incremented
+    { name: "targets", value: proposalData.targets, type: "address[]" },
+    { name: "values", value: proposalData.values, type: "uint256[]" },
+    { name: "calldatas", value: proposalData.calldatas, type: "bytes[]" },
+    { name: "description", value: descriptionJSON, type: "string" },
+    { name: "proposalId", value: proposalId, type: "bytes32" }, // NEW proposalId
   ]);
 
   // 6. Create attestation (revocable so proposer can clean up old versions)
@@ -1037,16 +1051,16 @@ async function createNewCandidateVersion(
       recipient: ethers.constants.AddressZero,
       expirationTime: 0,
       revocable: true,
-      data: encodedData
-    }
+      data: encodedData,
+    },
   });
 
   const receipt = await tx.wait();
   const candidateVersionUID = receipt.logs[0].topics[1];
 
   console.log(`Created Version ${nextVersionNumber}!`);
-  console.log('  candidateVersionUID:', candidateVersionUID);
-  console.log('  candidateId:', candidateId, '(same as before)');
+  console.log("  candidateVersionUID:", candidateVersionUID);
+  console.log("  candidateId:", candidateId, "(same as before)");
 
   return { candidateVersionUID, versionNumber: nextVersionNumber };
 }
@@ -1059,10 +1073,10 @@ async function createNewCandidateVersion(
 ```javascript
 // Support values
 const SUPPORT = {
-  FOR: 0,       // Support the proposal
-  AGAINST: 1,   // Oppose the proposal
-  ABSTAIN: 2,   // Neutral stance
-  NONE: 3       // No sentiment, just commenting
+  FOR: 0, // Support the proposal
+  AGAINST: 1, // Oppose the proposal
+  ABSTAIN: 2, // Neutral stance
+  NONE: 3, // No sentiment, just commenting
 };
 
 async function commentOnCandidate(
@@ -1070,18 +1084,18 @@ async function commentOnCandidate(
   signer: ethers.Signer,
   candidateId: string,
   support: number, // 0=FOR, 1=AGAINST, 2=ABSTAIN, 3=NONE
-  comment: string = '', // Can be empty for vote-only
+  comment: string = "", // Can be empty for vote-only
   parentCommentUID: string = ethers.constants.HashZero // For replies
 ): Promise<string> {
   const schemaEncoder = new SchemaEncoder(
-    'bytes32 candidateId,uint8 support,string comment,bytes32 parentCommentUID'
+    "bytes32 candidateId,uint8 support,string comment,bytes32 parentCommentUID"
   );
 
   const encodedData = schemaEncoder.encodeData([
-    { name: 'candidateId', value: candidateId, type: 'bytes32' },
-    { name: 'support', value: support, type: 'uint8' },
-    { name: 'comment', value: comment, type: 'string' },
-    { name: 'parentCommentUID', value: parentCommentUID, type: 'bytes32' }
+    { name: "candidateId", value: candidateId, type: "bytes32" },
+    { name: "support", value: support, type: "uint8" },
+    { name: "comment", value: comment, type: "string" },
+    { name: "parentCommentUID", value: parentCommentUID, type: "bytes32" },
   ]);
 
   const tx = await eas.connect(signer).attest({
@@ -1090,14 +1104,14 @@ async function commentOnCandidate(
       recipient: ethers.constants.AddressZero,
       expirationTime: 0,
       revocable: true, // Users can delete their comments
-      data: encodedData
-    }
+      data: encodedData,
+    },
   });
 
   const receipt = await tx.wait();
   const commentUID = receipt.logs[0].topics[1];
 
-  console.log('Comment added:', commentUID);
+  console.log("Comment added:", commentUID);
   return commentUID;
 }
 
@@ -1253,17 +1267,19 @@ async function signCandidateVersion(
 async function getCandidateVersions(
   graphqlClient: GraphQLClient,
   candidateId: string
-): Promise<Array<{
-  uid: string;
-  versionNumber: number;
-  attester: string; // The proposer/creator
-  proposalId: string;
-  description: any; // Parsed JSON
-  targets: string[];
-  values: string[];
-  calldatas: string[];
-  createdAt: number;
-}>> {
+): Promise<
+  Array<{
+    uid: string,
+    versionNumber: number,
+    attester: string, // The proposer/creator
+    proposalId: string,
+    description: any, // Parsed JSON
+    targets: string[],
+    values: string[],
+    calldatas: string[],
+    createdAt: number,
+  }>
+> {
   const query = gql`
     query GetVersions($candidateId: String!) {
       attestations(
@@ -1283,27 +1299,27 @@ async function getCandidateVersions(
 
   const data = await graphqlClient.request(query, { candidateId });
 
-  return data.attestations.map(att => {
+  return data.attestations.map((att) => {
     const decoded = JSON.parse(att.decodedDataJson);
 
     return {
       uid: att.id,
-      versionNumber: parseInt(decoded.find(d => d.name === 'versionNumber').value.value),
+      versionNumber: parseInt(decoded.find((d) => d.name === "versionNumber").value.value),
       attester: att.attester, // Proposer comes from EAS attester field, not decoded data
-      proposalId: decoded.find(d => d.name === 'proposalId').value.value,
-      description: JSON.parse(decoded.find(d => d.name === 'description').value.value),
-      targets: decoded.find(d => d.name === 'targets').value.value,
-      values: decoded.find(d => d.name === 'values').value.value,
-      calldatas: decoded.find(d => d.name === 'calldatas').value.value,
-      createdAt: att.timeCreated
+      proposalId: decoded.find((d) => d.name === "proposalId").value.value,
+      description: JSON.parse(decoded.find((d) => d.name === "description").value.value),
+      targets: decoded.find((d) => d.name === "targets").value.value,
+      values: decoded.find((d) => d.name === "values").value.value,
+      calldatas: decoded.find((d) => d.name === "calldatas").value.value,
+      createdAt: att.timeCreated,
     };
   });
 }
 
 // Usage
 const versions = await getCandidateVersions(graphqlClient, candidateId);
-console.log('Candidate has', versions.length, 'versions');
-versions.forEach(v => {
+console.log("Candidate has", versions.length, "versions");
+versions.forEach((v) => {
   console.log(`v${v.versionNumber}: ${v.description.title}`);
 });
 ```
@@ -1322,10 +1338,10 @@ async function submitCandidateVersionToGovernor(
   proposerSigner: ethers.Signer,
   candidateVersionUID: string
 ): Promise<{
-  success: boolean;
-  proposalId?: string;
-  txHash?: string;
-  error?: string;
+  success: boolean,
+  proposalId?: string,
+  txHash?: string,
+  error?: string,
 }> {
   try {
     // 1. Fetch version data from EAS
@@ -1369,25 +1385,23 @@ async function submitCandidateVersionToGovernor(
     if (totalVotes.lt(proposalThreshold)) {
       return {
         success: false,
-        error: `Insufficient voting power. Have ${totalVotes.toString()}, need ${proposalThreshold.toString()}`
+        error: `Insufficient voting power. Have ${totalVotes.toString()}, need ${proposalThreshold.toString()}`,
       };
     }
 
     // 5. Sort signers by address (REQUIRED by contract)
-    validSignatures.sort((a, b) =>
-      a.attester.toLowerCase() < b.attester.toLowerCase() ? -1 : 1
-    );
+    validSignatures.sort((a, b) => (a.attester.toLowerCase() < b.attester.toLowerCase() ? -1 : 1));
 
     // 6. Format signatures for contract
-    const proposerSignatures = validSignatures.map(sig => ({
+    const proposerSignatures = validSignatures.map((sig) => ({
       signer: sig.attester,
       nonce: ethers.BigNumber.from(sig.nonce),
       deadline: sig.deadline,
-      sig: sig.signature
+      sig: sig.signature,
     }));
 
     // 7. Submit to Governor
-    console.log('Submitting proposal with', proposerSignatures.length, 'signatures...');
+    console.log("Submitting proposal with", proposerSignatures.length, "signatures...");
 
     const tx = await governor.connect(proposerSigner).proposeBySigs(
       proposerSignatures,
@@ -1397,26 +1411,25 @@ async function submitCandidateVersionToGovernor(
       version.description // Raw JSON string
     );
 
-    console.log('Transaction sent:', tx.hash);
+    console.log("Transaction sent:", tx.hash);
     const receipt = await tx.wait();
 
     // 8. Extract proposalId from event
-    const event = receipt.events?.find(e => e.event === 'ProposalCreated');
+    const event = receipt.events?.find((e) => e.event === "ProposalCreated");
     const proposalId = event?.args?.proposalId;
 
-    console.log('Proposal created on-chain:', proposalId);
+    console.log("Proposal created on-chain:", proposalId);
 
     return {
       success: true,
       proposalId,
-      txHash: receipt.transactionHash
+      txHash: receipt.transactionHash,
     };
-
   } catch (error) {
-    console.error('Error submitting proposal:', error);
+    console.error("Error submitting proposal:", error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -1471,12 +1484,12 @@ function CandidateView({ candidateId }: { candidateId: string }) {
       const versionsWithSigs = await Promise.all(
         versions.map(async (v) => {
           const sigs = await getSignaturesForVersion(graphqlClient, v.uid);
-          const validSigs = sigs.filter(s => !s.revoked && Date.now() / 1000 < s.deadline);
+          const validSigs = sigs.filter((s) => !s.revoked && Date.now() / 1000 < s.deadline);
 
           return {
             ...v,
             signatureCount: validSigs.length,
-            totalVotingPower: await calculateTotalVotingPower(validSigs)
+            totalVotingPower: await calculateTotalVotingPower(validSigs),
           };
         })
       );
@@ -1486,7 +1499,7 @@ function CandidateView({ candidateId }: { candidateId: string }) {
 
       // Calculate current sentiment (latest from each user)
       const sentimentByUser = new Map();
-      comments.forEach(comment => {
+      comments.forEach((comment) => {
         const existing = sentimentByUser.get(comment.commenter);
         if (!existing || comment.createdAt > existing.createdAt) {
           sentimentByUser.set(comment.commenter, comment);
@@ -1494,9 +1507,9 @@ function CandidateView({ candidateId }: { candidateId: string }) {
       });
 
       const currentSentiment = {
-        for: Array.from(sentimentByUser.values()).filter(c => c.support === 0).length,
-        against: Array.from(sentimentByUser.values()).filter(c => c.support === 1).length,
-        abstain: Array.from(sentimentByUser.values()).filter(c => c.support === 2).length
+        for: Array.from(sentimentByUser.values()).filter((c) => c.support === 0).length,
+        against: Array.from(sentimentByUser.values()).filter((c) => c.support === 1).length,
+        abstain: Array.from(sentimentByUser.values()).filter((c) => c.support === 2).length,
       };
 
       setCandidate({
@@ -1504,7 +1517,7 @@ function CandidateView({ candidateId }: { candidateId: string }) {
         proposer: versionsWithSigs[0].attester, // Proposer from EAS attester
         versions: versionsWithSigs,
         commentCount: comments.length,
-        currentSentiment
+        currentSentiment,
       });
     }
     load();
@@ -1522,7 +1535,9 @@ function CandidateView({ candidateId }: { candidateId: string }) {
       {/* Header */}
       <div className="candidate-header">
         <h1>{leadingVersion.metadata.title}</h1>
-        <p>By: <Address address={candidate.proposer} /></p>
+        <p>
+          By: <Address address={candidate.proposer} />
+        </p>
         <div className="stats">
           <span>{candidate.versions.length} versions</span>
           <span>{candidate.commentCount} comments</span>
@@ -1539,7 +1554,7 @@ function CandidateView({ candidateId }: { candidateId: string }) {
         <h2>Versions</h2>
         {candidate.versions
           .sort((a, b) => b.versionNumber - a.versionNumber)
-          .map(version => (
+          .map((version) => (
             <VersionCard
               key={version.uid}
               version={version}
@@ -1551,9 +1566,7 @@ function CandidateView({ candidateId }: { candidateId: string }) {
 
       {/* Actions */}
       <div className="actions">
-        <button onClick={() => createNewVersion(candidateId)}>
-          Create New Version
-        </button>
+        <button onClick={() => createNewVersion(candidateId)}>Create New Version</button>
       </div>
     </div>
   );
@@ -1565,7 +1578,11 @@ function CandidateView({ candidateId }: { candidateId: string }) {
 ### Version Card Component
 
 ```typescript
-function VersionCard({ version, isLeading, canSubmit }: {
+function VersionCard({
+  version,
+  isLeading,
+  canSubmit,
+}: {
   version: CandidateVersion;
   isLeading: boolean;
   canSubmit: boolean;
@@ -1577,7 +1594,7 @@ function VersionCard({ version, isLeading, canSubmit }: {
   useEffect(() => {
     async function load() {
       const sigs = await getSignaturesForVersion(graphqlClient, version.uid);
-      setSignatures(sigs.filter(s => !s.revoked && Date.now() / 1000 < s.deadline));
+      setSignatures(sigs.filter((s) => !s.revoked && Date.now() / 1000 < s.deadline));
 
       const thresh = await governor.proposalThreshold();
       setThreshold(thresh);
@@ -1585,7 +1602,9 @@ function VersionCard({ version, isLeading, canSubmit }: {
       // Check if current user can sign
       const userVotes = await getUserVotingPower();
       const userAddress = await signer.getAddress();
-      const alreadySigned = sigs.some(s => s.attester.toLowerCase() === userAddress.toLowerCase());
+      const alreadySigned = sigs.some(
+        (s) => s.attester.toLowerCase() === userAddress.toLowerCase()
+      );
       setCanSign(userVotes > 0 && !alreadySigned && userAddress !== version.attester);
     }
     load();
@@ -1594,7 +1613,7 @@ function VersionCard({ version, isLeading, canSubmit }: {
   const progress = Math.min((version.totalVotingPower / threshold) * 100, 100);
 
   return (
-    <div className={`version-card ${isLeading ? 'leading' : ''}`}>
+    <div className={`version-card ${isLeading ? "leading" : ""}`}>
       {/* Header */}
       <div className="version-header">
         <h3>
@@ -1634,31 +1653,25 @@ function VersionCard({ version, isLeading, canSubmit }: {
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
         <p>
-          {version.signatureCount} signatures
-          ({ethers.utils.formatUnits(version.totalVotingPower, 0)} / {ethers.utils.formatUnits(threshold, 0)} voting power)
+          {version.signatureCount} signatures (
+          {ethers.utils.formatUnits(version.totalVotingPower, 0)} /{" "}
+          {ethers.utils.formatUnits(threshold, 0)} voting power)
         </p>
       </div>
 
       {/* Signers */}
       <div className="signers">
-        {signatures.map(sig => (
+        {signatures.map((sig) => (
           <Avatar key={sig.uid} address={sig.attester} />
         ))}
       </div>
 
       {/* Actions */}
       <div className="actions">
-        {canSign && (
-          <button onClick={() => signVersion(version)}>
-            Sign This Version
-          </button>
-        )}
+        {canSign && <button onClick={() => signVersion(version)}>Sign This Version</button>}
 
         {canSubmit && (
-          <button
-            className="primary"
-            onClick={() => submitVersion(version.uid)}
-          >
+          <button className="primary" onClick={() => submitVersion(version.uid)}>
             Submit to Governor
           </button>
         )}
@@ -1688,7 +1701,6 @@ type ProposalCandidateVersion @entity {
   description: String! # Raw JSON string
   proposalId: Bytes!
   createdAt: BigInt! # From event.block.timestamp (not stored in schema)
-
   # Parsed from description JSON
   title: String!
   summary: String!
@@ -1708,7 +1720,6 @@ type ProposalCandidateGroup @entity {
   proposer: Bytes! # The creator (attester from first version)
   salt: Bytes!
   createdAt: BigInt! # First version timestamp
-
   # Relations
   versions: [ProposalCandidateVersion!]! @derivedFrom(field: "candidateId")
   comments: [CandidateComment!]! @derivedFrom(field: "candidate")
@@ -1718,11 +1729,10 @@ type ProposalCandidateGroup @entity {
   commentCount: BigInt!
   latestVersionNumber: BigInt!
   leadingVersion: ProposalCandidateVersion # Version with most signatures
-
   # Sentiment aggregates (from latest comment of each user)
-  currentForCount: BigInt!      # Users whose latest comment is FOR
-  currentAgainstCount: BigInt!  # Users whose latest comment is AGAINST
-  currentAbstainCount: BigInt!  # Users whose latest comment is ABSTAIN
+  currentForCount: BigInt! # Users whose latest comment is FOR
+  currentAgainstCount: BigInt! # Users whose latest comment is AGAINST
+  currentAbstainCount: BigInt! # Users whose latest comment is ABSTAIN
 }
 
 # Comment with integrated sentiment
@@ -1759,10 +1769,7 @@ type CandidateSponsorSignature @entity {
 ```graphql
 # Get all candidates (grouped) with sentiment
 query GetAllCandidates {
-  proposalCandidateGroups(
-    orderBy: createdAt
-    orderDirection: desc
-  ) {
+  proposalCandidateGroups(orderBy: createdAt, orderDirection: desc) {
     id
     proposer
     versionCount
@@ -1832,11 +1839,7 @@ query GetCandidate($candidateId: ID!) {
 # Get current sentiment (latest from each user)
 query GetCurrentSentiment($candidateId: Bytes!) {
   # Get all comments for candidate
-  candidateComments(
-    where: { candidate: $candidateId }
-    orderBy: createdAt
-    orderDirection: desc
-  ) {
+  candidateComments(where: { candidate: $candidateId }, orderBy: createdAt, orderDirection: desc) {
     id
     commenter
     support
@@ -1856,11 +1859,7 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
     targets
     values
     calldatas
-    signatures(
-      where: { revoked: false }
-      orderBy: signer
-      orderDirection: asc
-    ) {
+    signatures(where: { revoked: false }, orderBy: signer, orderDirection: asc) {
       signer
       nonce
       deadline
@@ -1875,52 +1874,62 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 ## Security Considerations
 
 ### 1. Salt Security
+
 - **Storage**: Salt is stored in EAS attestation (public)
 - **Collision**: Extremely unlikely with 32-byte random values
 - **Tampering**: Immutable once attested
 - **Reuse**: Must query previous version to get correct salt
 
 ### 2. CandidateId Integrity
+
 - **Calculation**: Must use same formula as initial version
 - **Verification**: Frontend should verify candidateId matches before creating new version
 - **Uniqueness**: Unique per (proposer, salt) pair
 
 ### 3. ProposalId Integrity
+
 - **Critical**: Must match Governor contract calculation exactly
 - **Changes**: Every version has different proposalId (different content)
 - **Signatures**: Bound to specific proposalId
 
 ### 4. Signature Expiry
+
 - **Always validate** `deadline` before submission
 - **Recommend**: 24-48 hour deadlines for coordination
 - **Frontend**: Show expiry countdown
 
 ### 5. Nonce Invalidation
+
 - **Check**: Verify nonce matches on-chain before submission
 - **Warning**: Nonce changes if signer sponsors another proposal
 - **UX**: Notify sponsors if their signature becomes invalid
 
 ### 6. Proposer Verification
+
 - **Immutable**: Proposer set in v1, must remain same
 - **Validation**: Verify proposer matches attester
 - **Signatures**: All signatures must reference same proposer
 
 ### 7. Signature Revocation
+
 - **EAS Built-in**: Sponsors can revoke attestations
 - **Filter**: Frontend MUST exclude revoked signatures
 - **Check**: Query `revoked` field before submission
 
 ### 8. Version Ordering
+
 - **Trust**: versionNumber is self-reported
 - **Validation**: Subgraph should verify sequential ordering
 - **Display**: Show versions in chronological order
 
 ### 9. Signer Ordering
+
 - **Critical**: Must sort by address before calling `proposeBySigs`
 - **Contract Requirement**: Will revert if not sorted
 - **Implementation**: Use `.sort()` on addresses
 
 ### 10. Gas Considerations
+
 - **Large Arrays**: targets/values/calldatas can be large
 - **EAS Limit**: Consider chunking very large proposals
 - **Alternative**: Store large calldata on IPFS, reference in description
@@ -1931,11 +1940,11 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 
 ### Schema UIDs (To Be Deployed)
 
-| Schema | UID | Revocable | Purpose |
-|--------|-----|-----------|---------|
-| ProposalCandidate | `0x...` | No | Proposal versions with execution data |
-| CandidateComment | `0x...` | No (append-only) | Discussion + sentiment (FOR/AGAINST/ABSTAIN/NONE) |
-| CandidateSponsorSignature | `0x...` | Yes | Formal EIP-712 signatures for submission |
+| Schema                    | UID     | Revocable        | Purpose                                           |
+| ------------------------- | ------- | ---------------- | ------------------------------------------------- |
+| ProposalCandidate         | `0x...` | No               | Proposal versions with execution data             |
+| CandidateComment          | `0x...` | No (append-only) | Discussion + sentiment (FOR/AGAINST/ABSTAIN/NONE) |
+| CandidateSponsorSignature | `0x...` | Yes              | Formal EIP-712 signatures for submission          |
 
 **Total:** 3 schemas (simplified from original 5)
 
@@ -1962,6 +1971,7 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 6. **Submit**: Most-signed version goes on-chain via `proposeBySigs`
 
 **Sentiment Flow:**
+
 - User posts FOR on v1
 - Creator releases v2 with changes
 - User dislikes v2, posts AGAINST (new comment)
@@ -1999,6 +2009,7 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 ## Changelog
 
 ### v3.5.0 (2026-05-27)
+
 - **BREAKING**: Reordered support values to match standard voting convention
   - Changed from: 0=NONE, 1=FOR, 2=AGAINST, 3=ABSTAIN
   - Changed to: **0=FOR, 1=AGAINST, 2=ABSTAIN, 3=NONE**
@@ -2010,6 +2021,7 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 - **CandidateComment schema needs redeployment** (support value semantics changed)
 
 ### v3.4.0 (2026-05-27) - **DEPLOYED TO SEPOLIA**
+
 - **🚀 DEPLOYED**: ProposalCandidate schema redeployed to Sepolia with `createdAt` field removed
 - **BREAKING**: Removed redundant `createdAt` field from ProposalCandidate schema
 - Timestamp is available from EAS via `event.block.timestamp` (subgraph) or `attestation.time` (SDK)
@@ -2020,14 +2032,17 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 - **Gas savings**: Removes one uint64 (8 bytes) per ProposalCandidate attestation
 
 **Updated Schema String:**
+
 ```
 bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId
 ```
 
 **New Sepolia UID:**
+
 - ProposalCandidate: `0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3` ✅
 
 ### v3.3.0 (2026-05-27) - **DEPLOYED TO SEPOLIA**
+
 - **🚀 DEPLOYED**: All three schemas deployed to Sepolia testnet
 - **BREAKING**: All schemas are now revocable (changed from mixed revocability)
   - ProposalCandidate: Now revocable (proposers can clean up old versions)
@@ -2039,11 +2054,13 @@ bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[
 - Frontend must filter out revoked attestations in queries
 
 **Sepolia Schema UIDs (v3.3.0 - ProposalCandidate now outdated):**
+
 - ProposalCandidate: `0xbb0e97dc7584b3a3d9557cd542382565322414be291ab69fb092586bde09aad0` ❌ (outdated, had `createdAt` field)
 - CandidateComment: `0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2` ✅ (still valid)
 - CandidateSponsorSignature: `0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5` ✅ (still valid)
 
 ### v3.2.0 (2026-05-27)
+
 - **BREAKING**: Renamed `versionUID` to `candidateVersionUID` throughout for clarity
 - Makes it explicit that the UID references a ProposalCandidate version attestation
 - Updated schema string in CandidateSponsorSignature: `versionUID` → `candidateVersionUID`
@@ -2051,6 +2068,7 @@ bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[
 - Improved naming consistency: clearly indicates what type of entity is being referenced
 
 ### v3.1.0 (2026-05-27)
+
 - **BREAKING**: Removed redundant `proposer` field from `ProposalCandidate` schema
 - The proposer/creator is now **implicit** via EAS `attester` field (automatically included in every attestation)
 - Updated schema string: removed `address proposer` field
@@ -2060,6 +2078,7 @@ bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[
 - Updated candidateId calculation references to use `attester`
 
 ### v3.0.0 (2026-05-27)
+
 - **BREAKING**: Combined `CandidateSupport` and `CandidateComment` into single `CandidateComment` schema
 - Added `support` field to comments: 0=FOR, 1=AGAINST, 2=ABSTAIN, 3=NONE
 - Changed to **append-only** (non-revocable) comments for full history
@@ -2070,10 +2089,12 @@ bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[
 - Enhanced queries for sentiment tracking
 
 ### v2.0.0 (2026-05-27)
+
 - Simplified from 5 schemas to 4 by combining parent and version schemas
 - Salt stored in attestation for self-contained version linking
 - JSON description format matching existing frontend
 - No off-chain dependencies
 
 ### v1.0.0 (Initial)
+
 - Original design with separate parent and version schemas

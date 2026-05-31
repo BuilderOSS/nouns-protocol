@@ -15,7 +15,9 @@ import { ProposalHasher } from "../../../src/governance/governor/ProposalHasher.
 
 /// @notice Test-only Governor fixture matching the pre-updatable-proposals storage shape.
 contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStorageV1, GovernorStorageV2 {
-    event ProposalCreated(bytes32 proposalId, address[] targets, uint256[] values, bytes[] calldatas, string description, bytes32 descriptionHash, Proposal proposal);
+    event ProposalCreated(
+        bytes32 proposalId, address[] targets, uint256[] values, bytes[] calldatas, string description, bytes32 descriptionHash, Proposal proposal
+    );
     event VoteCast(address voter, bytes32 proposalId, uint256 support, uint256 weight, string reason);
 
     error ALREADY_VOTED();
@@ -80,12 +82,10 @@ contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStor
         __Ownable_init(_treasury);
     }
 
-    function propose(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description
-    ) external returns (bytes32) {
+    function propose(address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas, string memory _description)
+        external
+        returns (bytes32)
+    {
         if (block.timestamp < delayedGovernanceExpirationTimestamp && settings.token.remainingTokensInReserve() > 0) {
             revert WAITING_FOR_TOKENS_TO_CLAIM_OR_EXPIRATION();
         }
@@ -202,9 +202,8 @@ contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStor
 
     function updateProposalThresholdBps(uint256 _newProposalThresholdBps) external onlyOwner {
         if (
-            _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS ||
-            _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS ||
-            _newProposalThresholdBps >= settings.quorumThresholdBps
+            _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
+                || _newProposalThresholdBps >= settings.quorumThresholdBps
         ) revert INVALID_PROPOSAL_THRESHOLD_BPS();
         settings.proposalThresholdBps = uint16(_newProposalThresholdBps);
     }

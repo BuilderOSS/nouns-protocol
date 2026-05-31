@@ -36,16 +36,7 @@ contract DeployContracts is Script {
         address treasuryImpl = _getKey("Treasury");
         address metadataImpl = _getKey("MetadataRenderer");
 
-        _deployUpgrade(
-            deployerAddress,
-            managerProxy,
-            protocolRewards,
-            weth,
-            metadataImpl,
-            treasuryImpl,
-            builderRewardsRecipient,
-            chainID
-        );
+        _deployUpgrade(deployerAddress, managerProxy, protocolRewards, weth, metadataImpl, treasuryImpl, builderRewardsRecipient, chainID);
     }
 
     // workaround for stack too deep
@@ -93,22 +84,13 @@ contract DeployContracts is Script {
         address tokenImpl = address(new Token(managerProxy));
 
         // Deploy auction house implementation
-        address auctionImpl = address(
-            new Auction(
-                managerProxy,
-                protocolRewards,
-                weth,
-                Constants.REWARD_BUILDER_BPS,
-                Constants.REWARD_REFERRAL_BPS
-            )
-        );
+        address auctionImpl = address(new Auction(managerProxy, protocolRewards, weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS));
 
         // Deploy governor implementation
         address governorImpl = address(new Governor(managerProxy));
 
         // Deploy v2 manager implementation
-        address managerImpl =
-            address(new Manager(tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderRewardsRecipient));
+        address managerImpl = address(new Manager(tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderRewardsRecipient));
 
         vm.stopBroadcast();
 
@@ -136,7 +118,7 @@ contract DeployContracts is Script {
     function addressToString(address _addr) private pure returns (string memory) {
         bytes memory s = new bytes(40);
         for (uint256 i = 0; i < 20; i++) {
-            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2**(8 * (19 - i)))));
+            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - i)))));
             bytes1 hi = bytes1(uint8(b) / 16);
             bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
             s[2 * i] = char(hi);

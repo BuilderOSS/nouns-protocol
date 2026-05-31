@@ -16,7 +16,6 @@ abstract contract ERC1967Upgrade is IERC1967Upgrade {
     ///                                                          ///
     ///                          CONSTANTS                       ///
     ///                                                          ///
-
     /// @dev bytes32(uint256(keccak256('eip1967.proxy.rollback')) - 1)
     bytes32 private constant _ROLLBACK_SLOT = 0x4910fdfa16fed3260ed0e7147f7cc6da11a60208b5b9406d12a635614ffd9143;
 
@@ -30,11 +29,7 @@ abstract contract ERC1967Upgrade is IERC1967Upgrade {
     /// @dev Upgrades to an implementation with security checks for UUPS proxies and an additional function call
     /// @param _newImpl The new implementation address
     /// @param _data The encoded function call
-    function _upgradeToAndCallUUPS(
-        address _newImpl,
-        bytes memory _data,
-        bool _forceCall
-    ) internal {
+    function _upgradeToAndCallUUPS(address _newImpl, bytes memory _data, bool _forceCall) internal {
         if (StorageSlot.getBooleanSlot(_ROLLBACK_SLOT).value) {
             _setImplementation(_newImpl);
         } else {
@@ -51,11 +46,7 @@ abstract contract ERC1967Upgrade is IERC1967Upgrade {
     /// @dev Upgrades to an implementation with an additional function call
     /// @param _newImpl The new implementation address
     /// @param _data The encoded function call
-    function _upgradeToAndCall(
-        address _newImpl,
-        bytes memory _data,
-        bool _forceCall
-    ) internal {
+    function _upgradeToAndCall(address _newImpl, bytes memory _data, bool _forceCall) internal {
         _upgradeTo(_newImpl);
 
         if (_data.length > 0 || _forceCall) {

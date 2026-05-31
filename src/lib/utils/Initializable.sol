@@ -12,7 +12,6 @@ abstract contract Initializable is IInitializable {
     ///                                                          ///
     ///                           STORAGE                        ///
     ///                                                          ///
-
     /// @dev Indicates the contract has been initialized
     uint8 internal _initialized;
 

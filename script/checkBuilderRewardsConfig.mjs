@@ -53,7 +53,7 @@ function castCall(address, signature, rpcAlias) {
   } catch (error) {
     const details = error?.stderr?.toString()?.trim() || error?.message || "unknown error";
     throw new Error(
-      `cast call failed (address=${address}, signature=${signature}, rpcAlias=${rpcAlias}): ${details}`
+      `cast call failed (address=${address}, signature=${signature}, rpcAlias=${rpcAlias}): ${details}`,
     );
   }
 }
@@ -97,7 +97,7 @@ function run() {
     const aliasChain = configByAlias[cfg.alias];
     if (aliasChain.chainId !== chainId) {
       console.error(
-        `[${chainId}] ${cfg.label}: RPC alias '${cfg.alias}' resolves to chain ${aliasChain.chainId} — skipping to prevent wrong-chain write.`
+        `[${chainId}] ${cfg.label}: RPC alias '${cfg.alias}' resolves to chain ${aliasChain.chainId} — skipping to prevent wrong-chain write.`,
       );
       continue;
     }
@@ -168,7 +168,7 @@ function run() {
         onchainRecipient || "<unavailable>"
       } status=${recipientStatus}${
         recipientReason ? ` (${recipientReason})` : ""
-      } bps(builder/referral)=${bpsOutput}${bpsReason ? ` (${bpsReason})` : ""}`
+      } bps(builder/referral)=${bpsOutput}${bpsReason ? ` (${bpsReason})` : ""}`,
     );
   }
 

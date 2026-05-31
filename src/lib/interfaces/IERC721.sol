@@ -8,7 +8,6 @@ interface IERC721 {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a token is transferred from sender to recipient
     /// @param from The sender address
     /// @param to The recipient address
@@ -82,30 +81,17 @@ interface IERC721 {
     /// @param to The recipient address
     /// @param tokenId The ERC-721 token id
     /// @param data The additional data sent in the call to the recipient
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes calldata data
-    ) external;
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external;
 
     /// @notice Safe transfers a token from sender to recipient
     /// @param from The sender address
     /// @param to The recipient address
     /// @param tokenId The ERC-721 token id
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) external;
+    function safeTransferFrom(address from, address to, uint256 tokenId) external;
 
     /// @notice Transfers a token from sender to recipient
     /// @param from The sender address
     /// @param to The recipient address
     /// @param tokenId The ERC-721 token id
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) external;
+    function transferFrom(address from, address to, uint256 tokenId) external;
 }

@@ -3,7 +3,7 @@ pragma solidity 0.8.35;
 
 import { ManagerTypesV1 } from "../types/ManagerTypesV1.sol";
 
-/// @notice Manager Storage V1
+/// @title Manager Storage V1
 /// @author Rohan Kulkarni
 /// @notice The Manager storage contract
 contract ManagerStorageV1 is ManagerTypesV1 {

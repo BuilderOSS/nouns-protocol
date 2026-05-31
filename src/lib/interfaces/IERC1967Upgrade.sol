@@ -8,7 +8,6 @@ interface IERC1967Upgrade {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when the implementation is upgraded
     /// @param impl The address of the implementation
     event Upgraded(address impl);

@@ -14,19 +14,27 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a proposal is created
+    /// @param proposalId The proposal ID
+    /// @param targets The target addresses
+    /// @param values The ETH values
+    /// @param calldatas The calldata payloads
+    /// @param description The proposal description
+    /// @param descriptionHash The hash of the description
+    /// @param proposal The proposal struct
     event ProposalCreated(
-        bytes32 proposalId,
-        address[] targets,
-        uint256[] values,
-        bytes[] calldatas,
-        string description,
-        bytes32 descriptionHash,
-        Proposal proposal
+        bytes32 proposalId, address[] targets, uint256[] values, bytes[] calldatas, string description, bytes32 descriptionHash, Proposal proposal
     );
 
     /// @notice Emitted when a proposal is updated and replaced with a new id
+    /// @param oldProposalId The old proposal ID
+    /// @param newProposalId The new proposal ID
+    /// @param proposer The proposer address
+    /// @param targets The target addresses
+    /// @param values The ETH values
+    /// @param calldatas The calldata payloads
+    /// @param description The proposal description
+    /// @param updateMessage The update message
     event ProposalUpdated(
         bytes32 oldProposalId,
         bytes32 newProposalId,
@@ -39,9 +47,13 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     );
 
     /// @notice Emitted when proposal signers are set on signed proposal creation
+    /// @param proposalId The proposal ID
+    /// @param signers The signer addresses
     event ProposalSignersSet(bytes32 proposalId, address[] signers);
 
     /// @notice Emitted when a proposal is queued
+    /// @param proposalId The proposal ID
+    /// @param eta The execution timestamp
     event ProposalQueued(bytes32 proposalId, uint256 eta);
 
     /// @notice Emitted when a proposal is executed
@@ -49,33 +61,54 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     event ProposalExecuted(bytes32 proposalId);
 
     /// @notice Emitted when a proposal is canceled
+    /// @param proposalId The proposal ID
     event ProposalCanceled(bytes32 proposalId);
 
     /// @notice Emitted when a proposal is vetoed
+    /// @param proposalId The proposal ID
     event ProposalVetoed(bytes32 proposalId);
 
     /// @notice Emitted when a vote is cast for a proposal
+    /// @param voter The voter address
+    /// @param proposalId The proposal ID
+    /// @param support The vote support (0=against, 1=for, 2=abstain)
+    /// @param weight The vote weight
+    /// @param reason The vote reason
     event VoteCast(address voter, bytes32 proposalId, uint256 support, uint256 weight, string reason);
 
     /// @notice Emitted when the governor's voting delay is updated
+    /// @param prevVotingDelay The previous voting delay
+    /// @param newVotingDelay The new voting delay
     event VotingDelayUpdated(uint256 prevVotingDelay, uint256 newVotingDelay);
 
     /// @notice Emitted when the governor's voting period is updated
+    /// @param prevVotingPeriod The previous voting period
+    /// @param newVotingPeriod The new voting period
     event VotingPeriodUpdated(uint256 prevVotingPeriod, uint256 newVotingPeriod);
 
     /// @notice Emitted when the basis points of the governor's proposal threshold is updated
+    /// @param prevBps The previous basis points
+    /// @param newBps The new basis points
     event ProposalThresholdBpsUpdated(uint256 prevBps, uint256 newBps);
 
     /// @notice Emitted when the basis points of the governor's quorum votes is updated
+    /// @param prevBps The previous basis points
+    /// @param newBps The new basis points
     event QuorumVotesBpsUpdated(uint256 prevBps, uint256 newBps);
 
     //// @notice Emitted when the governor's vetoer is updated
+    /// @param prevVetoer The previous vetoer address
+    /// @param newVetoer The new vetoer address
     event VetoerUpdated(address prevVetoer, address newVetoer);
 
     /// @notice Emitted when the governor's delay is updated
+    /// @param prevTimestamp The previous timestamp
+    /// @param newTimestamp The new timestamp
     event DelayedGovernanceExpirationTimestampUpdated(uint256 prevTimestamp, uint256 newTimestamp);
 
     /// @notice Emitted when proposal updatable period is updated
+    /// @param prevProposalUpdatablePeriod The previous updatable period
+    /// @param newProposalUpdatablePeriod The new updatable period
     event ProposalUpdatablePeriodUpdated(uint256 prevProposalUpdatablePeriod, uint256 newProposalUpdatablePeriod);
 
     ///                                                          ///
@@ -197,14 +230,16 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @param values The ETH values of each call
     /// @param calldatas The calldata of each call
     /// @param description The proposal description
-    function propose(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        string memory description
-    ) external returns (bytes32);
+    function propose(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, string memory description)
+        external
+        returns (bytes32);
 
     /// @notice Creates a proposal from msg.sender backed by offchain signer sponsorships
+    /// @param proposerSignatures The proposer signatures
+    /// @param targets The target addresses to call
+    /// @param values The ETH values of each call
+    /// @param calldatas The calldata of each call
+    /// @param description The proposal description
     function proposeBySigs(
         ProposerSignature[] memory proposerSignatures,
         address[] memory targets,
@@ -214,6 +249,12 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     ) external returns (bytes32);
 
     /// @notice Updates an existing proposal during updatable period
+    /// @param proposalId The proposal ID to update
+    /// @param targets The target addresses to call
+    /// @param values The ETH values of each call
+    /// @param calldatas The calldata of each call
+    /// @param description The proposal description
+    /// @param updateMessage The update message
     function updateProposal(
         bytes32 proposalId,
         address[] memory targets,
@@ -224,6 +265,13 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     ) external returns (bytes32);
 
     /// @notice Updates a signed proposal with signer approvals
+    /// @param proposalId The proposal ID to update
+    /// @param proposerSignatures The proposer signatures
+    /// @param targets The target addresses to call
+    /// @param values The ETH values of each call
+    /// @param calldatas The calldata of each call
+    /// @param description The proposal description
+    /// @param updateMessage The update message
     function updateProposalBySigs(
         bytes32 proposalId,
         ProposerSignature[] memory proposerSignatures,
@@ -243,11 +291,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @param proposalId The proposal id
     /// @param support The support value (0 = Against, 1 = For, 2 = Abstain)
     /// @param reason The vote reason
-    function castVoteWithReason(
-        bytes32 proposalId,
-        uint256 support,
-        string memory reason
-    ) external returns (uint256);
+    function castVoteWithReason(bytes32 proposalId, uint256 support, string memory reason) external returns (uint256);
 
     /// @notice Casts a signed vote
     /// @param voter The voter address
@@ -256,17 +300,13 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @param nonce The expected vote signature nonce
     /// @param deadline The signature deadline
     /// @param sig The EIP-712 signature bytes
-    function castVoteBySig(
-        address voter,
-        bytes32 proposalId,
-        uint256 support,
-        uint256 nonce,
-        uint256 deadline,
-        bytes calldata sig
-    ) external returns (uint256);
+    function castVoteBySig(address voter, bytes32 proposalId, uint256 support, uint256 nonce, uint256 deadline, bytes calldata sig)
+        external
+        returns (uint256);
 
     /// @notice Queues a proposal
     /// @param proposalId The proposal id
+    /// @return eta The execution timestamp
     function queue(bytes32 proposalId) external returns (uint256 eta);
 
     /// @notice Executes a proposal
@@ -275,13 +315,10 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @param calldatas The calldata of each call
     /// @param descriptionHash The hash of the description
     /// @param proposer The proposal creator
-    function execute(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash,
-        address proposer
-    ) external payable returns (bytes32);
+    function execute(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash, address proposer)
+        external
+        payable
+        returns (bytes32);
 
     /// @notice Cancels a proposal
     /// @param proposalId The proposal id
@@ -328,14 +365,10 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
 
     /// @notice The vote counts for a proposal
     /// @param proposalId The proposal id
-    function proposalVotes(bytes32 proposalId)
-        external
-        view
-        returns (
-            uint256 againstVotes,
-            uint256 forVotes,
-            uint256 abstainVotes
-        );
+    /// @return againstVotes The number of votes against
+    /// @return forVotes The number of votes for
+    /// @return abstainVotes The number of abstain votes
+    function proposalVotes(bytes32 proposalId) external view returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes);
 
     /// @notice The timestamp valid to execute a proposal
     /// @param proposalId The proposal id

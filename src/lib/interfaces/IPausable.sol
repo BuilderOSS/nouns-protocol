@@ -8,7 +8,6 @@ interface IPausable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when the contract is paused
     /// @param user The address that paused the contract
     event Paused(address user);

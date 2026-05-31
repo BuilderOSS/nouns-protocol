@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 /// @title GovernorStorageV3
+/// @author Builder Protocol
 /// @notice Additional Governor storage for signed proposal flows and updates
 contract GovernorStorageV3 {
     /// @notice The amount of time proposals remain updatable after creation
@@ -19,5 +20,4 @@ contract GovernorStorageV3 {
 
     /// @notice Mapping from previous proposal id to replacement id created by update
     mapping(bytes32 => bytes32) public proposalIdReplacedBy;
-
 }

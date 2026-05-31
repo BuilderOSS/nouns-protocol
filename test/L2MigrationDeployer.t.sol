@@ -128,10 +128,7 @@ contract L2MigrationDeployerTest is NounsBuilderTest {
 
     function setMinterParams() internal {
         minterParams = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 200,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.1 ether,
-            merkleRoot: hex"00"
+            mintStart: 200, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.1 ether, merkleRoot: hex"00"
         });
     }
 
@@ -194,14 +191,14 @@ contract L2MigrationDeployerTest is NounsBuilderTest {
     function test_ResetDeployment() external {
         deploy();
 
-        (address token, , ) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
+        (address token,,) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
 
         assertEq(token, address(token));
 
         vm.prank(address(xDomainMessenger));
         deployer.resetDeployment();
 
-        (address newToken, , ) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
+        (address newToken,,) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
 
         assertEq(newToken, address(0));
     }

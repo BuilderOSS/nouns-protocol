@@ -14,7 +14,6 @@ abstract contract EIP712 is IEIP712, Initializable {
     ///                                                          ///
     ///                          CONSTANTS                       ///
     ///                                                          ///
-
     /// @dev The EIP-712 domain typehash
     bytes32 internal constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 

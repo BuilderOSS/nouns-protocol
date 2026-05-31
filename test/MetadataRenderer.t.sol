@@ -152,10 +152,10 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
 
     function test_ContractURI() public {
         /**
-            base64 -d
-            eyJuYW1lIjogIk1vY2sgVG9rZW4iLCJkZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGEgbW9jayB0b2tlbiIsImltYWdlIjogImlwZnM6Ly9RbWV3N1RkeUduajZZUlVqUVI2OHNVSk4zMjM5TVlYUkQ4dXhvd3hGNnJHSzhqIiwiZXh0ZXJuYWxfdXJsIjogImh0dHBzOi8vbm91bnMuYnVpbGQifQ==
-            {"name": "Mock Token","description": "This is a mock token","image": "ipfs://Qmew7TdyGnj6YRUjQR68sUJN3239MYXRD8uxowxF6rGK8j","external_url": "https://nouns.build"}
-        */
+         *     base64 -d
+         *     eyJuYW1lIjogIk1vY2sgVG9rZW4iLCJkZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGEgbW9jayB0b2tlbiIsImltYWdlIjogImlwZnM6Ly9RbWV3N1RkeUduajZZUlVqUVI2OHNVSk4zMjM5TVlYUkQ4dXhvd3hGNnJHSzhqIiwiZXh0ZXJuYWxfdXJsIjogImh0dHBzOi8vbm91bnMuYnVpbGQifQ==
+         *     {"name": "Mock Token","description": "This is a mock token","image": "ipfs://Qmew7TdyGnj6YRUjQR68sUJN3239MYXRD8uxowxF6rGK8j","external_url": "https://nouns.build"}
+         */
         assertEq(
             token.contractURI(),
             "data:application/json;base64,eyJuYW1lIjogIk1vY2sgVG9rZW4iLCJkZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGEgbW9jayB0b2tlbiIsImltYWdlIjogImlwZnM6Ly9RbWV3N1RkeUduajZZUlVqUVI2OHNVSk4zMjM5TVlYUkQ4dXhvd3hGNnJHSzhqIiwiZXh0ZXJuYWxfdXJsIjogImh0dHBzOi8vbm91bnMuYnVpbGQifQ=="
@@ -195,28 +195,26 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
         MetadataRendererTypesV2.AdditionalTokenProperty[] memory additionalTokenProperties = new MetadataRendererTypesV2.AdditionalTokenProperty[](2);
         additionalTokenProperties[0] = MetadataRendererTypesV2.AdditionalTokenProperty({ key: "testing", value: "HELLO", quote: true });
         additionalTokenProperties[1] = MetadataRendererTypesV2.AdditionalTokenProperty({
-            key: "participationAgreement",
-            value: "This is a JSON quoted participation agreement.",
-            quote: true
+            key: "participationAgreement", value: "This is a JSON quoted participation agreement.", quote: true
         });
         vm.prank(founder);
         metadataRenderer.setAdditionalTokenProperties(additionalTokenProperties);
 
         /**
-            Token URI additional properties result:
-
-            {
-                "name": "Mock Token #0",
-                "description": "This is a mock token",
-                "image": "http://localhost:5000/render?contractAddress=0xb5795e66c5af21ad8e42e91a375f8c10e2f64cfa&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json",
-                "properties": {
-                    "mock-property": "mock-item"
-                },
-                "testing": "HELLO",
-                "participationAgreement": "This is a JSON quoted participation agreement."
-            }
-        
-        */
+         *     Token URI additional properties result:
+         *
+         *     {
+         *         "name": "Mock Token #0",
+         *         "description": "This is a mock token",
+         *         "image": "http://localhost:5000/render?contractAddress=0xb5795e66c5af21ad8e42e91a375f8c10e2f64cfa&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json",
+         *         "properties": {
+         *             "mock-property": "mock-item"
+         *         },
+         *         "testing": "HELLO",
+         *         "participationAgreement": "This is a JSON quoted participation agreement."
+         *     }
+         *
+         */
 
         string memory json = Base64URIDecoder.decodeURI("data:application/json;base64,", token.tokenURI(0));
 
@@ -250,9 +248,7 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
         MetadataRendererTypesV2.AdditionalTokenProperty[] memory additionalTokenProperties = new MetadataRendererTypesV2.AdditionalTokenProperty[](2);
         additionalTokenProperties[0] = MetadataRendererTypesV2.AdditionalTokenProperty({ key: "testing", value: "HELLO", quote: true });
         additionalTokenProperties[1] = MetadataRendererTypesV2.AdditionalTokenProperty({
-            key: "participationAgreement",
-            value: "This is a JSON quoted participation agreement.",
-            quote: true
+            key: "participationAgreement", value: "This is a JSON quoted participation agreement.", quote: true
         });
         vm.prank(founder);
         metadataRenderer.setAdditionalTokenProperties(additionalTokenProperties);
@@ -298,9 +294,7 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
         MetadataRendererTypesV2.AdditionalTokenProperty[] memory additionalTokenProperties = new MetadataRendererTypesV2.AdditionalTokenProperty[](2);
         additionalTokenProperties[0] = MetadataRendererTypesV2.AdditionalTokenProperty({ key: "testing", value: "HELLO", quote: true });
         additionalTokenProperties[1] = MetadataRendererTypesV2.AdditionalTokenProperty({
-            key: "participationAgreement",
-            value: "This is a JSON quoted participation agreement.",
-            quote: true
+            key: "participationAgreement", value: "This is a JSON quoted participation agreement.", quote: true
         });
         vm.prank(founder);
         metadataRenderer.setAdditionalTokenProperties(additionalTokenProperties);
@@ -356,15 +350,15 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
         token.mint();
 
         /**
-        TokenURI Result Pretty JSON:
-        {
-            "name": "Mock Token #0",
-            "description": "This is a mock token",
-            "image": "http://localhost:5000/render?contractAddress=0xa37a694f029389d5167808761c1b62fcef775288&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json",
-            "properties": {
-                "mock-property": "mock-item"
-            }
-        }
+         * TokenURI Result Pretty JSON:
+         * {
+         *     "name": "Mock Token #0",
+         *     "description": "This is a mock token",
+         *     "image": "http://localhost:5000/render?contractAddress=0xa37a694f029389d5167808761c1b62fcef775288&tokenId=0&images=https%3a%2f%2fnouns.build%2fapi%2ftest%2fmock-property%2fmock-item.json",
+         *     "properties": {
+         *         "mock-property": "mock-item"
+         *     }
+         * }
          */
 
         string memory json = Base64URIDecoder.decodeURI("data:application/json;base64,", token.tokenURI(0));

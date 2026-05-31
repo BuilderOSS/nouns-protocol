@@ -10,7 +10,6 @@ abstract contract Pausable is IPausable, Initializable {
     ///                                                          ///
     ///                            STORAGE                       ///
     ///                                                          ///
-
     /// @dev If the contract is paused
     bool internal _paused;
 

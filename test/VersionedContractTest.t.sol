@@ -4,7 +4,7 @@ pragma solidity 0.8.35;
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
 import { VersionedContract } from "../src/VersionedContract.sol";
 
-contract MockVersionedContract is VersionedContract {}
+contract MockVersionedContract is VersionedContract { }
 
 contract VersionedContractTest is NounsBuilderTest {
     string expectedVersion = "2.1.0";
