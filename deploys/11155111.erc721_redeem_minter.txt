@@ -1,1 +1,1 @@
-ERC721 Redeem Minter: 0xaefd4a9ea072abb12f043f5b2b2d845b7600c503
+ERC721 Redeem Minter: 0x9f43615c1e6c79dd96ebe82345093e05b9bd13e7
