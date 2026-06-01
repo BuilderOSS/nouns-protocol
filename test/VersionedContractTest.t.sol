@@ -7,7 +7,7 @@ import { VersionedContract } from "../src/VersionedContract.sol";
 contract MockVersionedContract is VersionedContract { }
 
 contract VersionedContractTest is NounsBuilderTest {
-    string expectedVersion = "2.1.0";
+    string expectedVersion = "3.0.0";
 
     function test_Version() public {
         MockVersionedContract mockContract = new MockVersionedContract();
@@ -25,9 +25,8 @@ contract VersionedContractTest is NounsBuilderTest {
         assertEq(governor.contractVersion(), expectedVersion);
     }
 
-    // TODO: fix test - breaks with newer foundry version
-    // function test_NPMPackageVersion() public {
-    //     string memory packageVersion = abi.decode(vm.parseJson(vm.readFile("package.json"), "version"), (string));
-    //     assertEq(packageVersion, expectedVersion);
-    // }
+    function test_NPMPackageVersion() public {
+        string memory packageVersion = abi.decode(vm.parseJson(vm.readFile("package.json"), "version"), (string));
+        assertEq(packageVersion, expectedVersion);
+    }
 }

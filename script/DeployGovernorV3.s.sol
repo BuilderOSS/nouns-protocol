@@ -8,7 +8,7 @@ import { IManager } from "../src/manager/IManager.sol";
 import { Manager } from "../src/manager/Manager.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 
-contract DeployGovernorV210 is Script {
+contract DeployGovernorV3 is Script {
     using Strings for uint256;
 
     string configFile;
@@ -39,16 +39,14 @@ contract DeployGovernorV210 is Script {
         vm.startBroadcast(deployerAddress);
 
         address newGovernorImpl = address(new Governor(managerProxy));
-        Manager(managerProxy).registerUpgrade(oldGovernorImpl, newGovernorImpl);
 
         vm.stopBroadcast();
 
-        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version2_1_0_governor.txt"));
+        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version3_governor.txt"));
 
         vm.writeFile(filePath, "");
         vm.writeLine(filePath, string(abi.encodePacked("Old Governor implementation: ", addressToString(oldGovernorImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("New Governor implementation: ", addressToString(newGovernorImpl))));
-        vm.writeLine(filePath, string(abi.encodePacked("Manager proxy: ", addressToString(managerProxy))));
 
         console2.log("~~~~~~~~~~ NEW GOVERNOR IMPL ~~~~~~~~~~~");
         console2.logAddress(newGovernorImpl);
