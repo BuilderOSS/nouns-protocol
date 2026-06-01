@@ -53,19 +53,24 @@ contract PurpleTests is Test {
     }
 
     function test_purpleUpgrade() public {
+        uint256 proposalTime = block.timestamp;
+
         vm.prank(fawkes);
         bytes32 proposalId = governor.propose(targets, values, calldatas, "");
 
-        vm.warp(block.timestamp + 3 days);
+        uint256 voteTime = proposalTime + 3 days;
+        vm.warp(voteTime);
         vm.prank(fawkes);
         governor.castVote(proposalId, 1);
         vm.prank(0x8700B87C2A053BDE8Cdc84d5078B4AE47c127FeB);
         governor.castVote(proposalId, 1);
 
-        vm.warp(block.timestamp + 4 days);
+        uint256 queueTime = voteTime + 4 days;
+        vm.warp(queueTime);
         governor.queue(proposalId);
 
-        vm.warp(block.timestamp + 3 days);
+        uint256 executeTime = queueTime + 3 days;
+        vm.warp(executeTime);
         governor.execute(targets, values, calldatas, keccak256(""), fawkes);
     }
 }
