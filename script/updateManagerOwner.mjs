@@ -99,7 +99,7 @@ function run() {
     } catch (error) {
       const details = error?.stderr?.toString()?.trim() || error?.message || "unknown error";
       console.log(
-        `[${chainId}] ${cfg.label}: failed to read owner (manager=${manager}, rpcAlias=${cfg.alias}): ${details}`
+        `[${chainId}] ${cfg.label}: failed to read owner (manager=${manager}, rpcAlias=${cfg.alias}): ${details}`,
       );
       continue;
     }
@@ -123,7 +123,7 @@ function run() {
   }
 
   console.log(
-    `\nChecked ${checked} chain(s), ${changed} change(s)${write ? " written" : " detected"}.`
+    `\nChecked ${checked} chain(s), ${changed} change(s)${write ? " written" : " detected"}.`,
   );
   if (!write && changed > 0) {
     process.exitCode = 1;

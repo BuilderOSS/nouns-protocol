@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { Token } from "../../../token/Token.sol";
 import { Treasury } from "../../treasury/Treasury.sol";
@@ -54,6 +54,13 @@ interface GovernorTypesV1 {
         bool vetoed;
     }
 
+    struct ProposerSignature {
+        address signer;
+        uint256 nonce;
+        uint256 deadline;
+        bytes sig;
+    }
+
     /// @notice The proposal state type
     enum ProposalState {
         Pending,
@@ -64,6 +71,8 @@ interface GovernorTypesV1 {
         Queued,
         Expired,
         Executed,
-        Vetoed
+        Vetoed,
+        Updatable,
+        Replaced
     }
 }

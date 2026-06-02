@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
 
@@ -58,10 +58,9 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         address f2Wallet = address(0x2);
         address f3Wallet = address(0x3);
 
-        vm.assume(f1Percentage > 0 && f1Percentage < 100);
-        vm.assume(f2Percentage > 0 && f2Percentage < 100);
-        vm.assume(f3Percentage > 0 && f3Percentage < 100);
-        vm.assume(f1Percentage + f2Percentage + f3Percentage < 99);
+        f1Percentage = bound(f1Percentage, 1, 32);
+        f2Percentage = bound(f2Percentage, 1, 32);
+        f3Percentage = bound(f3Percentage, 1, 32);
 
         address[] memory founders = new address[](3);
         uint256[] memory percents = new uint256[](3);
@@ -345,7 +344,7 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         assertEq(token.getVotes(founder), 1);
         assertEq(token.delegates(founder), founder);
 
-        (uint256 nextTokenId, , , , , ) = auction.auction();
+        (uint256 nextTokenId,,,,,) = auction.auction();
 
         vm.deal(founder, 1 ether);
 
@@ -433,13 +432,8 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         deployMock();
 
         vm.assume(
-            newMinter != nonMinter &&
-                newMinter != founder &&
-                newMinter != address(0) &&
-                newMinter != address(auction) &&
-                nonMinter != founder &&
-                nonMinter != address(0) &&
-                nonMinter != address(auction)
+            newMinter != nonMinter && newMinter != founder && newMinter != address(0) && newMinter != address(auction) && nonMinter != founder
+                && nonMinter != address(0) && nonMinter != address(auction)
         );
         vm.assume(nonMinter != founder && nonMinter != address(0) && nonMinter != address(auction));
 
@@ -482,13 +476,8 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         deployMock();
 
         vm.assume(
-            newMinter != nonMinter &&
-                newMinter != founder &&
-                newMinter != address(0) &&
-                newMinter != address(auction) &&
-                recipient != address(0) &&
-                amount > 0 &&
-                amount < 100
+            newMinter != nonMinter && newMinter != founder && newMinter != address(0) && newMinter != address(auction) && recipient != address(0)
+                && amount > 0 && amount < 100
         );
         vm.assume(nonMinter != founder && nonMinter != address(0) && nonMinter != address(auction));
 
@@ -632,16 +621,10 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         deployMock();
 
         IManager.FounderParams[] memory newFoundersArr = new IManager.FounderParams[](2);
-        newFoundersArr[0] = IManager.FounderParams({
-            wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3),
-            ownershipPct: 0,
-            vestExpiry: 2556057600
-        });
-        newFoundersArr[1] = IManager.FounderParams({
-            wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3),
-            ownershipPct: 10,
-            vestExpiry: 2556057600
-        });
+        newFoundersArr[0] =
+            IManager.FounderParams({ wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3), ownershipPct: 0, vestExpiry: 2556057600 });
+        newFoundersArr[1] =
+            IManager.FounderParams({ wallet: address(0x06B59d0b6AdCc6A5Dc63553782750dc0b41266a3), ownershipPct: 10, vestExpiry: 2556057600 });
 
         vm.prank(address(founder));
         token.updateFounders(newFoundersArr);
@@ -656,10 +639,9 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
         address f2Wallet = address(0x2);
         address f3Wallet = address(0x3);
 
-        vm.assume(f1Percentage > 0 && f1Percentage < 100);
-        vm.assume(f2Percentage > 0 && f2Percentage < 100);
-        vm.assume(f3Percentage > 0 && f3Percentage < 100);
-        vm.assume(f1Percentage + f2Percentage + f3Percentage < 99);
+        f1Percentage = bound(f1Percentage, 1, 32);
+        f2Percentage = bound(f2Percentage, 1, 32);
+        f3Percentage = bound(f3Percentage, 1, 32);
 
         address[] memory founders = new address[](3);
         uint256[] memory percents = new uint256[](3);
@@ -867,10 +849,13 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
     }
 
     function test_SingleMintCannotMintReserves(address _minter, uint256 _reservedUntilTokenId) public {
-        deployAltMock(_reservedUntilTokenId);
+        _reservedUntilTokenId = bound(_reservedUntilTokenId, 1, 255);
+        _minter = address(uint160(bound(uint160(_minter), 1, type(uint160).max)));
+        if (_minter == founder || _minter == address(auction)) {
+            _minter = address(uint160(_minter) + 1);
+        }
 
-        vm.assume(_minter != founder && _minter != address(0) && _minter != address(auction));
-        vm.assume(_reservedUntilTokenId > 0 && _reservedUntilTokenId < 4000);
+        deployAltMock(_reservedUntilTokenId);
 
         TokenTypesV2.MinterParams[] memory minters = new TokenTypesV2.MinterParams[](1);
         TokenTypesV2.MinterParams memory p1 = TokenTypesV2.MinterParams({ minter: _minter, allowed: true });
@@ -891,10 +876,14 @@ contract TokenTest is NounsBuilderTest, TokenTypesV1 {
     }
 
     function test_BatchMintCannotMintReserves(address _minter, uint256 _reservedUntilTokenId, uint256 _amount) public {
-        deployAltMock(_reservedUntilTokenId);
+        _reservedUntilTokenId = bound(_reservedUntilTokenId, 1, 255);
+        _amount = bound(_amount, 1, 19);
+        _minter = address(uint160(bound(uint160(_minter), 1, type(uint160).max)));
+        if (_minter == founder || _minter == address(auction)) {
+            _minter = address(uint160(_minter) + 1);
+        }
 
-        vm.assume(_minter != founder && _minter != address(0) && _minter != address(auction));
-        vm.assume(_reservedUntilTokenId > 0 && _reservedUntilTokenId < 4000 && _amount > 0 && _amount < 20);
+        deployAltMock(_reservedUntilTokenId);
 
         TokenTypesV2.MinterParams[] memory minters = new TokenTypesV2.MinterParams[](1);
         TokenTypesV2.MinterParams memory p1 = TokenTypesV2.MinterParams({ minter: _minter, allowed: true });

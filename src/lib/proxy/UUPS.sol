@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IUUPS } from "../interfaces/IUUPS.sol";
 import { ERC1967Upgrade } from "./ERC1967Upgrade.sol";
@@ -13,7 +13,6 @@ abstract contract UUPS is IUUPS, ERC1967Upgrade {
     ///                                                          ///
     ///                          IMMUTABLES                      ///
     ///                                                          ///
-
     /// @dev The address of the implementation
     address private immutable __self = address(this);
 

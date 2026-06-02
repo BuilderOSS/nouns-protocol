@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title IEIP712
 /// @author Rohan Kulkarni
@@ -8,7 +8,6 @@ interface IEIP712 {
     ///                                                          ///
     ///                            ERRORS                        ///
     ///                                                          ///
-
     /// @dev Reverts if the deadline has passed to submit a signature
     error EXPIRED_SIGNATURE();
 

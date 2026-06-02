@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IOwnable } from "../../lib/utils/Ownable.sol";
 import { IUUPS } from "../../lib/interfaces/IUUPS.sol";
@@ -11,20 +11,30 @@ interface ITreasury is IUUPS, IOwnable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a transaction is scheduled
+    /// @param proposalId The proposal ID
+    /// @param timestamp The scheduled execution timestamp
     event TransactionScheduled(bytes32 proposalId, uint256 timestamp);
 
     /// @notice Emitted when a transaction is canceled
+    /// @param proposalId The proposal ID
     event TransactionCanceled(bytes32 proposalId);
 
     /// @notice Emitted when a transaction is executed
+    /// @param proposalId The proposal ID
+    /// @param targets The target addresses
+    /// @param values The ETH values
+    /// @param payloads The calldata payloads
     event TransactionExecuted(bytes32 proposalId, address[] targets, uint256[] values, bytes[] payloads);
 
     /// @notice Emitted when the transaction delay is updated
+    /// @param prevDelay The previous delay
+    /// @param newDelay The new delay
     event DelayUpdated(uint256 prevDelay, uint256 newDelay);
 
     /// @notice Emitted when the grace period is updated
+    /// @param prevGracePeriod The previous grace period
+    /// @param newGracePeriod The new grace period
     event GracePeriodUpdated(uint256 prevGracePeriod, uint256 newGracePeriod);
 
     ///                                                          ///
@@ -81,6 +91,7 @@ interface ITreasury is IUUPS, IOwnable {
 
     /// @notice Schedules a proposal for execution
     /// @param proposalId The proposal id
+    /// @return eta The execution timestamp
     function queue(bytes32 proposalId) external returns (uint256 eta);
 
     /// @notice Removes a queued proposal
@@ -93,13 +104,9 @@ interface ITreasury is IUUPS, IOwnable {
     /// @param calldatas The calldata of each call
     /// @param descriptionHash The hash of the description
     /// @param proposer The proposal creator
-    function execute(
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata calldatas,
-        bytes32 descriptionHash,
-        address proposer
-    ) external payable;
+    function execute(address[] calldata targets, uint256[] calldata values, bytes[] calldata calldatas, bytes32 descriptionHash, address proposer)
+        external
+        payable;
 
     /// @notice The time delay to execute a queued transaction
     function delay() external view returns (uint256);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { UUPS } from "../../lib/proxy/UUPS.sol";
 import { Ownable } from "../../lib/utils/Ownable.sol";
@@ -15,7 +15,7 @@ import { VersionedContract } from "../../VersionedContract.sol";
 /// @title Treasury
 /// @author Rohan Kulkarni
 /// @notice A DAO's treasury and transaction executor
-/// @custom:repo github.com/ourzora/nouns-protocol 
+/// @custom:repo github.com/ourzora/nouns-protocol
 /// Modified from:
 /// - OpenZeppelin Contracts v4.7.3 (governance/TimelockController.sol)
 /// - NounsDAOExecutor.sol commit 2cbe6c7 - licensed under the BSD-3-Clause license.
@@ -23,7 +23,6 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
     ///                                                          ///
     ///                         CONSTANTS                        ///
     ///                                                          ///
-
     /// @notice The default grace period setting
     uint128 private constant INITIAL_GRACE_PERIOD = 2 weeks;
 
@@ -38,6 +37,7 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
     ///                         CONSTRUCTOR                      ///
     ///                                                          ///
 
+    /// @notice Initializes the treasury with the manager address
     /// @param _manager The contract upgrade manager address
     constructor(address _manager) payable initializer {
         manager = IManager(_manager);
@@ -105,6 +105,7 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
 
     /// @notice Schedules a proposal for execution
     /// @param _proposalId The proposal id
+    /// @return eta The execution timestamp
     function queue(bytes32 _proposalId) external onlyOwner returns (uint256 eta) {
         // Ensure the proposal was not already queued
         if (isQueued(_proposalId)) revert PROPOSAL_ALREADY_QUEUED();
@@ -155,7 +156,7 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
             // For each target:
             for (uint256 i = 0; i < numTargets; ++i) {
                 // Execute the transaction
-                (bool success, ) = _targets[i].call{ value: _values[i] }(_calldatas[i]);
+                (bool success,) = _targets[i].call{ value: _values[i] }(_calldatas[i]);
 
                 // Ensure the transaction succeeded
                 if (!success) revert EXECUTION_FAILED(i);
@@ -227,40 +228,23 @@ contract Treasury is ITreasury, VersionedContract, UUPS, Ownable, ProposalHasher
     ///                        RECEIVE TOKENS                    ///
     ///                                                          ///
 
-    /// @dev Accepts all ERC-721 transfers
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes memory
-    ) public pure returns (bytes4) {
+    /// @notice Accepts all ERC-721 transfers
+    function onERC721Received(address, address, uint256, bytes memory) public pure returns (bytes4) {
         return ERC721TokenReceiver.onERC721Received.selector;
     }
 
-    /// @dev Accepts all ERC-1155 single id transfers
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes memory
-    ) public pure returns (bytes4) {
+    /// @notice Accepts all ERC-1155 single id transfers
+    function onERC1155Received(address, address, uint256, uint256, bytes memory) public pure returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155Received.selector;
     }
 
-    /// @dev Accept all ERC-1155 batch id transfers
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] memory,
-        uint256[] memory,
-        bytes memory
-    ) public pure returns (bytes4) {
+    /// @notice Accept all ERC-1155 batch id transfers
+    function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory) public pure returns (bytes4) {
         return ERC1155TokenReceiver.onERC1155BatchReceived.selector;
     }
 
-    /// @dev Accepts ETH transfers
-    receive() external payable {}
+    /// @notice Accepts ETH transfers
+    receive() external payable { }
 
     ///                                                          ///
     ///                       TREASURY UPGRADE                   ///

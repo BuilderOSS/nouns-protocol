@@ -1,0 +1,12 @@
+# Exclude Solidity files - formatted with forge fmt
+*.sol
+
+# Artifacts and build outputs
+dist/
+out/
+cache/
+artifacts/
+node_modules/
+
+# Git
+.git/

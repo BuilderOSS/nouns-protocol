@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { TreasuryTypesV1 } from "../types/TreasuryTypesV1.sol";
 
-/// @notice TreasuryStorageV1
+/// @title TreasuryStorageV1
 /// @author Rohan Kulkarni
 /// @notice The Treasury storage contract
 contract TreasuryStorageV1 is TreasuryTypesV1 {

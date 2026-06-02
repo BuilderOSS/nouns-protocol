@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { UUPS } from "../../lib/proxy/UUPS.sol";
 import { Ownable } from "../../lib/utils/Ownable.sol";
 import { EIP712 } from "../../lib/utils/EIP712.sol";
 import { SafeCast } from "../../lib/utils/SafeCast.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import { GovernorStorageV1 } from "./storage/GovernorStorageV1.sol";
 import { GovernorStorageV2 } from "./storage/GovernorStorageV2.sol";
+import { GovernorStorageV3 } from "./storage/GovernorStorageV3.sol";
 import { Token } from "../../token/Token.sol";
 import { Treasury } from "../treasury/Treasury.sol";
 import { IManager } from "../../manager/IManager.sol";
@@ -22,13 +24,19 @@ import { VersionedContract } from "../../VersionedContract.sol";
 /// Modified from:
 /// - OpenZeppelin Contracts v4.7.3 (governance/extensions/GovernorTimelockControl.sol)
 /// - NounsDAOLogicV1.sol commit 2cbe6c7 - licensed under the BSD-3-Clause license.
-contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, ProposalHasher, GovernorStorageV1, GovernorStorageV2 {
+contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, ProposalHasher, GovernorStorageV1, GovernorStorageV2, GovernorStorageV3 {
     ///                                                          ///
     ///                         IMMUTABLES                       ///
     ///                                                          ///
-
     /// @notice The EIP-712 typehash to vote with a signature
-    bytes32 public immutable VOTE_TYPEHASH = keccak256("Vote(address voter,uint256 proposalId,uint256 support,uint256 nonce,uint256 deadline)");
+    bytes32 public immutable VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 proposalId,uint256 support,uint256 nonce,uint256 deadline)");
+
+    /// @notice The EIP-712 typehash to sponsor proposal submission
+    bytes32 public immutable PROPOSAL_TYPEHASH = keccak256("Proposal(address proposer,bytes32 proposalId,uint256 nonce,uint256 deadline)");
+
+    /// @notice The EIP-712 typehash to sponsor proposal update
+    bytes32 public immutable UPDATE_PROPOSAL_TYPEHASH =
+        keccak256("UpdateProposal(bytes32 proposalId,bytes32 updatedProposalId,address proposer,uint256 nonce,uint256 deadline)");
 
     /// @notice The minimum proposal threshold bps setting
     uint256 public immutable MIN_PROPOSAL_THRESHOLD_BPS = 1;
@@ -54,6 +62,15 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice The maximum voting period setting
     uint256 public immutable MAX_VOTING_PERIOD = 24 weeks;
 
+    /// @notice The maximum proposal updatable period setting
+    uint256 public immutable MAX_PROPOSAL_UPDATABLE_PERIOD = 24 weeks;
+
+    /// @notice The default period a newly-created proposal is editable
+    uint256 public immutable DEFAULT_PROPOSAL_UPDATABLE_PERIOD = 1 days;
+
+    /// @notice The maximum number of signer sponsors allowed per proposal
+    uint256 public immutable MAX_PROPOSAL_SIGNERS = 16;
+
     /// @notice The maximum delayed governance expiration setting
     uint256 public immutable MAX_DELAYED_GOVERNANCE_EXPIRATION = 30 days;
 
@@ -67,6 +84,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     ///                         CONSTRUCTOR                      ///
     ///                                                          ///
 
+    /// @notice Initializes the governor with the manager address
     /// @param _manager The contract upgrade manager address
     constructor(address _manager) payable initializer {
         manager = IManager(_manager);
@@ -104,8 +122,9 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (_vetoer != address(0)) settings.vetoer = _vetoer;
 
         // Ensure the specified governance settings are valid
-        if (_proposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _proposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS)
+        if (_proposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _proposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS) {
             revert INVALID_PROPOSAL_THRESHOLD_BPS();
+        }
         if (_quorumThresholdBps < MIN_QUORUM_THRESHOLD_BPS || _quorumThresholdBps > MAX_QUORUM_THRESHOLD_BPS) revert INVALID_QUORUM_THRESHOLD_BPS();
         if (_proposalThresholdBps >= _quorumThresholdBps) revert INVALID_PROPOSAL_THRESHOLD_BPS();
         if (_votingDelay < MIN_VOTING_DELAY || _votingDelay > MAX_VOTING_DELAY) revert INVALID_VOTING_DELAY();
@@ -118,6 +137,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         settings.votingPeriod = SafeCast.toUint48(_votingPeriod);
         settings.proposalThresholdBps = SafeCast.toUint16(_proposalThresholdBps);
         settings.quorumThresholdBps = SafeCast.toUint16(_quorumThresholdBps);
+        _proposalUpdatablePeriod = uint48(DEFAULT_PROPOSAL_UPDATABLE_PERIOD);
 
         // Initialize EIP-712 support
         __EIP712_init(string.concat(settings.token.symbol(), " GOV"), "1");
@@ -135,12 +155,10 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _values The ETH values of each call
     /// @param _calldatas The calldata of each call
     /// @param _description The proposal description
-    function propose(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description
-    ) external returns (bytes32) {
+    function propose(address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas, string memory _description)
+        external
+        returns (bytes32)
+    {
         // Ensure governance is not delayed or all reserved tokens have been minted
         if (block.timestamp < delayedGovernanceExpirationTimestamp && settings.token.remainingTokensInReserve() > 0) {
             revert WAITING_FOR_TOKENS_TO_CLAIM_OR_EXPIRATION();
@@ -157,50 +175,121 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
             }
         }
 
-        // Cache the number of targets
-        uint256 numTargets = _targets.length;
+        _validateProposalArrays(_targets, _values, _calldatas);
 
-        // Ensure at least one target exists
-        if (numTargets == 0) revert PROPOSAL_TARGET_MISSING();
+        return _createProposal(_targets, _values, _calldatas, _description, msg.sender, currentProposalThreshold);
+    }
 
-        // Ensure the number of targets matches the number of values and calldata
-        if (numTargets != _values.length) revert PROPOSAL_LENGTH_MISMATCH();
-        if (numTargets != _calldatas.length) revert PROPOSAL_LENGTH_MISMATCH();
+    /// @notice Creates a proposal backed by signer approvals
+    /// @param _proposerSignatures The proposer signatures
+    /// @param _targets The target addresses to call
+    /// @param _values The ETH values of each call
+    /// @param _calldatas The calldata of each call
+    /// @param _description The proposal description
+    function proposeBySigs(
+        ProposerSignature[] memory _proposerSignatures,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description
+    ) external returns (bytes32) {
+        if (_proposerSignatures.length == 0) revert MUST_PROVIDE_SIGNATURES();
+        if (_proposerSignatures.length > MAX_PROPOSAL_SIGNERS) revert TOO_MANY_SIGNERS();
 
-        // Compute the description hash
-        bytes32 descriptionHash = keccak256(bytes(_description));
-
-        // Compute the proposal id
-        bytes32 proposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, msg.sender);
-
-        // Get the pointer to store the proposal
-        Proposal storage proposal = proposals[proposalId];
-
-        // Ensure the proposal doesn't already exist
-        if (proposal.voteStart != 0) revert PROPOSAL_EXISTS(proposalId);
-
-        // Used to store the snapshot and deadline
-        uint256 snapshot;
-        uint256 deadline;
-
-        // Cannot realistically overflow
-        unchecked {
-            // Compute the snapshot and deadline
-            snapshot = block.timestamp + settings.votingDelay;
-            deadline = snapshot + settings.votingPeriod;
+        // Ensure governance is not delayed or all reserved tokens have been minted
+        if (block.timestamp < delayedGovernanceExpirationTimestamp && settings.token.remainingTokensInReserve() > 0) {
+            revert WAITING_FOR_TOKENS_TO_CLAIM_OR_EXPIRATION();
         }
 
-        // Store the proposal data
-        proposal.voteStart = SafeCast.toUint32(snapshot);
-        proposal.voteEnd = SafeCast.toUint32(deadline);
-        proposal.proposalThreshold = SafeCast.toUint32(currentProposalThreshold);
-        proposal.quorumVotes = SafeCast.toUint32(quorum());
-        proposal.proposer = msg.sender;
-        proposal.timeCreated = SafeCast.toUint32(block.timestamp);
+        _validateProposalArrays(_targets, _values, _calldatas);
 
-        emit ProposalCreated(proposalId, _targets, _values, _calldatas, _description, descriptionHash, proposal);
+        address proposer = msg.sender;
+        bytes32 proposalId = hashProposal(_targets, _values, _calldatas, keccak256(bytes(_description)), proposer);
+        (uint256 votes, address[] memory signers) = _validateProposerSignaturesAndGetVotes(proposer, proposalId, _proposerSignatures);
+
+        uint256 currentProposalThreshold = proposalThreshold();
+        if (votes <= currentProposalThreshold) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
+
+        proposalId = _createProposal(_targets, _values, _calldatas, _description, proposer, currentProposalThreshold);
+
+        address[] storage proposalSignersList = proposalSigners[proposalId];
+        uint256 signersLen = signers.length;
+        for (uint256 i; i < signersLen; ++i) {
+            proposalSignersList.push(signers[i]);
+        }
+
+        emit ProposalSignersSet(proposalId, signers);
 
         return proposalId;
+    }
+
+    /// @notice Updates an existing proposal during updatable period
+    /// @param _proposalId The proposal ID
+    /// @param _targets The target addresses
+    /// @param _values The ETH values
+    /// @param _calldatas The calldatas
+    /// @param _description The proposal description
+    /// @param _updateMessage The message explaining the update
+    function updateProposal(
+        bytes32 _proposalId,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description,
+        string memory _updateMessage
+    ) external returns (bytes32) {
+        _checkCanUpdateProposal(_proposalId);
+        _validateProposalArrays(_targets, _values, _calldatas);
+
+        // Reject signed proposals - they must use updateProposalBySigs.
+        // This guard is intentionally stricter than the one in _updateProposalBySigsInternal:
+        // updateProposalBySigs can be called with zero signatures when the original proposal
+        // was unsigned (proposer-only re-hash), but updateProposal never accepts previously
+        // signed proposals.
+        if (proposalSigners[_proposalId].length > 0) {
+            revert SIGNED_PROPOSAL_MUST_USE_SIGNATURES();
+        }
+
+        Proposal memory oldProposal = proposals[_proposalId];
+
+        // updateProposal (without signatures) creates an unsigned replacement proposal,
+        // so pass an empty signer array to avoid carrying over old approvals
+        address[] memory emptySigners = new address[](0);
+        bytes32 descriptionHash = keccak256(bytes(_description));
+        bytes32 newProposalId = _replaceProposalCore(_proposalId, oldProposal, _targets, _values, _calldatas, descriptionHash, emptySigners);
+
+        emit ProposalUpdated(_proposalId, newProposalId, msg.sender, _targets, _values, _calldatas, _description, _updateMessage);
+
+        return newProposalId;
+    }
+
+    /// @notice Updates a signed proposal with signer approvals
+    /// @param _proposalId The proposal ID
+    /// @param _proposerSignatures The proposer signatures
+    /// @param _targets The target addresses
+    /// @param _values The ETH values
+    /// @param _calldatas The calldatas
+    /// @param _description The proposal description
+    /// @param _updateMessage The message explaining the update
+    function updateProposalBySigs(
+        bytes32 _proposalId,
+        ProposerSignature[] memory _proposerSignatures,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description,
+        string memory _updateMessage
+    ) external returns (bytes32) {
+        // Check signer count limit early to fail fast before signature validation
+        if (_proposerSignatures.length > MAX_PROPOSAL_SIGNERS) revert TOO_MANY_SIGNERS();
+
+        address proposer = msg.sender;
+
+        bytes32 newProposalId = _updateProposalBySigsInternal(_proposalId, proposer, _proposerSignatures, _targets, _values, _calldatas, _description);
+
+        emit ProposalUpdated(_proposalId, newProposalId, msg.sender, _targets, _values, _calldatas, _description, _updateMessage);
+
+        return newProposalId;
     }
 
     ///                                                          ///
@@ -218,11 +307,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _proposalId The proposal id
     /// @param _support The support value (0 = Against, 1 = For, 2 = Abstain)
     /// @param _reason The vote reason
-    function castVoteWithReason(
-        bytes32 _proposalId,
-        uint256 _support,
-        string memory _reason
-    ) external returns (uint256) {
+    function castVoteWithReason(bytes32 _proposalId, uint256 _support, string memory _reason) external returns (uint256) {
         return _castVote(_proposalId, msg.sender, _support, _reason);
     }
 
@@ -230,56 +315,35 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _voter The voter address
     /// @param _proposalId The proposal id
     /// @param _support The support value (0 = Against, 1 = For, 2 = Abstain)
+    /// @param _nonce The expected nonce for the voter signature
     /// @param _deadline The signature deadline
-    /// @param _v The 129th byte and chain id of the signature
-    /// @param _r The first 64 bytes of the signature
-    /// @param _s Bytes 64-128 of the signature
-    function castVoteBySig(
-        address _voter,
-        bytes32 _proposalId,
-        uint256 _support,
-        uint256 _deadline,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    ) external returns (uint256) {
+    /// @param _sig The full EIP-712 signature bytes
+    function castVoteBySig(address _voter, bytes32 _proposalId, uint256 _support, uint256 _nonce, uint256 _deadline, bytes calldata _sig)
+        external
+        returns (uint256)
+    {
         // Ensure the deadline has not passed
         if (block.timestamp > _deadline) revert EXPIRED_SIGNATURE();
 
-        // Used to store the signed digest
-        bytes32 digest;
+        uint256 expectedNonce = nonces[_voter];
+        if (_nonce != expectedNonce) revert INVALID_SIGNATURE_NONCE();
 
-        // Cannot realistically overflow
-        unchecked {
-            // Compute the message
-            digest = keccak256(
-                abi.encodePacked(
-                    "\x19\x01",
-                    DOMAIN_SEPARATOR(),
-                    keccak256(abi.encode(VOTE_TYPEHASH, _voter, _proposalId, _support, nonces[_voter]++, _deadline))
-                )
-            );
-        }
+        bytes32 structHash = keccak256(abi.encode(VOTE_TYPEHASH, _voter, _proposalId, _support, _nonce, _deadline));
+        bytes32 digest = _hashTypedData(structHash);
 
-        // Recover the message signer
-        address recoveredAddress = ecrecover(digest, _v, _r, _s);
+        if (!SignatureChecker.isValidSignatureNow(_voter, digest, _sig)) revert INVALID_SIGNATURE();
 
-        // Ensure the recovered signer is the given voter
-        if (recoveredAddress == address(0) || recoveredAddress != _voter) revert INVALID_SIGNATURE();
+        nonces[_voter] = expectedNonce + 1;
 
         return _castVote(_proposalId, _voter, _support, "");
     }
 
-    /// @dev Stores a vote
+    /// @notice Stores a vote
     /// @param _proposalId The proposal id
     /// @param _voter The voter address
     /// @param _support The vote choice
-    function _castVote(
-        bytes32 _proposalId,
-        address _voter,
-        uint256 _support,
-        string memory _reason
-    ) internal returns (uint256) {
+    /// @param _reason The vote reason
+    function _castVote(bytes32 _proposalId, address _voter, uint256 _support, string memory _reason) internal returns (uint256) {
         // Ensure voting is active
         if (state(_proposalId) != ProposalState.Active) revert VOTING_NOT_STARTED();
 
@@ -331,6 +395,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     /// @notice Queues a proposal
     /// @param _proposalId The proposal id
+    /// @return eta The execution timestamp
     function queue(bytes32 _proposalId) external returns (uint256 eta) {
         // Ensure the proposal has succeeded
         if (state(_proposalId) != ProposalState.Succeeded) revert PROPOSAL_UNSUCCESSFUL();
@@ -382,17 +447,47 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice Cancels a proposal
     /// @param _proposalId The proposal id
     function cancel(bytes32 _proposalId) external {
-        // Ensure the proposal hasn't been executed
-        if (state(_proposalId) == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
+        // Ensure the proposal is in a live state (can only cancel active proposals)
+        ProposalState currentState = state(_proposalId);
+        if (currentState == ProposalState.Executed) {
+            revert PROPOSAL_ALREADY_EXECUTED();
+        }
+        if (currentState == ProposalState.Canceled || currentState == ProposalState.Replaced || currentState == ProposalState.Vetoed) {
+            revert PROPOSAL_IN_TERMINAL_STATE();
+        }
 
         // Get a copy of the proposal
         Proposal memory proposal = proposals[_proposalId];
 
-        // Cannot realistically underflow and `getVotes` would revert
-        unchecked {
-            // Ensure the caller is the proposer or the proposer's voting weight has dropped below the proposal threshold
-            if (msg.sender != proposal.proposer && getVotes(proposal.proposer, block.timestamp - 1) >= proposal.proposalThreshold)
-                revert INVALID_CANCEL();
+        // First check if caller is the proposer or a signer - if so, they can always cancel
+        // This optimization skips the expensive getVotes() loop in the common case
+        bool msgSenderIsProposerOrSigner = msg.sender == proposal.proposer;
+        address[] storage signers = proposalSigners[_proposalId];
+        uint256 signersLen = signers.length;
+
+        if (!msgSenderIsProposerOrSigner) {
+            // Check if caller is one of the signers
+            for (uint256 i; i < signersLen; ++i) {
+                if (msg.sender == signers[i]) {
+                    msgSenderIsProposerOrSigner = true;
+                    break;
+                }
+            }
+        }
+
+        // If caller is NOT the proposer or a signer, check if backing votes have dropped below threshold
+        if (!msgSenderIsProposerOrSigner) {
+            // Calculate combined voting power of proposer + all signers
+            // Note: Vote accumulation cannot realistically overflow as total supply is bound by token design
+            // and getVotes would revert on invalid timestamps. The threshold comparison below cannot
+            // underflow as proposalThreshold is always <= total supply.
+            uint256 votes = getVotes(proposal.proposer, block.timestamp - 1);
+            for (uint256 i; i < signersLen; ++i) {
+                votes += getVotes(signers[i], block.timestamp - 1);
+            }
+
+            // If backing votes are still above threshold, caller cannot cancel
+            if (votes >= proposal.proposalThreshold) revert INVALID_CANCEL();
         }
 
         // Update the proposal as canceled
@@ -417,8 +512,12 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         // Ensure the caller is the vetoer
         if (msg.sender != settings.vetoer) revert ONLY_VETOER();
 
-        // Ensure the proposal has not been executed
-        if (state(_proposalId) == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
+        // Ensure the proposal is in a live state
+        ProposalState currentState = state(_proposalId);
+        if (currentState == ProposalState.Executed) revert PROPOSAL_ALREADY_EXECUTED();
+        if (currentState == ProposalState.Canceled || currentState == ProposalState.Replaced || currentState == ProposalState.Vetoed) {
+            revert PROPOSAL_IN_TERMINAL_STATE();
+        }
 
         // Get the pointer to the proposal
         Proposal storage proposal = proposals[_proposalId];
@@ -454,11 +553,19 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
             // Else if the proposal was canceled:
         } else if (proposal.canceled) {
+            // Check if this was a replacement (updated proposal)
+            if (proposalIdReplacedBy[_proposalId] != bytes32(0)) {
+                return ProposalState.Replaced;
+            }
             return ProposalState.Canceled;
 
             // Else if the proposal was vetoed:
         } else if (proposal.vetoed) {
             return ProposalState.Vetoed;
+
+            // Else if proposal is still in updatable period:
+        } else if (block.timestamp < proposalUpdatePeriodEnds[_proposalId]) {
+            return ProposalState.Updatable;
 
             // Else if voting has not started:
         } else if (block.timestamp < proposal.voteStart) {
@@ -513,6 +620,18 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         return proposals[_proposalId];
     }
 
+    /// @notice The signers that sponsored a signed proposal
+    /// @param _proposalId The proposal id
+    function getProposalSigners(bytes32 _proposalId) external view returns (address[] memory) {
+        return proposalSigners[_proposalId];
+    }
+
+    /// @notice The timestamp until which proposal updates are allowed
+    /// @param _proposalId The proposal id
+    function proposalUpdatePeriodEnd(bytes32 _proposalId) external view returns (uint256) {
+        return proposalUpdatePeriodEnds[_proposalId];
+    }
+
     /// @notice The timestamp when voting starts for a proposal
     /// @param _proposalId The proposal id
     function proposalSnapshot(bytes32 _proposalId) external view returns (uint256) {
@@ -527,15 +646,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
 
     /// @notice The vote counts for a proposal
     /// @param _proposalId The proposal id
-    function proposalVotes(bytes32 _proposalId)
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
+    function proposalVotes(bytes32 _proposalId) external view returns (uint256, uint256, uint256) {
         Proposal memory proposal = proposals[_proposalId];
 
         return (proposal.againstVotes, proposal.forVotes, proposal.abstainVotes);
@@ -569,6 +680,17 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice The amount of time to vote on a proposal
     function votingPeriod() external view returns (uint256) {
         return settings.votingPeriod;
+    }
+
+    /// @notice The amount of time a proposal is editable after creation
+    function proposalUpdatablePeriod() external view returns (uint256) {
+        return _proposalUpdatablePeriod;
+    }
+
+    /// @notice The current proposal-signature nonce for an account
+    /// @param _account The signer address
+    function proposeSignatureNonce(address _account) external view returns (uint256) {
+        return proposeSigNonces[_account];
     }
 
     /// @notice The address eligible to veto any proposal (address(0) if burned)
@@ -610,13 +732,22 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         settings.votingPeriod = uint48(_newVotingPeriod);
     }
 
+    /// @notice Updates the proposal updatable period
+    /// @param _newProposalUpdatablePeriod The new proposal updatable period
+    function updateProposalUpdatablePeriod(uint256 _newProposalUpdatablePeriod) external onlyOwner {
+        if (_newProposalUpdatablePeriod > MAX_PROPOSAL_UPDATABLE_PERIOD) revert INVALID_PROPOSAL_UPDATABLE_PERIOD();
+
+        emit ProposalUpdatablePeriodUpdated(_proposalUpdatablePeriod, _newProposalUpdatablePeriod);
+
+        _proposalUpdatablePeriod = uint48(_newProposalUpdatablePeriod);
+    }
+
     /// @notice Updates the minimum proposal threshold
     /// @param _newProposalThresholdBps The new proposal threshold basis points
     function updateProposalThresholdBps(uint256 _newProposalThresholdBps) external onlyOwner {
         if (
-            _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS ||
-            _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS ||
-            _newProposalThresholdBps >= settings.quorumThresholdBps
+            _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
+                || _newProposalThresholdBps >= settings.quorumThresholdBps
         ) revert INVALID_PROPOSAL_THRESHOLD_BPS();
 
         emit ProposalThresholdBpsUpdated(settings.proposalThresholdBps, _newProposalThresholdBps);
@@ -628,9 +759,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _newQuorumVotesBps The new quorum votes basis points
     function updateQuorumThresholdBps(uint256 _newQuorumVotesBps) external onlyOwner {
         if (
-            _newQuorumVotesBps < MIN_QUORUM_THRESHOLD_BPS ||
-            _newQuorumVotesBps > MAX_QUORUM_THRESHOLD_BPS ||
-            settings.proposalThresholdBps >= _newQuorumVotesBps
+            _newQuorumVotesBps < MIN_QUORUM_THRESHOLD_BPS || _newQuorumVotesBps > MAX_QUORUM_THRESHOLD_BPS
+                || settings.proposalThresholdBps >= _newQuorumVotesBps
         ) revert INVALID_QUORUM_THRESHOLD_BPS();
 
         emit QuorumVotesBpsUpdated(settings.quorumThresholdBps, _newQuorumVotesBps);
@@ -677,6 +807,215 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         emit VetoerUpdated(settings.vetoer, address(0));
 
         delete settings.vetoer;
+    }
+
+    function _createProposal(
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description,
+        address _proposer,
+        uint256 _proposalThreshold
+    ) internal returns (bytes32 proposalId) {
+        bytes32 descriptionHash = keccak256(bytes(_description));
+        proposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, _proposer);
+
+        Proposal storage proposal = proposals[proposalId];
+        if (proposal.voteStart != 0) revert PROPOSAL_EXISTS(proposalId);
+
+        uint256 snapshot;
+        uint256 deadline;
+        uint256 updatePeriodEnd;
+
+        unchecked {
+            updatePeriodEnd = block.timestamp + _proposalUpdatablePeriod;
+            snapshot = updatePeriodEnd + settings.votingDelay;
+            deadline = snapshot + settings.votingPeriod;
+        }
+
+        proposal.voteStart = SafeCast.toUint32(snapshot);
+        proposal.voteEnd = SafeCast.toUint32(deadline);
+        proposal.proposalThreshold = SafeCast.toUint32(_proposalThreshold);
+        proposal.quorumVotes = SafeCast.toUint32(quorum());
+        proposal.proposer = _proposer;
+        proposal.timeCreated = SafeCast.toUint32(block.timestamp);
+
+        proposalUpdatePeriodEnds[proposalId] = SafeCast.toUint32(updatePeriodEnd);
+
+        emit ProposalCreated(proposalId, _targets, _values, _calldatas, _description, descriptionHash, proposal);
+    }
+
+    function _validateProposalArrays(address[] memory _targets, uint256[] memory _values, bytes[] memory _calldatas) internal pure {
+        uint256 numTargets = _targets.length;
+        if (numTargets == 0) revert PROPOSAL_TARGET_MISSING();
+        if (numTargets != _values.length || numTargets != _calldatas.length) revert PROPOSAL_LENGTH_MISMATCH();
+    }
+
+    function _checkCanUpdateProposal(bytes32 _proposalId) internal view {
+        if (state(_proposalId) != ProposalState.Updatable) revert CAN_ONLY_EDIT_UPDATABLE_PROPOSALS();
+        if (msg.sender != proposals[_proposalId].proposer) revert ONLY_PROPOSER_CAN_EDIT();
+    }
+
+    /// @dev Core replacement logic shared by both update paths
+    function _replaceProposalCore(
+        bytes32 _oldProposalId,
+        Proposal memory _oldProposal,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        bytes32 _descriptionHash,
+        address[] memory _signers
+    ) internal returns (bytes32 newProposalId) {
+        newProposalId = hashProposal(_targets, _values, _calldatas, _descriptionHash, _oldProposal.proposer);
+
+        if (newProposalId == _oldProposalId) {
+            revert NO_OP_PROPOSAL_UPDATE();
+        }
+
+        if (proposals[newProposalId].voteStart != 0) revert PROPOSAL_EXISTS(newProposalId);
+
+        Proposal storage newProposal = proposals[newProposalId];
+
+        // Copy proposal metadata and timing from old proposal
+        newProposal.proposer = _oldProposal.proposer;
+        // IMPORTANT: timeCreated is deliberately preserved from the original proposal.
+        // This keeps the voting power snapshot frozen at the original creation time,
+        // even when the proposal is updated. Voters vote against the snapshot taken
+        // when the proposal was first created, NOT when it was updated.
+        newProposal.timeCreated = _oldProposal.timeCreated;
+        // Note: Vote counts are not copied since they should always be zero before Voting Period
+        newProposal.voteStart = _oldProposal.voteStart;
+        newProposal.voteEnd = _oldProposal.voteEnd;
+        newProposal.proposalThreshold = _oldProposal.proposalThreshold;
+        newProposal.quorumVotes = _oldProposal.quorumVotes;
+
+        proposalUpdatePeriodEnds[newProposalId] = proposalUpdatePeriodEnds[_oldProposalId];
+
+        // Set signers for new proposal
+        address[] storage newSignersList = proposalSigners[newProposalId];
+        uint256 signersLen = _signers.length;
+        for (uint256 i; i < signersLen; ++i) {
+            newSignersList.push(_signers[i]);
+        }
+
+        proposals[_oldProposalId].canceled = true;
+        proposalIdReplacedBy[_oldProposalId] = newProposalId;
+    }
+
+    function _updateProposalBySigsInternal(
+        bytes32 _proposalId,
+        address _proposer,
+        ProposerSignature[] memory _proposerSignatures,
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description
+    ) internal returns (bytes32) {
+        if (_proposer == address(0)) revert ADDRESS_ZERO();
+        _checkCanUpdateProposal(_proposalId);
+        _validateProposalArrays(_targets, _values, _calldatas);
+
+        Proposal memory oldProposal = proposals[_proposalId];
+
+        if (oldProposal.proposer != _proposer) revert ONLY_PROPOSER_CAN_EDIT();
+
+        // Only originally signed proposals must continue using signatures.
+        // For originally unsigned proposals, updateProposalBySigs may be called with zero
+        // signatures as a proposer-only update path that still uses the signed-update hash.
+        if (proposalSigners[_proposalId].length > 0 && _proposerSignatures.length == 0) revert MUST_PROVIDE_SIGNATURES();
+
+        bytes32 descriptionHash = keccak256(bytes(_description));
+        bytes32 updatedProposalId = hashProposal(_targets, _values, _calldatas, descriptionHash, _proposer);
+
+        // Validate new signatures and collect votes (signers can be different from original)
+        (uint256 totalVotes, address[] memory newSigners) =
+            _validateUpdateSignaturesAndGetVotes(_proposalId, updatedProposalId, _proposer, _proposerSignatures);
+
+        if (totalVotes <= proposalThreshold()) revert VOTES_BELOW_PROPOSAL_THRESHOLD();
+
+        bytes32 newProposalId = _replaceProposalCore(_proposalId, oldProposal, _targets, _values, _calldatas, descriptionHash, newSigners);
+
+        emit ProposalSignersSet(newProposalId, newSigners);
+
+        return newProposalId;
+    }
+
+    function _verifyProposeSignature(address _proposer, bytes32 _proposalId, ProposerSignature memory _proposerSignature) internal {
+        if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
+        if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
+
+        bytes32 structHash = keccak256(abi.encode(PROPOSAL_TYPEHASH, _proposer, _proposalId, _proposerSignature.nonce, _proposerSignature.deadline));
+        bytes32 digest = _hashTypedData(structHash);
+
+        if (!SignatureChecker.isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) {
+            revert INVALID_SIGNATURE();
+        }
+
+        proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
+    }
+
+    function _verifyUpdateSignature(bytes32 _proposalId, bytes32 _updatedProposalId, address _proposer, ProposerSignature memory _proposerSignature)
+        internal
+    {
+        if (block.timestamp > _proposerSignature.deadline) revert EXPIRED_SIGNATURE();
+        if (_proposerSignature.nonce != proposeSigNonces[_proposerSignature.signer]) revert INVALID_SIGNATURE_NONCE();
+
+        bytes32 structHash = keccak256(
+            abi.encode(UPDATE_PROPOSAL_TYPEHASH, _proposalId, _updatedProposalId, _proposer, _proposerSignature.nonce, _proposerSignature.deadline)
+        );
+        bytes32 digest = _hashTypedData(structHash);
+
+        if (!SignatureChecker.isValidSignatureNow(_proposerSignature.signer, digest, _proposerSignature.sig)) {
+            revert INVALID_SIGNATURE();
+        }
+
+        proposeSigNonces[_proposerSignature.signer] = _proposerSignature.nonce + 1;
+    }
+
+    function _validateProposerSignaturesAndGetVotes(address _proposer, bytes32 _proposalId, ProposerSignature[] memory _proposerSignatures)
+        internal
+        returns (uint256 votes, address[] memory signers)
+    {
+        votes = getVotes(_proposer, block.timestamp - 1);
+        signers = new address[](_proposerSignatures.length);
+
+        for (uint256 i = 0; i < _proposerSignatures.length; ++i) {
+            ProposerSignature memory proposerSignature = _proposerSignatures[i];
+
+            if (proposerSignature.signer == _proposer) revert PROPOSER_CANNOT_BE_SIGNER();
+            if (i > 0 && proposerSignature.signer <= _proposerSignatures[i - 1].signer) revert INVALID_SIGNATURE_ORDER();
+
+            _verifyProposeSignature(_proposer, _proposalId, proposerSignature);
+
+            signers[i] = proposerSignature.signer;
+            votes += getVotes(proposerSignature.signer, block.timestamp - 1);
+        }
+    }
+
+    function _validateUpdateSignaturesAndGetVotes(
+        bytes32 _oldProposalId,
+        bytes32 _newProposalId,
+        address _proposer,
+        ProposerSignature[] memory _proposerSignatures
+    ) internal returns (uint256 votes, address[] memory signers) {
+        votes = getVotes(_proposer, block.timestamp - 1);
+        signers = new address[](_proposerSignatures.length);
+
+        for (uint256 i = 0; i < _proposerSignatures.length; ++i) {
+            ProposerSignature memory proposerSignature = _proposerSignatures[i];
+
+            if (proposerSignature.signer == _proposer) revert PROPOSER_CANNOT_BE_SIGNER();
+            if (i > 0 && proposerSignature.signer <= _proposerSignatures[i - 1].signer) revert INVALID_SIGNATURE_ORDER();
+
+            _verifyUpdateSignature(_oldProposalId, _newProposalId, _proposer, proposerSignature);
+
+            signers[i] = proposerSignature.signer;
+            votes += getVotes(proposerSignature.signer, block.timestamp - 1);
+        }
+    }
+
+    function _hashTypedData(bytes32 _structHash) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), _structHash));
     }
 
     ///                                                          ///

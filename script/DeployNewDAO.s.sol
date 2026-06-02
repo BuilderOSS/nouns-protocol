@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.35;
 
 import "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -37,34 +37,17 @@ contract SetupDaoScript is Script {
         vm.startBroadcast(deployerAddress);
 
         bytes memory initStrings = abi.encode(
-            "Test 999",
-            "TST",
-            "This is the desc",
-            "https://contract-image.png",
-            "https://project-uri.json",
-            "https://renderer.com/render"
+            "Test 999", "TST", "This is the desc", "https://contract-image.png", "https://project-uri.json", "https://renderer.com/render"
         );
 
-        IManager.TokenParams memory tokenParams = IManager.TokenParams({
-            initStrings: initStrings,
-            metadataRenderer: address(0),
-            reservedUntilTokenId: 10
-        });
+        IManager.TokenParams memory tokenParams =
+            IManager.TokenParams({ initStrings: initStrings, metadataRenderer: address(0), reservedUntilTokenId: 10 });
 
-        IManager.AuctionParams memory auctionParams = IManager.AuctionParams({
-            duration: 24 hours,
-            reservePrice: 0.01 ether,
-            founderRewardRecipent: address(0xB0B),
-            founderRewardBps: 20
-        });
+        IManager.AuctionParams memory auctionParams =
+            IManager.AuctionParams({ duration: 24 hours, reservePrice: 0.01 ether, founderRewardRecipent: address(0xB0B), founderRewardBps: 20 });
 
         IManager.GovParams memory govParams = IManager.GovParams({
-            votingDelay: 2 days,
-            votingPeriod: 2 days,
-            proposalThresholdBps: 50,
-            quorumThresholdBps: 1000,
-            vetoer: address(0),
-            timelockDelay: 2 days
+            votingDelay: 2 days, votingPeriod: 2 days, proposalThresholdBps: 50, quorumThresholdBps: 1000, vetoer: address(0), timelockDelay: 2 days
         });
 
         IManager.FounderParams[] memory founders = new IManager.FounderParams[](1);

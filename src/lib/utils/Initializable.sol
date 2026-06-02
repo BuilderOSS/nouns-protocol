@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IInitializable } from "../interfaces/IInitializable.sol";
 import { Address } from "../utils/Address.sol";
@@ -12,7 +12,6 @@ abstract contract Initializable is IInitializable {
     ///                                                          ///
     ///                           STORAGE                        ///
     ///                                                          ///
-
     /// @dev Indicates the contract has been initialized
     uint8 internal _initialized;
 

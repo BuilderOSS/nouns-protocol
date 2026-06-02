@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IUUPS } from "../lib/interfaces/IUUPS.sol";
 import { IOwnable } from "../lib/interfaces/IOwnable.sol";
@@ -11,7 +11,6 @@ interface IManager is IUUPS, IOwnable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a DAO is deployed
     /// @param token The ERC-721 token address
     /// @param metadata The metadata renderer address
@@ -130,31 +129,25 @@ interface IManager is IUUPS, IOwnable {
     /// @param tokenParams The ERC-721 token settings
     /// @param auctionParams The auction settings
     /// @param govParams The governance settings
+    /// @return token The deployed token address
+    /// @return metadataRenderer The deployed metadata renderer address
+    /// @return auction The deployed auction address
+    /// @return treasury The deployed treasury address
+    /// @return governor The deployed governor address
     function deploy(
         FounderParams[] calldata founderParams,
         TokenParams calldata tokenParams,
         AuctionParams calldata auctionParams,
         GovParams calldata govParams
-    )
-        external
-        returns (
-            address token,
-            address metadataRenderer,
-            address auction,
-            address treasury,
-            address governor
-        );
+    ) external returns (address token, address metadataRenderer, address auction, address treasury, address governor);
 
     /// @notice A DAO's remaining contract addresses from its token address
     /// @param token The ERC-721 token address
-    function getAddresses(address token)
-        external
-        returns (
-            address metadataRenderer,
-            address auction,
-            address treasury,
-            address governor
-        );
+    /// @return metadataRenderer The metadata renderer address
+    /// @return auction The auction address
+    /// @return treasury The treasury address
+    /// @return governor The governor address
+    function getAddresses(address token) external returns (address metadataRenderer, address auction, address treasury, address governor);
 
     /// @notice If an implementation is registered by the Builder DAO as an optional upgrade
     /// @param baseImpl The base implementation address

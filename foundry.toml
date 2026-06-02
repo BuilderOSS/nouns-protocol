@@ -1,13 +1,16 @@
 [profile.default]
-solc_version = '0.8.16'
-fuzz_runs = 500
+solc_version = '0.8.35'
 libs = ['lib']
 optimizer = true
-optimizer_runs = 500000
+optimizer_runs = 200
+via_ir = true
 out = 'dist/artifacts'
 src = 'src'
 test = 'test'
 fs_permissions = [{ access = "read-write", path = "./"}]
+
+[fuzz]
+runs = 500
 
 [fmt]
 bracket_spacing = true

@@ -16,7 +16,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
-  
+
       - name: "Inspect Storage Layout"
         continue-on-error: false
         id: storage-inspect-check

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { UUPS } from "../lib/proxy/UUPS.sol";
 import { Ownable } from "../lib/utils/Ownable.sol";
@@ -25,7 +25,6 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///                                                          ///
     ///                          IMMUTABLES                      ///
     ///                                                          ///
-
     /// @notice The token implementation address
     address public immutable tokenImpl;
 
@@ -87,21 +86,17 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @param _tokenParams The ERC-721 token settings
     /// @param _auctionParams The auction settings
     /// @param _govParams The governance settings
+    /// @return token The deployed token address
+    /// @return metadata The deployed metadata renderer address
+    /// @return auction The deployed auction address
+    /// @return treasury The deployed treasury address
+    /// @return governor The deployed governor address
     function deploy(
         FounderParams[] calldata _founderParams,
         TokenParams calldata _tokenParams,
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams
-    )
-        external
-        returns (
-            address token,
-            address metadata,
-            address auction,
-            address treasury,
-            address governor
-        )
-    {
+    ) external returns (address token, address metadata, address auction, address treasury, address governor) {
         // Used to store the address of the first (or only) founder
         // This founder is responsible for adding token artwork and launching the first auction -- they're also free to transfer this responsiblity
         address founder;
@@ -130,34 +125,37 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         }
 
         // Initialize each instance with the provided settings
-        IToken(token).initialize({
-            founders: _founderParams,
-            initStrings: _tokenParams.initStrings,
-            reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
-            metadataRenderer: metadata,
-            auction: auction,
-            initialOwner: founder
-        });
+        IToken(token)
+            .initialize({
+                founders: _founderParams,
+                initStrings: _tokenParams.initStrings,
+                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
+                metadataRenderer: metadata,
+                auction: auction,
+                initialOwner: founder
+            });
         IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
-        IAuction(auction).initialize({
-            token: token,
-            founder: founder,
-            treasury: treasury,
-            duration: _auctionParams.duration,
-            reservePrice: _auctionParams.reservePrice,
-            founderRewardRecipent: _auctionParams.founderRewardRecipent,
-            founderRewardBps: _auctionParams.founderRewardBps
-        });
+        IAuction(auction)
+            .initialize({
+                token: token,
+                founder: founder,
+                treasury: treasury,
+                duration: _auctionParams.duration,
+                reservePrice: _auctionParams.reservePrice,
+                founderRewardRecipent: _auctionParams.founderRewardRecipent,
+                founderRewardBps: _auctionParams.founderRewardBps
+            });
         ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
-        IGovernor(governor).initialize({
-            treasury: treasury,
-            token: token,
-            vetoer: _govParams.vetoer,
-            votingDelay: _govParams.votingDelay,
-            votingPeriod: _govParams.votingPeriod,
-            proposalThresholdBps: _govParams.proposalThresholdBps,
-            quorumThresholdBps: _govParams.quorumThresholdBps
-        });
+        IGovernor(governor)
+            .initialize({
+                treasury: treasury,
+                token: token,
+                vetoer: _govParams.vetoer,
+                votingDelay: _govParams.votingDelay,
+                votingPeriod: _govParams.votingPeriod,
+                proposalThresholdBps: _govParams.proposalThresholdBps,
+                quorumThresholdBps: _govParams.quorumThresholdBps
+            });
 
         emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
     }
@@ -167,13 +165,11 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///                                                          ///
 
     /// @notice Set a new metadata renderer
+    /// @param _token The token address
     /// @param _newRendererImpl new renderer address to use
     /// @param _setupRenderer data to setup new renderer with
-    function setMetadataRenderer(
-        address _token,
-        address _newRendererImpl,
-        bytes memory _setupRenderer
-    ) external returns (address metadata) {
+    /// @return metadata The deployed metadata renderer address
+    function setMetadataRenderer(address _token, address _newRendererImpl, bytes memory _setupRenderer) external returns (address metadata) {
         if (msg.sender != IOwnable(_token).owner()) {
             revert ONLY_TOKEN_OWNER();
         }
@@ -200,16 +196,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @return auction Auction deployed address
     /// @return treasury Treasury deployed address
     /// @return governor Governor deployed address
-    function getAddresses(address _token)
-        public
-        view
-        returns (
-            address metadata,
-            address auction,
-            address treasury,
-            address governor
-        )
-    {
+    function getAddresses(address _token) public view returns (address metadata, address auction, address treasury, address governor) {
         DAOAddresses storage addresses = daoAddressesByToken[_token];
 
         metadata = addresses.metadata;
@@ -264,25 +251,24 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @return Contract versions if found, empty string if not.
     function getDAOVersions(address token) external view returns (DAOVersionInfo memory) {
         (address metadata, address auction, address treasury, address governor) = getAddresses(token);
-        return
-            DAOVersionInfo({
-                token: _safeGetVersion(token),
-                metadata: _safeGetVersion(metadata),
-                auction: _safeGetVersion(auction),
-                treasury: _safeGetVersion(treasury),
-                governor: _safeGetVersion(governor)
-            });
+        return DAOVersionInfo({
+            token: _safeGetVersion(token),
+            metadata: _safeGetVersion(metadata),
+            auction: _safeGetVersion(auction),
+            treasury: _safeGetVersion(treasury),
+            governor: _safeGetVersion(governor)
+        });
     }
 
+    /// @notice Returns the latest implementation versions
     function getLatestVersions() external view returns (DAOVersionInfo memory) {
-        return
-            DAOVersionInfo({
-                token: _safeGetVersion(tokenImpl),
-                metadata: _safeGetVersion(metadataImpl),
-                auction: _safeGetVersion(auctionImpl),
-                treasury: _safeGetVersion(treasuryImpl),
-                governor: _safeGetVersion(governorImpl)
-            });
+        return DAOVersionInfo({
+            token: _safeGetVersion(tokenImpl),
+            metadata: _safeGetVersion(metadataImpl),
+            auction: _safeGetVersion(auctionImpl),
+            treasury: _safeGetVersion(treasuryImpl),
+            governor: _safeGetVersion(governorImpl)
+        });
     }
 
     ///                                                          ///
@@ -292,5 +278,5 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @notice Ensures the caller is authorized to upgrade the contract
     /// @dev This function is called in `upgradeTo` & `upgradeToAndCall`
     /// @param _newImpl The new implementation address
-    function _authorizeUpgrade(address _newImpl) internal override onlyOwner {}
+    function _authorizeUpgrade(address _newImpl) internal override onlyOwner { }
 }
