@@ -1,2 +1,2 @@
-Merkle Reserve Minter: 0x7abe363c6dd3a4dec6a3311681723f35740f69e7
-Migration Deployer: 0x1e57cad7c22042bd765011d0f2eb36606fe12c3f
+Merkle Reserve Minter: 0xaef554284606f9479a040b1181966826c99029bc
+Migration Deployer: 0xff82604fddae9bdae59bd5bc62d5d265870302ec
