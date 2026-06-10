@@ -4,8 +4,8 @@ pragma solidity ^0.8.35;
 import "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
-import { IManager, Manager } from "../src/manager/Manager.sol";
-import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
+import { Manager } from "../src/manager/Manager.sol";
+import { ERC721RedeemMinter } from "../src/minters/ERC721RedeemMinter.sol";
 import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
 import { L2MigrationDeployer } from "../src/deployers/L2MigrationDeployer.sol";
 
@@ -21,6 +21,7 @@ contract DeployContracts is Script {
     function run() public {
         uint256 chainID = block.chainid;
         uint256 key = vm.envUint("PRIVATE_KEY");
+        bytes32 deploySalt = vm.envBytes32("DEPLOY_SALT");
 
         configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
 
@@ -38,11 +39,23 @@ contract DeployContracts is Script {
         console2.log("~~~~~~~~~~ MANAGER ~~~~~~~~~~~");
         console2.log(managerAddress);
 
+        console2.log("~~~~~~~~~~ DEPLOY SALT ~~~~~~~~~~~");
+        console2.logBytes32(deploySalt);
+
         vm.startBroadcast(deployerAddress);
 
-        address merkleMinter = address(new MerkleReserveMinter(managerAddress, protocolRewards));
+        address merkleMinter =
+            address(new MerkleReserveMinter{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_RESERVE_MINTER")) }(managerAddress, protocolRewards));
 
-        address migrationDeployer = address(new L2MigrationDeployer(managerAddress, merkleMinter, crossDomainMessenger));
+        address redeemMinter =
+            address(new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards));
+
+        address migrationDeployer =
+            address(
+                new L2MigrationDeployer{ salt: _deriveSalt(deploySalt, keccak256("L2_MIGRATION_DEPLOYER")) }(
+                    managerAddress, merkleMinter, crossDomainMessenger
+                )
+            );
 
         vm.stopBroadcast();
 
@@ -50,10 +63,14 @@ contract DeployContracts is Script {
 
         vm.writeFile(filePath, "");
         vm.writeLine(filePath, string(abi.encodePacked("Merkle Reserve Minter: ", addressToString(merkleMinter))));
+        vm.writeLine(filePath, string(abi.encodePacked("ERC721 Redeem Minter: ", addressToString(redeemMinter))));
         vm.writeLine(filePath, string(abi.encodePacked("Migration Deployer: ", addressToString(migrationDeployer))));
 
         console2.log("~~~~~~~~~~ MERKLE RESERVE MINTER ~~~~~~~~~~~");
         console2.logAddress(merkleMinter);
+
+        console2.log("~~~~~~~~~~ ERC721 REDEEM MINTER ~~~~~~~~~~~");
+        console2.logAddress(redeemMinter);
 
         console2.log("~~~~~~~~~~ MIGRATION DEPLOYER ~~~~~~~~~~~");
         console2.logAddress(migrationDeployer);
@@ -74,5 +91,9 @@ contract DeployContracts is Script {
     function char(bytes1 b) private pure returns (bytes1 c) {
         if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
         else return bytes1(uint8(b) + 0x57);
+    }
+
+    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
+        return keccak256(abi.encode(deploySalt, label));
     }
 }

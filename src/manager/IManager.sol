@@ -67,9 +67,23 @@ interface IManager is IUUPS, IOwnable {
         string governor;
     }
 
+    /// @notice The implementation addresses used for deterministic deployment and prediction
+    /// @param token The token implementation address
+    /// @param metadataRenderer The metadata renderer implementation address
+    /// @param auction The auction implementation address
+    /// @param treasury The treasury implementation address
+    /// @param governor The governor implementation address
+    struct ImplementationParams {
+        address token;
+        address metadataRenderer;
+        address auction;
+        address treasury;
+        address governor;
+    }
+
     /// @notice The ERC-721 token parameters
     /// @param initStrings The encoded token name, symbol, collection description, collection image uri, renderer base uri
-    /// @param metadataRenderer The metadata renderer implementation to use
+    /// @param metadataRenderer Deprecated: only honored by legacy deploy(...). Deterministic deployment uses ImplementationParams.metadataRenderer.
     /// @param reservedUntilTokenId The tokenId that a DAO's auctions will start at
     struct TokenParams {
         bytes initStrings;
@@ -124,7 +138,8 @@ interface IManager is IUUPS, IOwnable {
     /// @notice The governor implementation address
     function governorImpl() external view returns (address);
 
-    /// @notice Deploys a DAO with custom token, auction, and governance settings
+    /// @notice Deprecated: deploys a DAO with custom token, auction, and governance settings for backward compatibility only.
+    /// @dev New integrations should use deterministic deployment with explicit ImplementationParams.
     /// @param founderParams The DAO founder(s)
     /// @param tokenParams The ERC-721 token settings
     /// @param auctionParams The auction settings
@@ -140,6 +155,41 @@ interface IManager is IUUPS, IOwnable {
         AuctionParams calldata auctionParams,
         GovParams calldata govParams
     ) external returns (address token, address metadataRenderer, address auction, address treasury, address governor);
+
+    /// @notice Deploys a DAO deterministically using CREATE2 and explicit implementation addresses
+    /// @param founderParams The DAO founder(s)
+    /// @param tokenParams The ERC-721 token settings
+    /// @param auctionParams The auction settings
+    /// @param govParams The governance settings
+    /// @param deploySalt The base salt used to derive per-contract CREATE2 salts
+    /// @param implementationParams The explicit implementation bundle used for deterministic deployment
+    /// @return token The deployed token address
+    /// @return metadataRenderer The deployed metadata renderer address
+    /// @return auction The deployed auction address
+    /// @return treasury The deployed treasury address
+    /// @return governor The deployed governor address
+    function deployDeterministic(
+        FounderParams[] calldata founderParams,
+        TokenParams calldata tokenParams,
+        AuctionParams calldata auctionParams,
+        GovParams calldata govParams,
+        bytes32 deploySalt,
+        ImplementationParams calldata implementationParams
+    ) external returns (address token, address metadataRenderer, address auction, address treasury, address governor);
+
+    /// @notice Predicts deterministic DAO addresses using an explicit implementation bundle
+    /// @param deployer The deployer address used to namespace the deterministic salt
+    /// @param deploySalt The base salt used to derive per-contract CREATE2 salts
+    /// @param implementationParams The explicit implementation bundle used for deterministic prediction
+    /// @return token The predicted token address
+    /// @return metadataRenderer The predicted metadata renderer address
+    /// @return auction The predicted auction address
+    /// @return treasury The predicted treasury address
+    /// @return governor The predicted governor address
+    function predictDeterministicAddresses(address deployer, bytes32 deploySalt, ImplementationParams calldata implementationParams)
+        external
+        view
+        returns (address token, address metadataRenderer, address auction, address treasury, address governor);
 
     /// @notice A DAO's remaining contract addresses from its token address
     /// @param token The ERC-721 token address

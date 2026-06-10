@@ -24,6 +24,10 @@ Minimum env for deploy commands:
 - `NETWORK` (must match one alias above)
 - `PRIVATE_KEY`
 
+Additional env for deterministic CREATE2-based deploy commands:
+
+- `DEPLOY_SALT`
+
 RPC aliases and explorer settings are configured in `foundry.toml` using:
 
 - `[rpc_endpoints]`
@@ -47,6 +51,7 @@ Common env variables used by those sections:
 
 - `yarn deploy:v2-core`
   - Deploy a full fresh v2 core stack (manager proxy + all impls).
+  - Uses CREATE2 salts derived from `DEPLOY_SALT`.
   - Output file: `deploys/<chainid>.version2_core.txt` (from `block.chainid`).
   - Use for new environments, not mainnet upgrade migration.
 
@@ -58,16 +63,22 @@ Common env variables used by those sections:
   - Output file: `deploys/<chainid>.version2_upgrade.txt`.
 
 - `yarn deploy:v2-new`
-  - Deploys MerkleReserveMinter plus L2MigrationDeployer.
+  - Deploys MerkleReserveMinter, ERC721RedeemMinter, and L2MigrationDeployer.
+  - Uses CREATE2 salts derived from `DEPLOY_SALT`.
   - Requires `CrossDomainMessenger` in `addresses/<chainid>.json`.
   - Output file: `deploys/<chainid>.version2_new.txt`.
 
 - `yarn deploy:erc721-redeem-minter`
   - Deploys ERC721 redeem minter only.
+  - Uses CREATE2 salts derived from `DEPLOY_SALT`.
   - Output file: `deploys/<chainid>.erc721_redeem_minter.txt`.
 
 - `yarn deploy:dao`
-  - Runs `DeployNewDAO.s.sol` sample DAO deployment flow.
+  - Runs `DeployNewDAO.s.sol` deterministic DAO deployment flow.
+  - Requires `DEPLOY_SALT`.
+  - Prints the predicted token, metadata, auction, treasury, and governor addresses before broadcast.
+  - Deterministic addresses are tied to the tuple: deployer address, `DEPLOY_SALT`, and the explicit implementation bundle passed to `Manager.deployDeterministic(...)`.
+  - Legacy `Manager.deploy(...)` remains for backward compatibility, but new integrations should use deterministic deploy.
   - Intended for controlled deployment/testing flows.
 
 - `yarn deploy:zora`

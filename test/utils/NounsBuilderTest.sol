@@ -18,6 +18,8 @@ import { WETH } from ".././utils/mocks/WETH.sol";
 import { MockProtocolRewards } from ".././utils/mocks/MockProtocolRewards.sol";
 
 contract NounsBuilderTest is Test {
+    bytes32 internal constant DEFAULT_DEPLOY_SALT = keccak256("DEFAULT_DEPLOY_SALT");
+
     ///                                                          ///
     ///                          BASE SETUP                      ///
     ///                                                          ///
@@ -307,6 +309,40 @@ contract NounsBuilderTest is Test {
         vm.label(address(auction), "AUCTION");
         vm.label(address(treasury), "TREASURY");
         vm.label(address(governor), "GOVERNOR");
+    }
+
+    function deployDeterministic(
+        IManager.FounderParams[] memory _founderParams,
+        IManager.TokenParams memory _tokenParams,
+        IManager.AuctionParams memory _auctionParams,
+        IManager.GovParams memory _govParams,
+        bytes32 _deploySalt,
+        IManager.ImplementationParams memory _implementationParams
+    ) internal virtual {
+        (address _token, address _metadata, address _auction, address _treasury, address _governor) =
+            manager.deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams);
+
+        token = Token(_token);
+        metadataRenderer = MetadataRenderer(_metadata);
+        auction = Auction(_auction);
+        treasury = Treasury(payable(_treasury));
+        governor = Governor(_governor);
+
+        vm.label(address(token), "TOKEN");
+        vm.label(address(metadataRenderer), "METADATA_RENDERER");
+        vm.label(address(auction), "AUCTION");
+        vm.label(address(treasury), "TREASURY");
+        vm.label(address(governor), "GOVERNOR");
+    }
+
+    function getImplementationParams() internal view returns (IManager.ImplementationParams memory) {
+        return IManager.ImplementationParams({
+            token: tokenImpl,
+            metadataRenderer: metadataRendererImpl,
+            auction: auctionImpl,
+            treasury: treasuryImpl,
+            governor: governorImpl
+        });
     }
 
     ///                                                          ///

@@ -26,6 +26,7 @@ contract DeployContracts is Script {
     function run() public {
         uint256 chainID = block.chainid;
         uint256 key = vm.envUint("PRIVATE_KEY");
+        bytes32 deploySalt = vm.envBytes32("DEPLOY_SALT");
 
         configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
         address weth = _getKey("WETH");
@@ -38,11 +39,22 @@ contract DeployContracts is Script {
         console2.log("~~~~~~~~~~ DEPLOYER ~~~~~~~~~~~");
         console2.log(deployerAddress);
 
+        console2.log("~~~~~~~~~~ DEPLOY SALT ~~~~~~~~~~~");
+        console2.logBytes32(deploySalt);
+
         vm.startBroadcast(deployerAddress);
         // Deploy root manager implementation + proxy
-        address managerImpl0 = address(new Manager(address(0), address(0), address(0), address(0), address(0), address(0)));
+        address managerImpl0 =
+            address(new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL_0")) }(address(0), address(0), address(0), address(0), address(0), address(0)));
 
-        Manager manager = Manager(address(new ERC1967Proxy(managerImpl0, abi.encodeWithSignature("initialize(address)", deployerAddress))));
+        Manager manager =
+            Manager(
+                address(
+                    new ERC1967Proxy{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_PROXY")) }(
+                        managerImpl0, abi.encodeWithSignature("initialize(address)", deployerAddress)
+                    )
+                )
+            );
 
         // Deploy token implementation
         address tokenImpl = address(new Token(address(manager)));
@@ -60,8 +72,11 @@ contract DeployContracts is Script {
         // Deploy governor implementation
         address governorImpl = address(new Governor(address(manager)));
 
-        address managerImpl =
-            address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, _getKey("BuilderRewardsRecipient")));
+        address managerImpl = address(
+            new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL")) }(
+                tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, _getKey("BuilderRewardsRecipient")
+            )
+        );
 
         manager.upgradeTo(managerImpl);
 
@@ -119,5 +134,9 @@ contract DeployContracts is Script {
     function char(bytes1 b) private pure returns (bytes1 c) {
         if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
         else return bytes1(uint8(b) + 0x57);
+    }
+
+    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
+        return keccak256(abi.encode(deploySalt, label));
     }
 }

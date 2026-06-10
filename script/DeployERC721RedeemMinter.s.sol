@@ -19,6 +19,7 @@ contract DeployContracts is Script {
     function run() public {
         uint256 chainID = block.chainid;
         uint256 key = vm.envUint("PRIVATE_KEY");
+        bytes32 deploySalt = vm.envBytes32("DEPLOY_SALT");
 
         configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
 
@@ -38,9 +39,13 @@ contract DeployContracts is Script {
         console2.log("~~~~~~~~~~ PROTOCOL REWARDS ~~~~~~~~~~~");
         console2.log(protocolRewards);
 
+        console2.log("~~~~~~~~~~ DEPLOY SALT ~~~~~~~~~~~");
+        console2.logBytes32(deploySalt);
+
         vm.startBroadcast(deployerAddress);
 
-        address redeemMinter = address(new ERC721RedeemMinter(Manager(managerAddress), protocolRewards));
+        address redeemMinter =
+            address(new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards));
 
         vm.stopBroadcast();
 
@@ -68,5 +73,9 @@ contract DeployContracts is Script {
     function char(bytes1 b) private pure returns (bytes1 c) {
         if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
         else return bytes1(uint8(b) + 0x57);
+    }
+
+    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
+        return keccak256(abi.encode(deploySalt, label));
     }
 }

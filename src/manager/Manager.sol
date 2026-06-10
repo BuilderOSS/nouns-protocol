@@ -22,6 +22,14 @@ import { IVersionedContract } from "../lib/interfaces/IVersionedContract.sol";
 /// @custom:repo github.com/ourzora/nouns-protocol
 /// @notice The DAO deployer and upgrade manager
 contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1 {
+    bytes32 internal constant TOKEN_SALT_LABEL = keccak256("TOKEN");
+    bytes32 internal constant METADATA_SALT_LABEL = keccak256("METADATA");
+    bytes32 internal constant AUCTION_SALT_LABEL = keccak256("AUCTION");
+    bytes32 internal constant TREASURY_SALT_LABEL = keccak256("TREASURY");
+    bytes32 internal constant GOVERNOR_SALT_LABEL = keccak256("GOVERNOR");
+
+    error IMPLEMENTATION_REQUIRED();
+
     ///                                                          ///
     ///                          IMMUTABLES                      ///
     ///                                                          ///
@@ -81,7 +89,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///                           DAO DEPLOY                     ///
     ///                                                          ///
 
-    /// @notice Deploys a DAO with custom token, auction, and governance settings
+    /// @notice Deprecated: deploys a DAO with custom token, auction, and governance settings for backward compatibility only.
+    /// @dev New integrations should use deterministic deployment with explicit ImplementationParams.
     /// @param _founderParams The DAO founders
     /// @param _tokenParams The ERC-721 token settings
     /// @param _auctionParams The auction settings
@@ -97,67 +106,53 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
-        // Used to store the address of the first (or only) founder
-        // This founder is responsible for adding token artwork and launching the first auction -- they're also free to transfer this responsiblity
-        address founder;
+        return _deploy(_founderParams, _tokenParams, _auctionParams, _govParams);
+    }
 
-        // Ensure at least one founder is provided
-        if ((founder = _founderParams[0].wallet) == address(0)) revert FOUNDER_REQUIRED();
+    /// @notice Deploys a DAO with deterministic contract addresses using CREATE2 and explicit implementation addresses
+    /// @param _founderParams The DAO founders
+    /// @param _tokenParams The ERC-721 token settings
+    /// @param _auctionParams The auction settings
+    /// @param _govParams The governance settings
+    /// @param _deploySalt The base salt used to derive per-contract salts
+    /// @param _implementationParams The explicit implementation bundle used for deterministic deployment
+    /// @return token The deployed token address
+    /// @return metadata The deployed metadata renderer address
+    /// @return auction The deployed auction address
+    /// @return treasury The deployed treasury address
+    /// @return governor The deployed governor address
+    function deployDeterministic(
+        FounderParams[] calldata _founderParams,
+        TokenParams calldata _tokenParams,
+        AuctionParams calldata _auctionParams,
+        GovParams calldata _govParams,
+        bytes32 _deploySalt,
+        ImplementationParams calldata _implementationParams
+    ) external returns (address token, address metadata, address auction, address treasury, address governor) {
+        _validateImplementationParams(_implementationParams);
 
-        // Create new local context to fix for stack too deep error
-        {
-            // Deploy the DAO's ERC-721 governance token
-            token = address(new ERC1967Proxy(tokenImpl, ""));
+        return _deployDeterministic(
+            _founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams
+        );
+    }
 
-            // Use the token address to precompute the DAO's remaining addresses
-            bytes32 salt = bytes32(uint256(uint160(token)) << 96);
+    /// @notice Predicts deterministic DAO addresses using an explicit implementation bundle
+    /// @param _deployer The deployer address used to namespace the deterministic salt
+    /// @param _deploySalt The base salt used to derive per-contract salts
+    /// @param _implementationParams The explicit implementation bundle used for deterministic prediction
+    /// @return token The predicted token address
+    /// @return metadata The predicted metadata renderer address
+    /// @return auction The predicted auction address
+    /// @return treasury The predicted treasury address
+    /// @return governor The predicted governor address
+    function predictDeterministicAddresses(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
+        external
+        view
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        _validateImplementationParams(_implementationParams);
 
-            // Check if the deployer is using an alternate metadata renderer. If not default to the standard one
-            address metadataImplToUse = _tokenParams.metadataRenderer != address(0) ? _tokenParams.metadataRenderer : metadataImpl;
-
-            // Deploy the remaining DAO contracts
-            metadata = address(new ERC1967Proxy{ salt: salt }(metadataImplToUse, ""));
-            auction = address(new ERC1967Proxy{ salt: salt }(auctionImpl, ""));
-            treasury = address(new ERC1967Proxy{ salt: salt }(treasuryImpl, ""));
-            governor = address(new ERC1967Proxy{ salt: salt }(governorImpl, ""));
-
-            daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
-        }
-
-        // Initialize each instance with the provided settings
-        IToken(token)
-            .initialize({
-                founders: _founderParams,
-                initStrings: _tokenParams.initStrings,
-                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
-                metadataRenderer: metadata,
-                auction: auction,
-                initialOwner: founder
-            });
-        IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
-        IAuction(auction)
-            .initialize({
-                token: token,
-                founder: founder,
-                treasury: treasury,
-                duration: _auctionParams.duration,
-                reservePrice: _auctionParams.reservePrice,
-                founderRewardRecipent: _auctionParams.founderRewardRecipent,
-                founderRewardBps: _auctionParams.founderRewardBps
-            });
-        ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
-        IGovernor(governor)
-            .initialize({
-                treasury: treasury,
-                token: token,
-                vetoer: _govParams.vetoer,
-                votingDelay: _govParams.votingDelay,
-                votingPeriod: _govParams.votingPeriod,
-                proposalThresholdBps: _govParams.proposalThresholdBps,
-                quorumThresholdBps: _govParams.quorumThresholdBps
-            });
-
-        emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+        return _predictDeterministicAddresses(_deployer, _deploySalt, _implementationParams);
     }
 
     ///                                                          ///
@@ -279,4 +274,177 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @dev This function is called in `upgradeTo` & `upgradeToAndCall`
     /// @param _newImpl The new implementation address
     function _authorizeUpgrade(address _newImpl) internal override onlyOwner { }
+
+    function _deploy(
+        FounderParams[] calldata _founderParams,
+        TokenParams calldata _tokenParams,
+        AuctionParams calldata _auctionParams,
+        GovParams calldata _govParams
+    )
+        internal
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        address founder = _founderParams[0].wallet;
+        if (founder == address(0)) revert FOUNDER_REQUIRED();
+
+        (token, metadata, auction, treasury, governor) = _deployLegacyProxies(_getMetadataImpl(_tokenParams));
+
+        daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+
+        IToken(token)
+            .initialize({
+                founders: _founderParams,
+                initStrings: _tokenParams.initStrings,
+                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
+                metadataRenderer: metadata,
+                auction: auction,
+                initialOwner: founder
+            });
+        IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
+        IAuction(auction)
+            .initialize({
+                token: token,
+                founder: founder,
+                treasury: treasury,
+                duration: _auctionParams.duration,
+                reservePrice: _auctionParams.reservePrice,
+                founderRewardRecipent: _auctionParams.founderRewardRecipent,
+                founderRewardBps: _auctionParams.founderRewardBps
+            });
+        ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
+        IGovernor(governor)
+            .initialize({
+                treasury: treasury,
+                token: token,
+                vetoer: _govParams.vetoer,
+                votingDelay: _govParams.votingDelay,
+                votingPeriod: _govParams.votingPeriod,
+                proposalThresholdBps: _govParams.proposalThresholdBps,
+                quorumThresholdBps: _govParams.quorumThresholdBps
+            });
+
+        emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+    }
+
+    function _deployDeterministic(
+        FounderParams[] calldata _founderParams,
+        TokenParams calldata _tokenParams,
+        AuctionParams calldata _auctionParams,
+        GovParams calldata _govParams,
+        bytes32 _deploySalt,
+        ImplementationParams calldata _implementationParams
+    )
+        internal
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        address founder = _founderParams[0].wallet;
+        if (founder == address(0)) revert FOUNDER_REQUIRED();
+
+        (token, metadata, auction, treasury, governor) = _deployDeterministicProxies(msg.sender, _deploySalt, _implementationParams);
+
+        daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+
+        IToken(token)
+            .initialize({
+                founders: _founderParams,
+                initStrings: _tokenParams.initStrings,
+                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
+                metadataRenderer: metadata,
+                auction: auction,
+                initialOwner: founder
+            });
+        IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
+        IAuction(auction)
+            .initialize({
+                token: token,
+                founder: founder,
+                treasury: treasury,
+                duration: _auctionParams.duration,
+                reservePrice: _auctionParams.reservePrice,
+                founderRewardRecipent: _auctionParams.founderRewardRecipent,
+                founderRewardBps: _auctionParams.founderRewardBps
+            });
+        ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
+        IGovernor(governor)
+            .initialize({
+                treasury: treasury,
+                token: token,
+                vetoer: _govParams.vetoer,
+                votingDelay: _govParams.votingDelay,
+                votingPeriod: _govParams.votingPeriod,
+                proposalThresholdBps: _govParams.proposalThresholdBps,
+                quorumThresholdBps: _govParams.quorumThresholdBps
+            });
+
+        emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+    }
+
+    function _deployLegacyProxies(address _metadataImplToUse)
+        internal
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        token = _deployProxy(tokenImpl);
+
+        bytes32 salt = bytes32(uint256(uint160(token)) << 96);
+
+        metadata = _deployProxy(_metadataImplToUse, salt);
+        auction = _deployProxy(auctionImpl, salt);
+        treasury = _deployProxy(treasuryImpl, salt);
+        governor = _deployProxy(governorImpl, salt);
+    }
+
+    function _deployDeterministicProxies(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
+        internal
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        token = _deployProxy(_implementationParams.token, _deriveSalt(_deployer, _deploySalt, TOKEN_SALT_LABEL));
+        metadata = _deployProxy(_implementationParams.metadataRenderer, _deriveSalt(_deployer, _deploySalt, METADATA_SALT_LABEL));
+        auction = _deployProxy(_implementationParams.auction, _deriveSalt(_deployer, _deploySalt, AUCTION_SALT_LABEL));
+        treasury = _deployProxy(_implementationParams.treasury, _deriveSalt(_deployer, _deploySalt, TREASURY_SALT_LABEL));
+        governor = _deployProxy(_implementationParams.governor, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
+    }
+
+    function _getMetadataImpl(TokenParams calldata _tokenParams) internal view returns (address) {
+        return _tokenParams.metadataRenderer != address(0) ? _tokenParams.metadataRenderer : metadataImpl;
+    }
+
+    function _predictDeterministicAddresses(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
+        internal
+        view
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        token = _predictProxyAddress(_implementationParams.token, _deriveSalt(_deployer, _deploySalt, TOKEN_SALT_LABEL));
+        metadata = _predictProxyAddress(_implementationParams.metadataRenderer, _deriveSalt(_deployer, _deploySalt, METADATA_SALT_LABEL));
+        auction = _predictProxyAddress(_implementationParams.auction, _deriveSalt(_deployer, _deploySalt, AUCTION_SALT_LABEL));
+        treasury = _predictProxyAddress(_implementationParams.treasury, _deriveSalt(_deployer, _deploySalt, TREASURY_SALT_LABEL));
+        governor = _predictProxyAddress(_implementationParams.governor, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
+    }
+
+    function _validateImplementationParams(ImplementationParams calldata _implementationParams) internal pure {
+        if (
+            _implementationParams.token == address(0) || _implementationParams.metadataRenderer == address(0)
+                || _implementationParams.auction == address(0) || _implementationParams.treasury == address(0)
+                || _implementationParams.governor == address(0)
+        ) {
+            revert IMPLEMENTATION_REQUIRED();
+        }
+    }
+
+    function _predictProxyAddress(address _implementation, bytes32 _salt) internal view returns (address) {
+        bytes memory creationCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, ""));
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), _salt, keccak256(creationCode)));
+        return address(uint160(uint256(hash)));
+    }
+
+    function _deployProxy(address _implementation) internal returns (address) {
+        return address(new ERC1967Proxy(_implementation, ""));
+    }
+
+    function _deployProxy(address _implementation, bytes32 _salt) internal returns (address) {
+        return address(new ERC1967Proxy{ salt: _salt }(_implementation, ""));
+    }
+
+    function _deriveSalt(address _deployer, bytes32 _deploySalt, bytes32 _label) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_deployer, _deploySalt, _label));
+    }
 }
