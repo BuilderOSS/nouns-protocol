@@ -68,6 +68,13 @@ Common env variables used by those sections:
   - Requires `CrossDomainMessenger` in `addresses/<chainid>.json`.
   - Output file: `deploys/<chainid>.version2_new.txt`.
 
+- `yarn deploy:v3-new`
+  - Deploys a full fresh latest core stack (manager proxy + all impls).
+  - Also deploys MerkleReserveMinter, ERC721RedeemMinter, and L2MigrationDeployer.
+  - Uses CREATE2 salts derived from `DEPLOY_SALT`.
+  - Requires `WETH`, `ProtocolRewards`, `BuilderRewardsRecipient`, and `CrossDomainMessenger` in `addresses/<chainid>.json`.
+  - Output file: `deploys/<chainid>.version3_new.txt`.
+
 - `yarn deploy:erc721-redeem-minter`
   - Deploys ERC721 redeem minter only.
   - Uses CREATE2 salts derived from `DEPLOY_SALT`.
