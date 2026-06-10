@@ -28,6 +28,8 @@ Additional env for deterministic CREATE2-based deploy commands:
 
 - `DEPLOY_SALT`
 
+`DEPLOY_SALT` is a human-readable string label. The deployment scripts derive the CREATE2 salt with `keccak256(bytes(DEPLOY_SALT))`.
+
 RPC aliases and explorer settings are configured in `foundry.toml` using:
 
 - `[rpc_endpoints]`

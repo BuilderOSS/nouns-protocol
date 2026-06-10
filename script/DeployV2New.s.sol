@@ -21,7 +21,8 @@ contract DeployContracts is Script {
     function run() public {
         uint256 chainID = block.chainid;
         uint256 key = vm.envUint("PRIVATE_KEY");
-        bytes32 deploySalt = vm.envBytes32("DEPLOY_SALT");
+        string memory salt = vm.envString("DEPLOY_SALT");
+        bytes32 deploySalt = keccak256(bytes(salt));
 
         configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
 
