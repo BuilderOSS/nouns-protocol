@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.35;
+
+import { Script, console2 } from "forge-std/Script.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+
+import { MerklePropertyIPFS } from "../src/token/metadata/renderers/MerklePropertyIPFS/MerklePropertyIPFS.sol";
+
+contract DeployMerkleProperty is Script {
+    using Strings for uint256;
+
+    string configFile;
+
+    function _getKey(string memory key) internal view returns (address result) {
+        (result) = abi.decode(vm.parseJson(configFile, string.concat(".", key)), (address));
+    }
+
+    function run() public {
+        uint256 chainID = block.chainid;
+        uint256 key = vm.envUint("PRIVATE_KEY");
+        string memory salt = vm.envString("DEPLOY_SALT");
+        bytes32 deploySalt = keccak256(bytes(salt));
+
+        configFile = vm.readFile(string.concat("./addresses/", Strings.toString(chainID), ".json"));
+
+        address deployerAddress = vm.addr(key);
+
+        console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
+        console2.log(chainID);
+
+        console2.log("~~~~~~~~~~ DEPLOYER ~~~~~~~~~~~");
+        console2.log(deployerAddress);
+
+        console2.log("~~~~~~~~~~ DEPLOY SALT ~~~~~~~~~~~");
+        console2.logBytes32(deploySalt);
+
+        vm.startBroadcast(deployerAddress);
+
+        address merkleMetadataImpl = address(
+            new MerklePropertyIPFS{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_PROPERTY_IPFS")) }(_getKey("Manager"))
+        );
+
+        vm.stopBroadcast();
+
+        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".merkle_property.txt"));
+
+        vm.writeLine(filePath, string(abi.encodePacked("MerklePropertyImpl: ", addressToString(address(merkleMetadataImpl)))));
+
+        console2.log("~~~~~~~~~~ MERKLE PROPERTY IMPL ~~~~~~~~~~~");
+        console2.logAddress(merkleMetadataImpl);
+    }
+
+    function addressToString(address _addr) private pure returns (string memory) {
+        bytes memory s = new bytes(40);
+        for (uint256 i = 0; i < 20; i++) {
+            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - i)))));
+            bytes1 hi = bytes1(uint8(b) / 16);
+            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
+            s[2 * i] = char(hi);
+            s[2 * i + 1] = char(lo);
+        }
+        return string(abi.encodePacked("0x", string(s)));
+    }
+
+    function char(bytes1 b) private pure returns (bytes1 c) {
+        if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
+        else return bytes1(uint8(b) + 0x57);
+    }
+
+    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
+        return keccak256(abi.encode(deploySalt, label));
+    }
+}

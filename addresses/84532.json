@@ -13,5 +13,6 @@
   "L2MigrationDeployer": "0xff82604fddae9bdae59bd5bc62d5d265870302ec",
   "MerkleReserveMinter": "0xaef554284606f9479a040b1181966826c99029bc",
   "ERC721RedeemMinter": "0x04098e0531ed22bddf83ff76af5fe5b3dd3744a5",
+  "MerklePropertyIPFS": "0xaDDB7f43ED60863e44e7C7435960b13bcA703B06",
   "ManagerOwner": "0x19a8eb80c1483CEAA1278B16C5D5eF0104F85905"
 }

@@ -10,6 +10,7 @@ import { Auction } from "../src/auction/Auction.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { Treasury } from "../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
+import { MerklePropertyIPFS } from "../src/token/metadata/renderers/MerklePropertyIPFS/MerklePropertyIPFS.sol";
 import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
 import { ERC721RedeemMinter } from "../src/minters/ERC721RedeemMinter.sol";
 import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
@@ -24,6 +25,7 @@ contract DeployV3New is Script {
         address manager;
         address tokenImpl;
         address metadataRendererImpl;
+        address merklePropertyMetadataImpl;
         address auctionImpl;
         address treasuryImpl;
         address governorImpl;
@@ -99,6 +101,8 @@ contract DeployV3New is Script {
 
         deployment.tokenImpl = address(new Token(address(manager)));
         deployment.metadataRendererImpl = address(new MetadataRenderer(address(manager)));
+        deployment.merklePropertyMetadataImpl =
+            address(new MerklePropertyIPFS{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_PROPERTY_IPFS")) }(address(manager)));
         deployment.auctionImpl =
             address(new Auction(address(manager), protocolRewards, weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS));
         deployment.treasuryImpl = address(new Treasury(address(manager)));
@@ -140,6 +144,10 @@ contract DeployV3New is Script {
             filePath,
             string(abi.encodePacked("Metadata Renderer implementation: ", addressToString(deployment.metadataRendererImpl)))
         );
+        vm.writeLine(
+            filePath,
+            string(abi.encodePacked("Merkle Property IPFS implementation: ", addressToString(deployment.merklePropertyMetadataImpl)))
+        );
         vm.writeLine(filePath, string(abi.encodePacked("Auction implementation: ", addressToString(deployment.auctionImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Treasury implementation: ", addressToString(deployment.treasuryImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Governor implementation: ", addressToString(deployment.governorImpl))));
@@ -165,6 +173,9 @@ contract DeployV3New is Script {
 
         console2.log("~~~~~~~~~~ METADATA RENDERER IMPL ~~~~~~~~~~~");
         console2.logAddress(deployment.metadataRendererImpl);
+
+        console2.log("~~~~~~~~~~ MERKLE PROPERTY IPFS IMPL ~~~~~~~~~~~");
+        console2.logAddress(deployment.merklePropertyMetadataImpl);
 
         console2.log("~~~~~~~~~~ AUCTION IMPL ~~~~~~~~~~~");
         console2.logAddress(deployment.auctionImpl);
