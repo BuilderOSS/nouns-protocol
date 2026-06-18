@@ -57,6 +57,10 @@
     "addresses:sync-builder-rewards": "node script/checkBuilderRewardsConfig.mjs --write",
     "upgrade:check-status": "node script/checkUpgradeStatus.mjs",
     "test": "forge test -vvv",
+    "test:unit": "forge test --match-path 'test/*.sol' -vvv",
+    "test:fork": "forge test --match-path 'test/forking/*.sol' -vvv",
+    "test:coverage": "forge coverage",
+    "test:coverage:report": "forge coverage --report lcov",
     "typechain": "typechain --target=ethers-v5 'dist/artifacts/*/*.json' --out-dir dist/typechain",
     "storage-inspect:check": "./script/storage-check.sh check Manager Auction Governor Treasury Token",
     "storage-inspect:generate": "./script/storage-check.sh generate Manager Auction Governor Treasury Token"

@@ -1,19 +1,28 @@
 name: Run Tests
 on: [push]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Test
     runs-on: ubuntu-latest
     environment: Test
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4.2.2
         with:
           submodules: recursive
-      - uses: actions/setup-node@v2
+
+      - uses: actions/setup-node@v6
         with:
-          node-version: "16"
-      - run: npm install
-      - uses: onbjerg/foundry-toolchain@v1
+          node-version: "24"
+          cache: "yarn"
+
+      - run: yarn install
+
+      - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
-      - run: ETH_RPC_MAINNET=${{secrets.ETH_RPC_MAINNET}} npm run test
+
+      - run: yarn test:unit
