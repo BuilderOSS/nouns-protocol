@@ -26,7 +26,7 @@ contract VersionedContractTest is NounsBuilderTest {
     }
 
     function test_NPMPackageVersion() public {
-        string memory packageVersion = abi.decode(vm.parseJson(vm.readFile("package.json"), "version"), (string));
+        string memory packageVersion = abi.decode(vm.parseJson(vm.readFile("package.json"), ".version"), (string));
         assertEq(packageVersion, expectedVersion);
     }
 }

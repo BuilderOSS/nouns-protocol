@@ -29,6 +29,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     bytes32 internal constant GOVERNOR_SALT_LABEL = keccak256("GOVERNOR");
 
     error IMPLEMENTATION_REQUIRED();
+    error INVALID_IMPLEMENTATION();
 
     ///                                                          ///
     ///                          IMMUTABLES                      ///
@@ -275,22 +276,30 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @param _newImpl The new implementation address
     function _authorizeUpgrade(address _newImpl) internal override onlyOwner { }
 
-    function _deploy(
+    /// @notice Initializes all DAO contracts with provided parameters
+    /// @dev Shared initialization logic used by both legacy and deterministic deployment
+    /// @param token The deployed token proxy address
+    /// @param metadata The deployed metadata renderer proxy address
+    /// @param auction The deployed auction proxy address
+    /// @param treasury The deployed treasury proxy address
+    /// @param governor The deployed governor proxy address
+    /// @param founder The founder address who will receive initial ownership
+    /// @param _founderParams The DAO founders
+    /// @param _tokenParams The ERC-721 token settings
+    /// @param _auctionParams The auction settings
+    /// @param _govParams The governance settings
+    function _initializeDAO(
+        address token,
+        address metadata,
+        address auction,
+        address treasury,
+        address governor,
+        address founder,
         FounderParams[] calldata _founderParams,
         TokenParams calldata _tokenParams,
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams
-    )
-        internal
-        returns (address token, address metadata, address auction, address treasury, address governor)
-    {
-        address founder = _founderParams[0].wallet;
-        if (founder == address(0)) revert FOUNDER_REQUIRED();
-
-        (token, metadata, auction, treasury, governor) = _deployLegacyProxies(_getMetadataImpl(_tokenParams));
-
-        daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
-
+    ) internal {
         IToken(token)
             .initialize({
                 founders: _founderParams,
@@ -326,6 +335,49 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
     }
 
+    /// @notice Internal function for legacy DAO deployment
+    /// @dev Uses non-deterministic salt based on token address for backward compatibility
+    /// @param _founderParams The DAO founders
+    /// @param _tokenParams The ERC-721 token settings
+    /// @param _auctionParams The auction settings
+    /// @param _govParams The governance settings
+    /// @return token The deployed token address
+    /// @return metadata The deployed metadata renderer address
+    /// @return auction The deployed auction address
+    /// @return treasury The deployed treasury address
+    /// @return governor The deployed governor address
+    function _deploy(
+        FounderParams[] calldata _founderParams,
+        TokenParams calldata _tokenParams,
+        AuctionParams calldata _auctionParams,
+        GovParams calldata _govParams
+    )
+        internal
+        returns (address token, address metadata, address auction, address treasury, address governor)
+    {
+        address founder = _founderParams[0].wallet;
+        if (founder == address(0)) revert FOUNDER_REQUIRED();
+
+        (token, metadata, auction, treasury, governor) = _deployLegacyProxies(_getMetadataImpl(_tokenParams));
+
+        daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+
+        _initializeDAO(token, metadata, auction, treasury, governor, founder, _founderParams, _tokenParams, _auctionParams, _govParams);
+    }
+
+    /// @notice Internal function for deterministic DAO deployment using CREATE2
+    /// @dev Deploys all contracts with predictable addresses using provided implementation bundle
+    /// @param _founderParams The DAO founders
+    /// @param _tokenParams The ERC-721 token settings
+    /// @param _auctionParams The auction settings
+    /// @param _govParams The governance settings
+    /// @param _deploySalt The base salt used to derive per-contract salts
+    /// @param _implementationParams The explicit implementation bundle
+    /// @return token The deployed token address
+    /// @return metadata The deployed metadata renderer address
+    /// @return auction The deployed auction address
+    /// @return treasury The deployed treasury address
+    /// @return governor The deployed governor address
     function _deployDeterministic(
         FounderParams[] calldata _founderParams,
         TokenParams calldata _tokenParams,
@@ -344,41 +396,19 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
 
         daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
 
-        IToken(token)
-            .initialize({
-                founders: _founderParams,
-                initStrings: _tokenParams.initStrings,
-                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
-                metadataRenderer: metadata,
-                auction: auction,
-                initialOwner: founder
-            });
-        IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
-        IAuction(auction)
-            .initialize({
-                token: token,
-                founder: founder,
-                treasury: treasury,
-                duration: _auctionParams.duration,
-                reservePrice: _auctionParams.reservePrice,
-                founderRewardRecipent: _auctionParams.founderRewardRecipent,
-                founderRewardBps: _auctionParams.founderRewardBps
-            });
-        ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
-        IGovernor(governor)
-            .initialize({
-                treasury: treasury,
-                token: token,
-                vetoer: _govParams.vetoer,
-                votingDelay: _govParams.votingDelay,
-                votingPeriod: _govParams.votingPeriod,
-                proposalThresholdBps: _govParams.proposalThresholdBps,
-                quorumThresholdBps: _govParams.quorumThresholdBps
-            });
-
-        emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+        _initializeDAO(token, metadata, auction, treasury, governor, founder, _founderParams, _tokenParams, _auctionParams, _govParams);
     }
 
+    /// @notice Deploys all DAO proxies using legacy non-deterministic pattern
+    /// @dev Token is deployed first without salt, then its address (shifted left 96 bits) becomes the salt for other contracts.
+    ///      The bit shift (<< 96) moves the 160-bit address into the upper portion of the 256-bit salt,
+    ///      leaving lower bits as zeros. This ensures a unique salt per deployment while maintaining backward compatibility.
+    /// @param _metadataImplToUse The metadata renderer implementation to use (can be custom or default)
+    /// @return token The deployed token proxy address
+    /// @return metadata The deployed metadata renderer proxy address
+    /// @return auction The deployed auction proxy address
+    /// @return treasury The deployed treasury proxy address
+    /// @return governor The deployed governor proxy address
     function _deployLegacyProxies(address _metadataImplToUse)
         internal
         returns (address token, address metadata, address auction, address treasury, address governor)
@@ -393,6 +423,17 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         governor = _deployProxy(governorImpl, salt);
     }
 
+    /// @notice Deploys all DAO proxies with deterministic addresses using CREATE2
+    /// @dev Each contract uses a namespaced salt derived from deployer address, base salt, and contract-specific label.
+    ///      This prevents collisions across deployers and ensures unique addresses per contract type.
+    /// @param _deployer The address initiating the deployment (used in salt derivation to prevent cross-deployer collisions)
+    /// @param _deploySalt The base salt provided by caller (should be unique per DAO deployment)
+    /// @param _implementationParams The implementation addresses to use for each proxy
+    /// @return token The deployed token proxy address
+    /// @return metadata The deployed metadata renderer proxy address
+    /// @return auction The deployed auction proxy address
+    /// @return treasury The deployed treasury proxy address
+    /// @return governor The deployed governor proxy address
     function _deployDeterministicProxies(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
         internal
         returns (address token, address metadata, address auction, address treasury, address governor)
@@ -404,10 +445,24 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         governor = _deployProxy(_implementationParams.governor, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
     }
 
+    /// @notice Returns the metadata renderer implementation to use
+    /// @dev Allows custom renderer or defaults to the Manager's immutable metadataImpl
+    /// @param _tokenParams The token parameters containing optional custom renderer
+    /// @return The metadata renderer implementation address to use
     function _getMetadataImpl(TokenParams calldata _tokenParams) internal view returns (address) {
         return _tokenParams.metadataRenderer != address(0) ? _tokenParams.metadataRenderer : metadataImpl;
     }
 
+    /// @notice Predicts deterministic DAO contract addresses without deploying
+    /// @dev Uses same salt derivation as _deployDeterministicProxies for accurate prediction
+    /// @param _deployer The address that will deploy (affects salt calculation)
+    /// @param _deploySalt The base salt to be used
+    /// @param _implementationParams The implementation addresses
+    /// @return token The predicted token address
+    /// @return metadata The predicted metadata renderer address
+    /// @return auction The predicted auction address
+    /// @return treasury The predicted treasury address
+    /// @return governor The predicted governor address
     function _predictDeterministicAddresses(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
         internal
         view
@@ -420,7 +475,10 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         governor = _predictProxyAddress(_implementationParams.governor, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
     }
 
-    function _validateImplementationParams(ImplementationParams calldata _implementationParams) internal pure {
+    /// @notice Validates that implementation parameters contain valid contract addresses
+    /// @dev Checks for non-zero addresses and verifies bytecode exists at each address
+    /// @param _implementationParams The implementation bundle to validate
+    function _validateImplementationParams(ImplementationParams calldata _implementationParams) internal view {
         if (
             _implementationParams.token == address(0) || _implementationParams.metadataRenderer == address(0)
                 || _implementationParams.auction == address(0) || _implementationParams.treasury == address(0)
@@ -428,22 +486,56 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         ) {
             revert IMPLEMENTATION_REQUIRED();
         }
+
+        // Verify each address contains bytecode (is a contract)
+        if (
+            _implementationParams.token.code.length == 0 || _implementationParams.metadataRenderer.code.length == 0
+                || _implementationParams.auction.code.length == 0 || _implementationParams.treasury.code.length == 0
+                || _implementationParams.governor.code.length == 0
+        ) {
+            revert INVALID_IMPLEMENTATION();
+        }
     }
 
+    /// @notice Predicts the address of a CREATE2-deployed proxy
+    /// @dev Implements the standard CREATE2 address formula: keccak256(0xff ++ address ++ salt ++ keccak256(init_code))
+    ///      IMPORTANT: This must stay in sync with _deployProxy(address, bytes32) for accurate predictions
+    /// @param _implementation The implementation address to use in proxy constructor
+    /// @param _salt The salt to use for CREATE2 deployment
+    /// @return The predicted proxy address
     function _predictProxyAddress(address _implementation, bytes32 _salt) internal view returns (address) {
         bytes memory creationCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, ""));
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), _salt, keccak256(creationCode)));
         return address(uint160(uint256(hash)));
     }
 
+    /// @notice Deploys an ERC1967 proxy without salt (non-deterministic)
+    /// @dev Used by legacy deployment for the initial token contract
+    /// @param _implementation The implementation address
+    /// @return The deployed proxy address
     function _deployProxy(address _implementation) internal returns (address) {
         return address(new ERC1967Proxy(_implementation, ""));
     }
 
+    /// @notice Deploys an ERC1967 proxy with CREATE2 salt (deterministic)
+    /// @dev Used by both legacy deployment (for metadata/auction/treasury/governor) and deterministic deployment (for all contracts)
+    /// @param _implementation The implementation address
+    /// @param _salt The CREATE2 salt
+    /// @return The deployed proxy address
     function _deployProxy(address _implementation, bytes32 _salt) internal returns (address) {
         return address(new ERC1967Proxy{ salt: _salt }(_implementation, ""));
     }
 
+    /// @notice Derives a unique salt for CREATE2 deployment by combining deployer, user salt, and contract label
+    /// @dev This three-part derivation prevents collisions:
+    ///      - _deployer prevents different users from interfering with each other's deployments
+    ///      - _deploySalt allows same user to deploy multiple DAOs with different addresses
+    ///      - _label ensures each contract type gets a unique salt within the same deployment
+    ///      SECURITY: Deployers should use unique _deploySalt values to avoid collisions
+    /// @param _deployer The address initiating deployment (typically msg.sender)
+    /// @param _deploySalt The base salt chosen by the deployer
+    /// @param _label The contract-specific label (TOKEN_SALT_LABEL, METADATA_SALT_LABEL, etc.)
+    /// @return The derived salt for CREATE2 deployment
     function _deriveSalt(address _deployer, bytes32 _deploySalt, bytes32 _label) internal pure returns (bytes32) {
         return keccak256(abi.encode(_deployer, _deploySalt, _label));
     }

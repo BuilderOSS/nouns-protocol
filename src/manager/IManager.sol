@@ -68,6 +68,21 @@ interface IManager is IUUPS, IOwnable {
     }
 
     /// @notice The implementation addresses used for deterministic deployment and prediction
+    /// @dev SECURITY WARNING: Implementation addresses must be trusted, verified contracts that implement
+    ///      the expected interfaces. The Manager only validates that addresses are non-zero and contain bytecode,
+    ///      but does NOT verify interface compliance or contract legitimacy.
+    ///
+    ///      TRUST ASSUMPTIONS:
+    ///      - Deployers must verify implementation contracts before use
+    ///      - Malicious implementations could steal funds or compromise DAO governance
+    ///      - Consider using only officially registered/verified implementations
+    ///
+    ///      RECOMMENDED VERIFICATION CHECKLIST:
+    ///      1. Verify source code on block explorer
+    ///      2. Check implementation matches expected interface (IToken, IAuction, etc.)
+    ///      3. Ensure implementation is not malicious or upgradeable to malicious code
+    ///      4. Confirm implementation version compatibility
+    ///      5. Test with small value deployment first
     /// @param token The token implementation address
     /// @param metadataRenderer The metadata renderer implementation address
     /// @param auction The auction implementation address
@@ -157,11 +172,22 @@ interface IManager is IUUPS, IOwnable {
     ) external returns (address token, address metadataRenderer, address auction, address treasury, address governor);
 
     /// @notice Deploys a DAO deterministically using CREATE2 and explicit implementation addresses
+    /// @dev SECURITY NOTES:
+    ///      - deploySalt should be unique for each deployment. Using the same salt twice will cause revert.
+    ///      - msg.sender is included in salt derivation to prevent cross-deployer collisions
+    ///      - Recommended: use keccak256(abi.encode(daoName, timestamp, nonce)) or similar for deploySalt
+    ///      - See ImplementationParams documentation for critical trust assumptions
+    ///
+    ///      GAS COSTS: Deterministic deployment may cost slightly more gas than legacy deploy()
+    ///      due to CREATE2 overhead. However, benefits include:
+    ///      - Predictable addresses for pre-funding or integration
+    ///      - Custom implementation flexibility
+    ///      - Cross-chain address consistency (if desired)
     /// @param founderParams The DAO founder(s)
     /// @param tokenParams The ERC-721 token settings
     /// @param auctionParams The auction settings
     /// @param govParams The governance settings
-    /// @param deploySalt The base salt used to derive per-contract CREATE2 salts
+    /// @param deploySalt The base salt used to derive per-contract CREATE2 salts (must be unique)
     /// @param implementationParams The explicit implementation bundle used for deterministic deployment
     /// @return token The deployed token address
     /// @return metadataRenderer The deployed metadata renderer address
