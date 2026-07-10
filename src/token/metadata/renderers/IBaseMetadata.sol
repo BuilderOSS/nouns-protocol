@@ -8,23 +8,32 @@ interface IBaseMetadata {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when the contract image is updated
+    /// @param prevImage The previous contract image
+    /// @param newImage The new contract image
     event ContractImageUpdated(string prevImage, string newImage);
 
     /// @notice Emitted when the collection description is updated
+    /// @param prevDescription The previous description
+    /// @param newDescription The new description
     event DescriptionUpdated(string prevDescription, string newDescription);
 
     /// @notice Emitted when the collection uri is updated
+    /// @param lastURI The previous URI
+    /// @param newURI The new URI
     event WebsiteURIUpdated(string lastURI, string newURI);
 
     /// @notice Additional token properties have been set
+    /// @param _additionalJsonProperties The additional token properties
     event AdditionalTokenPropertiesSet(AdditionalTokenProperty[] _additionalJsonProperties);
 
     /// @notice This event emits when the metadata of a token is changed.
+    /// @param _tokenId The token ID
     event MetadataUpdate(uint256 _tokenId);
 
     /// @notice This event emits when the metadata of a range of tokens is changed.
+    /// @param _fromTokenId The starting token ID
+    /// @param _toTokenId The ending token ID
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
 
     ///                                                          ///

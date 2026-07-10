@@ -238,8 +238,13 @@ contract ManagerTest is NounsBuilderTest {
         IManager.ImplementationParams memory implementationParams = getImplementationParams();
 
         (address attackerPredictedToken,,,,) = manager.predictDeterministicAddresses(attacker, DEFAULT_DEPLOY_SALT, implementationParams);
-        (address victimPredictedToken, address victimPredictedMetadata, address victimPredictedAuction, address victimPredictedTreasury, address victimPredictedGovernor) =
-            manager.predictDeterministicAddresses(victim, DEFAULT_DEPLOY_SALT, implementationParams);
+        (
+            address victimPredictedToken,
+            address victimPredictedMetadata,
+            address victimPredictedAuction,
+            address victimPredictedTreasury,
+            address victimPredictedGovernor
+        ) = manager.predictDeterministicAddresses(victim, DEFAULT_DEPLOY_SALT, implementationParams);
 
         vm.prank(attacker);
         manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
@@ -276,11 +281,7 @@ contract ManagerTest is NounsBuilderTest {
         manager.upgradeTo(newManagerImpl);
 
         IManager.ImplementationParams memory newImplementationParams = IManager.ImplementationParams({
-            token: newTokenImpl,
-            metadataRenderer: newMetadataImpl,
-            auction: newAuctionImpl,
-            treasury: newTreasuryImpl,
-            governor: newGovernorImpl
+            token: newTokenImpl, metadataRenderer: newMetadataImpl, auction: newAuctionImpl, treasury: newTreasuryImpl, governor: newGovernorImpl
         });
 
         (address tokenAfter, address metadataAfter, address auctionAfter, address treasuryAfter, address governorAfter) =

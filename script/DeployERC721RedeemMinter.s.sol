@@ -45,8 +45,9 @@ contract DeployContracts is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        address redeemMinter =
-            address(new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards));
+        address redeemMinter = address(
+            new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards)
+        );
 
         vm.stopBroadcast();
 

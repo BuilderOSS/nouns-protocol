@@ -45,17 +45,19 @@ contract DeployContracts is Script {
 
         vm.startBroadcast(deployerAddress);
         // Deploy root manager implementation + proxy
-        address managerImpl0 =
-            address(new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL_0")) }(address(0), address(0), address(0), address(0), address(0), address(0)));
+        address managerImpl0 = address(
+            new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL_0")) }(
+                address(0), address(0), address(0), address(0), address(0), address(0)
+            )
+        );
 
-        Manager manager =
-            Manager(
-                address(
-                    new ERC1967Proxy{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_PROXY")) }(
-                        managerImpl0, abi.encodeWithSignature("initialize(address)", deployerAddress)
-                    )
+        Manager manager = Manager(
+            address(
+                new ERC1967Proxy{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_PROXY")) }(
+                    managerImpl0, abi.encodeWithSignature("initialize(address)", deployerAddress)
                 )
-            );
+            )
+        );
 
         // Deploy token implementation
         address tokenImpl = address(new Token(address(manager)));

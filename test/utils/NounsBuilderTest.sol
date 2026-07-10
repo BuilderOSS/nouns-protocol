@@ -337,11 +337,7 @@ contract NounsBuilderTest is Test {
 
     function getImplementationParams() internal view returns (IManager.ImplementationParams memory) {
         return IManager.ImplementationParams({
-            token: tokenImpl,
-            metadataRenderer: metadataRendererImpl,
-            auction: auctionImpl,
-            treasury: treasuryImpl,
-            governor: governorImpl
+            token: tokenImpl, metadataRenderer: metadataRendererImpl, auction: auctionImpl, treasury: treasuryImpl, governor: governorImpl
         });
     }
 

@@ -14,7 +14,6 @@ contract MerklePropertyIPFS is IMerklePropertyIPFS, PropertyIPFS {
     ///                                                          ///
     ///                          STRUCTS                         ///
     ///                                                          ///
-
     /// @custom:storage-location erc7201:nounsbuilder.storage.MerklePropertyIPFSRenderer
     struct MerkleStorage {
         bytes32 _attributeMerkleRoot;
@@ -41,8 +40,9 @@ contract MerklePropertyIPFS is IMerklePropertyIPFS, PropertyIPFS {
     ///                          CONSTRUCTOR                     ///
     ///                                                          ///
 
+    /// @notice Creates a new merkle metadata renderer
     /// @param _manager The contract upgrade manager address
-    constructor(address _manager) PropertyIPFS(_manager) {}
+    constructor(address _manager) PropertyIPFS(_manager) { }
 
     ///                                                          ///
     ///                          MERKLE ROOT                     ///

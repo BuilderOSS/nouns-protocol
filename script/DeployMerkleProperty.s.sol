@@ -36,9 +36,8 @@ contract DeployMerkleProperty is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        address merkleMetadataImpl = address(
-            new MerklePropertyIPFS{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_PROPERTY_IPFS")) }(_getKey("Manager"))
-        );
+        address merkleMetadataImpl =
+            address(new MerklePropertyIPFS{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_PROPERTY_IPFS")) }(_getKey("Manager")));
 
         vm.stopBroadcast();
 

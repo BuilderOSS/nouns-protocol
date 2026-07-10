@@ -25,7 +25,6 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
     ///                                                          ///
     ///                      MAINNET ADDRESSES                   ///
     ///                                                          ///
-
     // Mainnet Manager addresses (from addresses/1.json)
     address constant MAINNET_MANAGER_PROXY = 0xd310A3041dFcF14Def5ccBc508668974b5da7174;
     address constant MAINNET_MANAGER_OWNER = 0xDC9b96Ea4966d063Dd5c8dbaf08fe59062091B6D;
@@ -126,12 +125,10 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         }
 
         // Record Builder DAO addresses
-        (recordedBuilderMetadata, recordedBuilderAuction, recordedBuilderTreasury, recordedBuilderGovernor) =
-            managerProxy.getAddresses(BUILDER_TOKEN);
+        (recordedBuilderMetadata, recordedBuilderAuction, recordedBuilderTreasury, recordedBuilderGovernor) = managerProxy.getAddresses(BUILDER_TOKEN);
 
         // Record Purple DAO addresses
-        (recordedPurpleMetadata, recordedPurpleAuction, recordedPurpleTreasury, recordedPurpleGovernor) =
-            managerProxy.getAddresses(PURPLE_TOKEN);
+        (recordedPurpleMetadata, recordedPurpleAuction, recordedPurpleTreasury, recordedPurpleGovernor) = managerProxy.getAddresses(PURPLE_TOKEN);
     }
 
     /// @notice Deploys new Manager implementation with deterministic deployment features
@@ -147,12 +144,7 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         // Deploy new Manager implementation
         // Keeps mainnet immutables for backward compatibility with existing DAOs
         newManagerImpl = new Manager(
-            recordedTokenImpl,
-            recordedMetadataImpl,
-            recordedAuctionImpl,
-            recordedTreasuryImpl,
-            recordedGovernorImpl,
-            recordedBuilderRewardsRecipient
+            recordedTokenImpl, recordedMetadataImpl, recordedAuctionImpl, recordedTreasuryImpl, recordedGovernorImpl, recordedBuilderRewardsRecipient
         );
     }
 
@@ -201,7 +193,11 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         assertEq(managerProxy.governorImpl(), recordedGovernorImpl, "governorImpl should be preserved");
 
         // After upgrade, new Manager has builderRewardsRecipient
-        assertEq(Manager(address(managerProxy)).builderRewardsRecipient(), recordedBuilderRewardsRecipient, "builderRewardsRecipient should be set correctly");
+        assertEq(
+            Manager(address(managerProxy)).builderRewardsRecipient(),
+            recordedBuilderRewardsRecipient,
+            "builderRewardsRecipient should be set correctly"
+        );
     }
 
     /// @notice Tests that ownership is preserved after upgrade
@@ -216,8 +212,7 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         _performUpgrade();
 
         // Query Builder DAO addresses
-        (address builderMetadata, address builderAuction, address builderTreasury, address builderGovernor) =
-            managerProxy.getAddresses(BUILDER_TOKEN);
+        (address builderMetadata, address builderAuction, address builderTreasury, address builderGovernor) = managerProxy.getAddresses(BUILDER_TOKEN);
 
         assertEq(builderMetadata, recordedBuilderMetadata, "Builder metadata should be preserved");
         assertEq(builderAuction, recordedBuilderAuction, "Builder auction should be preserved");
@@ -225,8 +220,7 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         assertEq(builderGovernor, recordedBuilderGovernor, "Builder governor should be preserved");
 
         // Query Purple DAO addresses
-        (address purpleMetadata, address purpleAuction, address purpleTreasury, address purpleGovernor) =
-            managerProxy.getAddresses(PURPLE_TOKEN);
+        (address purpleMetadata, address purpleAuction, address purpleTreasury, address purpleGovernor) = managerProxy.getAddresses(PURPLE_TOKEN);
 
         assertEq(purpleMetadata, recordedPurpleMetadata, "Purple metadata should be preserved");
         assertEq(purpleAuction, recordedPurpleAuction, "Purple auction should be preserved");
@@ -246,8 +240,11 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         _performUpgrade();
 
         // Verify registry still works
-        assertTrue(managerProxy.isRegisteredUpgrade(recordedTokenImpl, address(newTokenImpl)), "Upgrade should still be registered after Manager upgrade");
+        assertTrue(
+            managerProxy.isRegisteredUpgrade(recordedTokenImpl, address(newTokenImpl)), "Upgrade should still be registered after Manager upgrade"
+        );
     }
+
     ///                                                          ///
     ///          SECTION C: VALIDATION TESTS                     ///
     ///                                                          ///

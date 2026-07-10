@@ -48,15 +48,15 @@ contract DeployContracts is Script {
         address merkleMinter =
             address(new MerkleReserveMinter{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_RESERVE_MINTER")) }(managerAddress, protocolRewards));
 
-        address redeemMinter =
-            address(new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards));
+        address redeemMinter = address(
+            new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards)
+        );
 
-        address migrationDeployer =
-            address(
-                new L2MigrationDeployer{ salt: _deriveSalt(deploySalt, keccak256("L2_MIGRATION_DEPLOYER")) }(
-                    managerAddress, merkleMinter, crossDomainMessenger
-                )
-            );
+        address migrationDeployer = address(
+            new L2MigrationDeployer{ salt: _deriveSalt(deploySalt, keccak256("L2_MIGRATION_DEPLOYER")) }(
+                managerAddress, merkleMinter, crossDomainMessenger
+            )
+        );
 
         vm.stopBroadcast();
 

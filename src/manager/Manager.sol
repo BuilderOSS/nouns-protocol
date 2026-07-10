@@ -132,9 +132,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
         _validateImplementationParams(_implementationParams);
 
-        return _deployDeterministic(
-            _founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams
-        );
+        return _deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams);
     }
 
     /// @notice Predicts deterministic DAO addresses using an explicit implementation bundle
@@ -302,35 +300,35 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ) internal {
         IToken(token)
             .initialize({
-                founders: _founderParams,
-                initStrings: _tokenParams.initStrings,
-                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
-                metadataRenderer: metadata,
-                auction: auction,
-                initialOwner: founder
-            });
+            founders: _founderParams,
+            initStrings: _tokenParams.initStrings,
+            reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
+            metadataRenderer: metadata,
+            auction: auction,
+            initialOwner: founder
+        });
         IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
         IAuction(auction)
             .initialize({
-                token: token,
-                founder: founder,
-                treasury: treasury,
-                duration: _auctionParams.duration,
-                reservePrice: _auctionParams.reservePrice,
-                founderRewardRecipent: _auctionParams.founderRewardRecipent,
-                founderRewardBps: _auctionParams.founderRewardBps
-            });
+            token: token,
+            founder: founder,
+            treasury: treasury,
+            duration: _auctionParams.duration,
+            reservePrice: _auctionParams.reservePrice,
+            founderRewardRecipent: _auctionParams.founderRewardRecipent,
+            founderRewardBps: _auctionParams.founderRewardBps
+        });
         ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
         IGovernor(governor)
             .initialize({
-                treasury: treasury,
-                token: token,
-                vetoer: _govParams.vetoer,
-                votingDelay: _govParams.votingDelay,
-                votingPeriod: _govParams.votingPeriod,
-                proposalThresholdBps: _govParams.proposalThresholdBps,
-                quorumThresholdBps: _govParams.quorumThresholdBps
-            });
+            treasury: treasury,
+            token: token,
+            vetoer: _govParams.vetoer,
+            votingDelay: _govParams.votingDelay,
+            votingPeriod: _govParams.votingPeriod,
+            proposalThresholdBps: _govParams.proposalThresholdBps,
+            quorumThresholdBps: _govParams.quorumThresholdBps
+        });
 
         emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
     }
@@ -351,10 +349,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         TokenParams calldata _tokenParams,
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams
-    )
-        internal
-        returns (address token, address metadata, address auction, address treasury, address governor)
-    {
+    ) internal returns (address token, address metadata, address auction, address treasury, address governor) {
         address founder = _founderParams[0].wallet;
         if (founder == address(0)) revert FOUNDER_REQUIRED();
 
@@ -385,10 +380,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         GovParams calldata _govParams,
         bytes32 _deploySalt,
         ImplementationParams calldata _implementationParams
-    )
-        internal
-        returns (address token, address metadata, address auction, address treasury, address governor)
-    {
+    ) internal returns (address token, address metadata, address auction, address treasury, address governor) {
         address founder = _founderParams[0].wallet;
         if (founder == address(0)) revert FOUNDER_REQUIRED();
 

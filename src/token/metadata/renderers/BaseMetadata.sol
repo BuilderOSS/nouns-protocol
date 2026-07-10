@@ -18,7 +18,6 @@ abstract contract BaseMetadata is IBaseMetadata, Initializable, VersionedContrac
     ///                                                          ///
     ///                          STRUCTS                         ///
     ///                                                          ///
-
     /// @custom:storage-location erc7201:nounsbuilder.storage.BaseMetadata
     struct BaseMetadataStorage {
         address _token;
@@ -67,12 +66,10 @@ abstract contract BaseMetadata is IBaseMetadata, Initializable, VersionedContrac
     /// @param projectURI_ The project URI
     /// @param description_ The collection description
     /// @param contractImage_ The contract image
-    function __BaseMetadata_init(
-        address token_,
-        string memory projectURI_,
-        string memory description_,
-        string memory contractImage_
-    ) internal onlyInitializing {
+    function __BaseMetadata_init(address token_, string memory projectURI_, string memory description_, string memory contractImage_)
+        internal
+        onlyInitializing
+    {
         BaseMetadataStorage storage $ = _getBaseMetadataStorage();
 
         $._token = token_;
@@ -87,6 +84,7 @@ abstract contract BaseMetadata is IBaseMetadata, Initializable, VersionedContrac
 
     /// @notice Updates the additional token properties associated with the metadata.
     /// @dev Be careful to not conflict with already used keys such as "name", "description", "properties",
+    /// @param _additionalTokenProperties The additional token properties to set
     function setAdditionalTokenProperties(AdditionalTokenProperty[] memory _additionalTokenProperties) external onlyOwner {
         BaseMetadataStorage storage $ = _getBaseMetadataStorage();
 
@@ -98,6 +96,8 @@ abstract contract BaseMetadata is IBaseMetadata, Initializable, VersionedContrac
         emit AdditionalTokenPropertiesSet(_additionalTokenProperties);
     }
 
+    /// @notice Gets the additional token properties
+    /// @return _additionalTokenProperties The additional token properties
     function getAdditionalTokenProperties() public view returns (AdditionalTokenProperty[] memory _additionalTokenProperties) {
         BaseMetadataStorage storage $ = _getBaseMetadataStorage();
         _additionalTokenProperties = new AdditionalTokenProperty[]($._additionalTokenProperties.length);

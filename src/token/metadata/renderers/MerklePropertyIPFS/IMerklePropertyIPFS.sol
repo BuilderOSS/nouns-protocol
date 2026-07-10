@@ -9,7 +9,6 @@ interface IMerklePropertyIPFS {
     ///                                                          ///
     ///                          STRUCTS                         ///
     ///                                                          ///
-
     /// @notice The parameters to use for setting attributes
     /// @param tokenId The token ID
     /// @param attributes The attributes to set

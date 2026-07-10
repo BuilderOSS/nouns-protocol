@@ -67,9 +67,7 @@ contract DeployV3New is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        deployment = _deployAll(
-            deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient, crossDomainMessenger
-        );
+        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient, crossDomainMessenger);
 
         vm.stopBroadcast();
 
@@ -87,8 +85,11 @@ contract DeployV3New is Script {
     ) internal returns (DeploymentResult memory deployment) {
         Manager manager;
 
-        deployment.managerImpl0 =
-            address(new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL_0")) }(address(0), address(0), address(0), address(0), address(0), address(0)));
+        deployment.managerImpl0 = address(
+            new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL_0")) }(
+                address(0), address(0), address(0), address(0), address(0), address(0)
+            )
+        );
 
         manager = Manager(
             address(
@@ -140,13 +141,9 @@ contract DeployV3New is Script {
         vm.writeFile(filePath, "");
         vm.writeLine(filePath, string(abi.encodePacked("Manager: ", addressToString(deployment.manager))));
         vm.writeLine(filePath, string(abi.encodePacked("Token implementation: ", addressToString(deployment.tokenImpl))));
+        vm.writeLine(filePath, string(abi.encodePacked("Metadata Renderer implementation: ", addressToString(deployment.metadataRendererImpl))));
         vm.writeLine(
-            filePath,
-            string(abi.encodePacked("Metadata Renderer implementation: ", addressToString(deployment.metadataRendererImpl)))
-        );
-        vm.writeLine(
-            filePath,
-            string(abi.encodePacked("Merkle Property IPFS implementation: ", addressToString(deployment.merklePropertyMetadataImpl)))
+            filePath, string(abi.encodePacked("Merkle Property IPFS implementation: ", addressToString(deployment.merklePropertyMetadataImpl)))
         );
         vm.writeLine(filePath, string(abi.encodePacked("Auction implementation: ", addressToString(deployment.auctionImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Treasury implementation: ", addressToString(deployment.treasuryImpl))));

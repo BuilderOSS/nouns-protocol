@@ -19,7 +19,6 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
     ///                                                          ///
     ///                          STRUCTS                         ///
     ///                                                          ///
-
     /// @custom:storage-location erc7201:nounsbuilder.storage.PropertyIPFSRenderer
     struct PropertyIPFSStorage {
         string _rendererBase;
@@ -56,6 +55,7 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
     ///                          CONSTRUCTOR                     ///
     ///                                                          ///
 
+    /// @notice Creates a new metadata renderer
     /// @param _manager The contract upgrade manager address
     constructor(address _manager) payable initializer {
         manager = _manager;
@@ -271,6 +271,8 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
 
     /// @notice The properties and query string for a generated token
     /// @param _tokenId The ERC-721 token id
+    /// @return resultAttributes The attributes as a string
+    /// @return queryString The query string
     function getAttributes(uint256 _tokenId) public view returns (string memory resultAttributes, string memory queryString) {
         PropertyIPFSStorage storage $ = _getPropertyIPFSStorage();
 
@@ -354,13 +356,7 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
 
         return UriEncode.uriEncode(
             string(
-                abi.encodePacked(
-                    $._ipfsData[_item.referenceSlot].baseUri,
-                    _propertyName,
-                    "/",
-                    _item.name,
-                    $._ipfsData[_item.referenceSlot].extension
-                )
+                abi.encodePacked($._ipfsData[_item.referenceSlot].baseUri, _propertyName, "/", _item.name, $._ipfsData[_item.referenceSlot].extension)
             )
         );
     }
@@ -380,7 +376,8 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
 
         MetadataBuilder.JSONItem[] memory items = new MetadataBuilder.JSONItem[](4 + additionalTokenProperties.length);
 
-        items[0] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyName, value: string.concat(_name(), " #", Strings.toString(_tokenId)), quote: true });
+        items[0] =
+            MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyName, value: string.concat(_name(), " #", Strings.toString(_tokenId)), quote: true });
         items[1] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyDescription, value: description(), quote: true });
         items[2] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyImage, value: string.concat($._rendererBase, queryString), quote: true });
         items[3] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyProperties, value: _attributes, quote: false });

@@ -9,7 +9,6 @@ interface IPropertyIPFS {
     ///                                                          ///
     ///                            STRUCTS                       ///
     ///                                                          ///
-
     struct ItemParam {
         uint256 propertyId;
         string name;
@@ -36,9 +35,13 @@ interface IPropertyIPFS {
     ///                                                          ///
 
     /// @notice Emitted when a property is added
+    /// @param id The property ID
+    /// @param name The property name
     event PropertyAdded(uint256 id, string name);
 
     /// @notice Emitted when the renderer base is updated
+    /// @param prevRendererBase The previous renderer base
+    /// @param newRendererBase The new renderer base
     event RendererBaseUpdated(string prevRendererBase, string newRendererBase);
 
     ///                                                          ///
@@ -73,10 +76,13 @@ interface IPropertyIPFS {
 
     /// @notice The properties and query string for a generated token
     /// @param tokenId The ERC-721 token id
+    /// @return resultAttributes The attributes as a string
+    /// @return queryString The query string
     function getAttributes(uint256 tokenId) external view returns (string memory resultAttributes, string memory queryString);
 
     /// @notice Gets the raw attributes for a token
     /// @param _tokenId The ERC-721 token id
+    /// @return attributes The raw attributes array
     function getRawAttributes(uint256 _tokenId) external view returns (uint16[16] memory attributes);
 
     /// @notice The renderer base
