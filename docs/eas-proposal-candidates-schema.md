@@ -1,7 +1,7 @@
 # EAS Schema Design: Proposal Candidates
 
-**Version:** 3.5.0
-**Date:** 2026-05-27
+**Version:** 4.0.0
+**Date:** 2026-07-14
 **Purpose:** Off-chain proposal drafting, discussion, and signature collection using Ethereum Attestation Service (EAS)
 
 ---
@@ -58,18 +58,18 @@ Proposal Candidates are **draft proposals** that exist off-chain before being su
 ```javascript
 // Schema UIDs for Sepolia testnet
 const PROPOSAL_CANDIDATE_SCHEMA_UID =
-  "0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3";
+  "0xc3315fb5b910e904d24f56c5b37dd5a5d06392bb040ba8ad669a9f7b3bbe2e4f";
 const CANDIDATE_COMMENT_SCHEMA_UID =
   "0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2";
 const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID =
-  "0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5";
+  "0x58cd8b0e3e1bd4c8c0d980826c3a041d315132ecccbfb7063f6458c05809e54a";
 ```
 
 **EAS Scan Links:**
 
-- [ProposalCandidate](https://sepolia.easscan.org/schema/view/0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3)
+- [ProposalCandidate](https://sepolia.easscan.org/schema/view/0xc3315fb5b910e904d24f56c5b37dd5a5d06392bb040ba8ad669a9f7b3bbe2e4f)
 - [CandidateComment](https://sepolia.easscan.org/schema/view/0x1decf999b02cbecd8697ae7cf0c4017bc0115adbee476da79634332fdff965b2)
-- [CandidateSponsorSignature](https://sepolia.easscan.org/schema/view/0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5)
+- [CandidateSponsorSignature](https://sepolia.easscan.org/schema/view/0x58cd8b0e3e1bd4c8c0d980826c3a041d315132ecccbfb7063f6458c05809e54a)
 
 #### Mainnet
 
@@ -136,11 +136,11 @@ const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID = "TBD";
 
 ### Schema Relationships
 
-| Schema                        | References          | Purpose                                           |
-| ----------------------------- | ------------------- | ------------------------------------------------- |
-| **ProposalCandidate**         | -                   | Proposal version (self-contained)                 |
-| **CandidateComment**          | candidateId         | Discussion + sentiment (FOR/AGAINST/ABSTAIN/NONE) |
-| **CandidateSponsorSignature** | candidateVersionUID | Formal EIP-712 signature for specific version     |
+| Schema                        | References  | Purpose                                           |
+| ----------------------------- | ----------- | ------------------------------------------------- |
+| **ProposalCandidate**         | -           | Proposal version (self-contained)                 |
+| **CandidateComment**          | candidateId | Discussion + sentiment (FOR/AGAINST/ABSTAIN/NONE) |
+| **CandidateSponsorSignature** | candidateId | Formal EIP-712 signature for specific version     |
 
 ---
 
@@ -155,29 +155,32 @@ const CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID = "TBD";
 
 **Deployed Schema UIDs:**
 
-- **Sepolia**: `0x5d1c687645ae02fa0f235cc55ce24ab4e6c1d729f82c281689fd3f9f150932f3`
+- **Sepolia**: `0xc3315fb5b910e904d24f56c5b37dd5a5d06392bb040ba8ad669a9f7b3bbe2e4f`
 - **Mainnet**: TBD
 
 #### Schema String
 
 ```
-bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId
+bytes32 candidateId,bytes32 salt,address[] targets,uint256[] values,bytes[] calldatas,string description
 ```
 
 #### Field Definitions
 
-| Field           | Type      | Description                        | Constraints                                                                    |
-| --------------- | --------- | ---------------------------------- | ------------------------------------------------------------------------------ |
-| `candidateId`   | bytes32   | Unique candidate identifier        | `keccak256(abi.encodePacked(attester, salt))`                                  |
-| `salt`          | bytes32   | Random salt for grouping versions  | Generated on v1, reused for all versions                                       |
-| `versionNumber` | uint64    | Version number (1, 2, 3...)        | Increments with each edit                                                      |
-| `targets`       | address[] | Target contract addresses          | Length must match values/calldatas                                             |
-| `values`        | uint256[] | ETH values for each call           | Length must match targets/calldatas                                            |
-| `calldatas`     | bytes[]   | Encoded function calls             | Length must match targets/values                                               |
-| `description`   | string    | JSON-stringified proposal metadata | See description format below                                                   |
-| `proposalId`    | bytes32   | Pre-calculated proposal ID         | `keccak256(abi.encode(targets, values, calldatas, descriptionHash, attester))` |
+| Field         | Type      | Description                        | Constraints                                   |
+| ------------- | --------- | ---------------------------------- | --------------------------------------------- |
+| `candidateId` | bytes32   | Unique candidate identifier        | `keccak256(abi.encodePacked(attester, salt))` |
+| `salt`        | bytes32   | Random salt for grouping versions  | Generated on v1, reused for all versions      |
+| `targets`     | address[] | Target contract addresses          | Length must match values/calldatas            |
+| `values`      | uint256[] | ETH values for each call           | Length must match targets/calldatas           |
+| `calldatas`   | bytes[]   | Encoded function calls             | Length must match targets/values              |
+| `description` | string    | JSON-stringified proposal metadata | See description format below                  |
 
-**Note:** The `attester` field (implicit in EAS) is the proposer/creator address. The creation timestamp is available from EAS via `event.block.timestamp` in subgraph or `attestation.time` in SDK queries.
+**Note:** The following fields are **derived by the subgraph** and are NOT stored on-chain in the attestation:
+
+- `versionNumber`: Calculated by counting attestations with the same `candidateId`, ordered by `timeCreated`
+- `proposalId`: Calculated as `keccak256(abi.encode(targets, values, calldatas, keccak256(bytes(description)), attester))`
+- `proposer`: Available from EAS `attester` field (implicit in every attestation)
+- `createdAt`: Available from EAS `timeCreated` field or `event.block.timestamp` in subgraph
 
 #### Description Format (JSON)
 
@@ -222,26 +225,6 @@ bytes32 candidateId = keccak256(abi.encodePacked(attester, salt));
 
 **Note:** `attester` is the EAS attestation creator (automatically set when creating attestation).
 
-#### ProposalId Calculation
-
-**Critical:** The `proposalId` MUST be calculated exactly as the Governor contract does:
-
-```solidity
-bytes32 proposalId = keccak256(
-    abi.encode(
-        targets,
-        values,
-        calldatas,
-        keccak256(bytes(description)),
-        attester  // The proposer
-    )
-);
-```
-
-This ensures signatures collected for this version will work with `proposeBySigs`.
-
-**Note:** Use the attestation creator's address (the signer) as the proposer in the calculation.
-
 #### Example Attestation Data
 
 **Version 1 (First):**
@@ -250,15 +233,15 @@ This ensures signatures collected for this version will work with `proposeBySigs
 {
   candidateId: "0xabc123...", // keccak256(attester, salt)
   salt: "0x789def...", // Randomly generated
-  versionNumber: 1,
   targets: ["0xTreasury..."],
   values: [BigNumber.from(0)],
   calldatas: ["0x..."], // encoded call
-  description: '{"version":1,"title":"Treasury Diversification","description":"...","transactionBundles":[...]}',
-  proposalId: "0x5678..." // Calculated with attester as proposer
+  description: '{"version":1,"title":"Treasury Diversification","description":"...","transactionBundles":[...]}'
 }
 // attester: "0xAlice..." (implicit in EAS)
-// timestamp: Available from EAS attestation (event.block.timestamp)
+// timeCreated: Available from EAS attestation
+// versionNumber: 1 (calculated by subgraph: first attestation with this candidateId)
+// proposalId: "0x5678..." (calculated by subgraph from targets, values, calldatas, description, attester)
 ```
 
 **Version 2 (Revision):**
@@ -267,15 +250,15 @@ This ensures signatures collected for this version will work with `proposeBySigs
 {
   candidateId: "0xabc123...", // SAME as v1
   salt: "0x789def...", // SAME as v1 (copied from v1)
-  versionNumber: 2, // Incremented
   targets: ["0xTreasury..."], // May be different
   values: [BigNumber.from(0)], // May be different
   calldatas: ["0x..."], // May be different
-  description: '{"version":1,"title":"Updated Title","description":"...","transactionBundles":[...]}', // Different
-  proposalId: "0x9abc..." // DIFFERENT (new content)
+  description: '{"version":1,"title":"Updated Title","description":"...","transactionBundles":[...]}' // Different
 }
 // attester: "0xAlice..." (SAME, implicit in EAS)
-// timestamp: Later than v1 (from EAS attestation)
+// timeCreated: Later than v1 (from EAS attestation)
+// versionNumber: 2 (calculated by subgraph: second attestation with this candidateId)
+// proposalId: "0x9abc..." (DIFFERENT - calculated by subgraph from new content)
 ```
 
 ---
@@ -427,28 +410,28 @@ Time +4 days (v3 released, concerns addressed):
 
 **Deployed Schema UIDs:**
 
-- **Sepolia**: `0xeb66ca8d752474c808c9922734355ea6ec385c2515d66433aeabbf2a7b9fcaa5`
+- **Sepolia**: `0x58cd8b0e3e1bd4c8c0d980826c3a041d315132ecccbfb7063f6458c05809e54a`
 - **Mainnet**: TBD
 
 #### Schema String
 
 ```
-bytes32 candidateVersionUID,bytes32 proposalId,uint256 nonce,uint256 deadline,bytes signature
+bytes32 candidateId,bytes32 proposalId,uint256 nonce,uint256 deadline,bytes signature
 ```
 
 #### Field Definitions
 
-| Field                 | Type    | Description                                           | Constraints                             |
-| --------------------- | ------- | ----------------------------------------------------- | --------------------------------------- |
-| `candidateVersionUID` | bytes32 | UID of specific ProposalCandidate version attestation | Must exist                              |
-| `proposalId`          | bytes32 | Proposal ID being signed                              | Must match version's proposalId         |
-| `nonce`               | uint256 | Signer's nonce at signing time                        | From `proposeSignatureNonce(signer)`    |
-| `deadline`            | uint256 | Signature expiration timestamp                        | Must be future timestamp                |
-| `signature`           | bytes   | Full EIP-712 signature                                | 65 bytes (ECDSA) or variable (ERC-1271) |
+| Field         | Type    | Description                                 | Constraints                             |
+| ------------- | ------- | ------------------------------------------- | --------------------------------------- |
+| `candidateId` | bytes32 | Candidate identifier (NOT version-specific) | Must exist                              |
+| `proposalId`  | bytes32 | Proposal ID being signed                    | Calculated from proposal content        |
+| `nonce`       | uint256 | Signer's nonce at signing time              | From `proposeSignatureNonce(signer)`    |
+| `deadline`    | uint256 | Signature expiration timestamp              | Must be future timestamp                |
+| `signature`   | bytes   | Full EIP-712 signature                      | 65 bytes (ECDSA) or variable (ERC-1271) |
 
 **Note:** The `attester` field (implicit in EAS) is the signer/sponsor's address.
 
-**Signatures are for SPECIFIC VERSIONS** (candidateVersionUID). Each version competes for signatures.
+**Signatures reference the candidate but are bound to a specific `proposalId`** (which changes between versions). The subgraph matches signatures to versions by comparing `proposalId` values.
 
 #### Signature Validation
 
@@ -464,12 +447,13 @@ Before accepting a signature attestation, validate:
 
 ```javascript
 {
-  candidateVersionUID: "0x222...", // UID of ProposalCandidate version 2 attestation
-  proposalId: "0x9abc...", // Version 2's proposalId
+  candidateId: "0xabc123...", // Candidate identifier (same across all versions)
+  proposalId: "0x9abc...", // Specific proposalId being signed (from version 2's content)
   nonce: BigNumber.from(5),
   deadline: 1716912000, // 24 hours from now
   signature: "0x1234abcd..." // 65+ bytes
 }
+// The subgraph links this signature to version 2 by matching proposalId
 ```
 
 #### Revocation
@@ -755,17 +739,23 @@ const candidateId = calculateCandidateId(attester, salt);
 // "0xabc123..."
 ```
 
-### 3. ProposalId Calculation
+### 3. ProposalId Calculation (Subgraph Only)
+
+**Note:** The `proposalId` is **NOT** stored in the attestation. It is calculated by the subgraph from the proposal data.
+
+The subgraph calculates it exactly as the Governor contract does:
 
 ```javascript
 function calculateProposalId(
   targets: string[],
   values: ethers.BigNumber[],
   calldatas: string[],
-  description: string,
-  proposer: string
+  description: string, // MUST be the exact raw string from attestation
+  proposer: string // The attester address from EAS
 ): string {
-  // Calculate description hash
+  // Calculate description hash from RAW string
+  // ⚠️ CRITICAL: description MUST be the exact raw string from the attestation
+  // DO NOT use JSON.stringify(JSON.parse(description)) - this will change the hash!
   const descriptionHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(description));
 
   // Encode and hash (same as Governor contract)
@@ -780,7 +770,11 @@ function calculateProposalId(
 }
 ```
 
-**⚠️ CRITICAL:** This MUST match the Governor contract's calculation exactly.
+**⚠️ CRITICAL:**
+- This MUST match the Governor contract's calculation exactly
+- The `description` parameter MUST be the exact raw string from the attestation
+- DO NOT parse and re-stringify the description - `JSON.stringify()` can change whitespace and property order, producing a different hash
+- The subgraph performs this calculation for indexing purposes, but it is NOT part of the on-chain attestation
 
 ### 4. Description JSON Building
 
@@ -831,10 +825,10 @@ const descriptionJSON = buildDescriptionJSON(
 ```javascript
 import { GraphQLClient, gql } from "graphql-request";
 
-async function getPreviousVersionSalt(
+async function getPreviousSalt(
   graphqlClient: GraphQLClient,
   candidateId: string
-): Promise<{ salt: string, latestVersion: number } | null> {
+): Promise<string | null> {
   const query = gql`
     query GetLatestVersion($candidateId: String!) {
       attestations(
@@ -859,19 +853,15 @@ async function getPreviousVersionSalt(
 
   const decoded = JSON.parse(data.attestations[0].decodedDataJson);
   const salt = decoded.find((d) => d.name === "salt").value.value;
-  const versionNumber = parseInt(decoded.find((d) => d.name === "versionNumber").value.value);
 
-  return {
-    salt,
-    latestVersion: versionNumber,
-  };
+  return salt;
 }
 
 // Usage
-const previous = await getPreviousVersionSalt(graphqlClient, candidateId);
-if (previous) {
-  const nextVersionNumber = previous.latestVersion + 1;
-  const salt = previous.salt; // Reuse this salt!
+const salt = await getPreviousSalt(graphqlClient, candidateId);
+if (salt) {
+  // Reuse the salt for the new version
+  // versionNumber will be automatically calculated by subgraph
 }
 ```
 
@@ -920,32 +910,23 @@ async function createFirstCandidateVersion(
     proposalData.discussionUrl
   );
 
-  // 4. Calculate proposalId
-  const proposalId = calculateProposalId(
-    proposalData.targets,
-    proposalData.values,
-    proposalData.calldatas,
-    descriptionJSON,
-    proposer
-  );
-
-  // 5. Encode schema data (note: proposer is implicit via EAS attester, timestamp from event.block.timestamp)
+  // 4. Encode schema data
+  // Note: versionNumber and proposalId are NOT included - they are calculated by subgraph
+  // Note: proposer is implicit via EAS attester field
   const schemaEncoder = new SchemaEncoder(
-    "bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId"
+    "bytes32 candidateId,bytes32 salt,address[] targets,uint256[] values,bytes[] calldatas,string description"
   );
 
   const encodedData = schemaEncoder.encodeData([
     { name: "candidateId", value: candidateId, type: "bytes32" },
     { name: "salt", value: salt, type: "bytes32" },
-    { name: "versionNumber", value: 1, type: "uint64" },
     { name: "targets", value: proposalData.targets, type: "address[]" },
     { name: "values", value: proposalData.values, type: "uint256[]" },
     { name: "calldatas", value: proposalData.calldatas, type: "bytes[]" },
     { name: "description", value: descriptionJSON, type: "string" },
-    { name: "proposalId", value: proposalId, type: "bytes32" },
   ]);
 
-  // 6. Create attestation (revocable so proposer can clean up old versions)
+  // 5. Create attestation (revocable so proposer can clean up old versions)
   const tx = await eas.connect(signer).attest({
     schema: PROPOSAL_CANDIDATE_SCHEMA_UID,
     data: {
@@ -990,19 +971,15 @@ async function createNewCandidateVersion(
   }
 ): Promise<{
   candidateVersionUID: string,
-  versionNumber: number,
 }> {
   const proposer = await signer.getAddress();
 
-  // 1. Fetch previous version to get salt and version number
-  const previous = await getPreviousVersionSalt(graphqlClient, candidateId);
+  // 1. Fetch previous version to get salt
+  const salt = await getPreviousSalt(graphqlClient, candidateId);
 
-  if (!previous) {
+  if (!salt) {
     throw new Error("Candidate not found");
   }
-
-  const salt = previous.salt; // REUSE SALT!
-  const nextVersionNumber = previous.latestVersion + 1;
 
   // 2. Verify candidateId matches
   const verifiedCandidateId = calculateCandidateId(proposer, salt);
@@ -1019,32 +996,23 @@ async function createNewCandidateVersion(
     proposalData.discussionUrl
   );
 
-  // 4. Calculate NEW proposalId (content changed)
-  const proposalId = calculateProposalId(
-    proposalData.targets,
-    proposalData.values,
-    proposalData.calldatas,
-    descriptionJSON,
-    proposer
-  );
-
-  // 5. Encode schema data (note: proposer is implicit via EAS attester, timestamp from event.block.timestamp)
+  // 4. Encode schema data
+  // Note: versionNumber and proposalId are NOT included - they are calculated by subgraph
+  // Note: proposer is implicit via EAS attester field
   const schemaEncoder = new SchemaEncoder(
-    "bytes32 candidateId,bytes32 salt,uint64 versionNumber,address[] targets,uint256[] values,bytes[] calldatas,string description,bytes32 proposalId"
+    "bytes32 candidateId,bytes32 salt,address[] targets,uint256[] values,bytes[] calldatas,string description"
   );
 
   const encodedData = schemaEncoder.encodeData([
     { name: "candidateId", value: candidateId, type: "bytes32" },
-    { name: "salt", value: salt, type: "bytes32" }, // SAME salt
-    { name: "versionNumber", value: nextVersionNumber, type: "uint64" }, // Incremented
+    { name: "salt", value: salt, type: "bytes32" }, // SAME salt as v1
     { name: "targets", value: proposalData.targets, type: "address[]" },
     { name: "values", value: proposalData.values, type: "uint256[]" },
     { name: "calldatas", value: proposalData.calldatas, type: "bytes[]" },
     { name: "description", value: descriptionJSON, type: "string" },
-    { name: "proposalId", value: proposalId, type: "bytes32" }, // NEW proposalId
   ]);
 
-  // 6. Create attestation (revocable so proposer can clean up old versions)
+  // 5. Create attestation (revocable so proposer can clean up old versions)
   const tx = await eas.connect(signer).attest({
     schema: PROPOSAL_CANDIDATE_SCHEMA_UID,
     data: {
@@ -1058,11 +1026,12 @@ async function createNewCandidateVersion(
   const receipt = await tx.wait();
   const candidateVersionUID = receipt.logs[0].topics[1];
 
-  console.log(`Created Version ${nextVersionNumber}!`);
+  console.log("Created new version!");
   console.log("  candidateVersionUID:", candidateVersionUID);
   console.log("  candidateId:", candidateId, "(same as before)");
+  console.log("  (versionNumber will be calculated by subgraph)");
 
-  return { candidateVersionUID, versionNumber: nextVersionNumber };
+  return { candidateVersionUID };
 }
 ```
 
@@ -1176,7 +1145,7 @@ await commentOnCandidate(
 
 ---
 
-### Example 4: Sign a Specific Version
+### Example 4: Sign a Candidate Version
 
 ```javascript
 async function signCandidateVersion(
@@ -1184,10 +1153,10 @@ async function signCandidateVersion(
   governor: ethers.Contract,
   token: ethers.Contract,
   signer: ethers.Signer,
-  candidateVersionUID: string,
+  candidateId: string,
   versionData: {
     proposer: string;
-    proposalId: string;
+    proposalId: string; // From the specific version being signed
   },
   deadlineMinutes: number = 1440 // 24 hours
 ): Promise<string> {
@@ -1220,7 +1189,7 @@ async function signCandidateVersion(
   // Message
   const value = {
     proposer: versionData.proposer,
-    proposalId: versionData.proposalId,
+    proposalId: versionData.proposalId, // This binds the signature to a specific version
     nonce,
     deadline
   };
@@ -1230,11 +1199,11 @@ async function signCandidateVersion(
 
   // 2. Create signature attestation on EAS
   const schemaEncoder = new SchemaEncoder(
-    'bytes32 candidateVersionUID,bytes32 proposalId,uint256 nonce,uint256 deadline,bytes signature'
+    'bytes32 candidateId,bytes32 proposalId,uint256 nonce,uint256 deadline,bytes signature'
   );
 
   const encodedData = schemaEncoder.encodeData([
-    { name: 'candidateVersionUID', value: candidateVersionUID, type: 'bytes32' },
+    { name: 'candidateId', value: candidateId, type: 'bytes32' },
     { name: 'proposalId', value: versionData.proposalId, type: 'bytes32' },
     { name: 'nonce', value: nonce, type: 'uint256' },
     { name: 'deadline', value: deadline, type: 'uint256' },
@@ -1244,7 +1213,7 @@ async function signCandidateVersion(
   const tx = await eas.connect(signer).attest({
     schema: CANDIDATE_SPONSOR_SIGNATURE_SCHEMA_UID,
     data: {
-      recipient: versionData.attester, // Recipient is the proposer (attester of the version)
+      recipient: versionData.proposer, // Recipient is the proposer
       expirationTime: deadline, // Use same deadline
       revocable: true, // Sponsor can revoke
       data: encodedData
@@ -1255,6 +1224,9 @@ async function signCandidateVersion(
   const signatureUID = receipt.logs[0].topics[1];
 
   console.log('Signature added:', signatureUID);
+  console.log('  candidateId:', candidateId);
+  console.log('  proposalId:', versionData.proposalId);
+  console.log('  (Subgraph will link this signature to the version with matching proposalId)');
   return signatureUID;
 }
 ```
@@ -1299,18 +1271,37 @@ async function getCandidateVersions(
 
   const data = await graphqlClient.request(query, { candidateId });
 
-  return data.attestations.map((att) => {
+  return data.attestations.map((att, index) => {
     const decoded = JSON.parse(att.decodedDataJson);
+    // CRITICAL: Keep raw description string for proposalId calculation
+    // DO NOT parse and re-stringify - JSON.stringify can change whitespace/order
+    const descriptionRaw = decoded.find((d) => d.name === "description").value.value;
+    const targets = decoded.find((d) => d.name === "targets").value.value;
+    const values = decoded.find((d) => d.name === "values").value.value;
+    const calldatas = decoded.find((d) => d.name === "calldatas").value.value;
+
+    // Calculate proposalId (same as Governor contract)
+    // CRITICAL: Use raw description string, not JSON.stringify(parsed)
+    const proposalId = ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(
+        ["address[]", "uint256[]", "bytes[]", "bytes32", "address"],
+        [targets, values, calldatas, ethers.utils.keccak256(ethers.utils.toUtf8Bytes(descriptionRaw)), att.attester]
+      )
+    );
+
+    // Parse description for display purposes only
+    const descriptionParsed = JSON.parse(descriptionRaw);
 
     return {
       uid: att.id,
-      versionNumber: parseInt(decoded.find((d) => d.name === "versionNumber").value.value),
+      versionNumber: index + 1, // Calculated from position (ordered by timeCreated asc)
       attester: att.attester, // Proposer comes from EAS attester field, not decoded data
-      proposalId: decoded.find((d) => d.name === "proposalId").value.value,
-      description: JSON.parse(decoded.find((d) => d.name === "description").value.value),
-      targets: decoded.find((d) => d.name === "targets").value.value,
-      values: decoded.find((d) => d.name === "values").value.value,
-      calldatas: decoded.find((d) => d.name === "calldatas").value.value,
+      proposalId, // Calculated from proposal data
+      description: descriptionParsed, // Parsed for display
+      descriptionRaw, // Keep raw for re-hashing if needed
+      targets,
+      values,
+      calldatas,
       createdAt: att.timeCreated,
     };
   });
@@ -2007,6 +1998,22 @@ query GetVersionSignatures($candidateVersionUID: ID!) {
 ---
 
 ## Changelog
+
+### v4.0.0 (2026-07-14) - Schema Simplification
+
+- **BREAKING**: ProposalCandidate schema simplified to remove on-chain storage of derived fields
+  - Removed `versionNumber` field (now calculated by subgraph from attestation count and order)
+  - Removed `proposalId` field (now calculated by subgraph from proposal data using Governor formula)
+  - **New Schema UID (Sepolia)**: `0xc3315fb5b910e904d24f56c5b37dd5a5d06392bb040ba8ad669a9f7b3bbe2e4f`
+  - **Schema String**: `bytes32 candidateId,bytes32 salt,address[] targets,uint256[] values,bytes[] calldatas,string description`
+- **BREAKING**: CandidateSponsorSignature schema updated to use candidateId instead of candidateVersionUID
+  - Changed `candidateVersionUID` → `candidateId` (signatures now reference candidate, not specific version)
+  - Signatures are matched to versions by comparing `proposalId` values
+  - **New Schema UID (Sepolia)**: `0x58cd8b0e3e1bd4c8c0d980826c3a041d315132ecccbfb7063f6458c05809e54a`
+  - **Schema String**: `bytes32 candidateId,bytes32 proposalId,uint256 nonce,uint256 deadline,bytes signature`
+- Updated all code examples to match actual SDK implementation
+- Added notes throughout documentation clarifying which fields are subgraph-derived vs on-chain
+- **Gas Savings**: Removed two bytes32 fields (versionNumber as uint64 + proposalId) = ~40 gas per attestation
 
 ### v3.5.0 (2026-05-27)
 

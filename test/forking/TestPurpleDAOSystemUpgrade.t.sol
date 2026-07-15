@@ -95,7 +95,7 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
 
     function setUp() public {
         // Fork Purple DAO mainnet
-        uint256 mainnetFork = vm.createFork(vm.envString("ETH_RPC_MAINNET"));
+        uint256 mainnetFork = vm.createFork(vm.envString("MAINNET_RPC_URL"));
         vm.selectFork(mainnetFork);
         vm.rollFork(16171761);
 
@@ -113,9 +113,12 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
         _recordMetadataRendererStateBefore();
 
         // Deploy new implementations (compiled with via_ir=true)
+        address MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+        address purpleBuilderRewards = 0x2a94A467736eFD9502d396A8443C4dF58A6EAAD1; // Purple's builder rewards recipient
+
         newTokenImpl = new Token(address(manager));
         // Auction constructor needs: manager, rewardsManager, weth, builderRewardsBPS, referralRewardsBPS
-        newAuctionImpl = new Auction(address(manager), address(0), address(0), 0, 0);
+        newAuctionImpl = new Auction(address(manager), address(0), MAINNET_WETH, 0, 0);
         newGovernorImpl = new Governor(address(manager));
         newTreasuryImpl = new Treasury(address(manager));
         newMetadataRendererImpl = new MetadataRenderer(address(manager));
@@ -125,7 +128,7 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
             address(newAuctionImpl),
             address(newTreasuryImpl),
             address(newGovernorImpl),
-            0xaeA77c982515fD4aB72382D9ee1745C874Fa2234
+            purpleBuilderRewards
         );
 
         // Get old implementation addresses from storage (ERC1967 implementation slot)

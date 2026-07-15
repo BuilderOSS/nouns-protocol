@@ -47,13 +47,18 @@ cast storage $MANAGER_PROXY 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920
 
 ## Phase 1: Deploy New Implementations
 
+### For V3 Upgrades (Recommended)
+
 ```bash
 source .env
 export NETWORK=<network>
-yarn deploy:v2-upgrade
+export DEPLOY_SALT=<your_salt>
+yarn deploy:v3-upgrade
 ```
 
 Record outputs from `deploys/*.txt` and update `addresses/<chainid>.json` manually.
+
+**Note:** V2 deployment commands (`yarn deploy:v2-upgrade`) have been removed. All new deployments should use V3.
 
 ## Phase 2: Update Manager and Register Upgrades
 
@@ -64,6 +69,16 @@ Manager owner executes:
 3. `Manager.registerUpgrade(baseAuctionImpl, NEW_AUCTION_IMPL)` for each base auction impl to support
 4. `Manager.registerUpgrade(baseGovernorImpl, NEW_GOVERNOR_IMPL)` for each base governor impl to support
 5. Optional: register metadata/treasury upgrade paths if these contracts changed
+
+**Note on builderRewardsRecipient:** The Manager implementation has `builderRewardsRecipient` as an immutable constructor parameter. To change this value, you must deploy a NEW Manager implementation with the desired `builderRewardsRecipient` value and upgrade to it. The value cannot be changed via a setter function.
+
+### Example (Mainnet):
+
+```bash
+# After Manager.upgradeTo(newManagerImpl):
+# Verify the new implementation's builderRewardsRecipient:
+cast call $MANAGER_PROXY "builderRewardsRecipient()(address)" --rpc-url mainnet
+```
 
 Use your manager owner path:
 
@@ -99,8 +114,6 @@ Apply additional contract upgrades if part of the rollout scope.
 3. **After on-chain upgrade**: Activate the new vote-by-sig features in frontend/relayer.
 4. **Coordination**: For DAOs with active relayers, coordinate the timing between on-chain upgrade execution and relayer deployment to minimize any window where vote-by-sig is unavailable.
 
-See `docs/frontend-migration-guide.md` for detailed code migration examples.
-
 ### Other Compatibility Notes
 
 - Signed proposal update policy:
@@ -115,7 +128,7 @@ See `docs/frontend-migration-guide.md` for detailed code migration examples.
 See:
 
 - `docs/governor-architecture.md`
-- `docs/governor-audit-readiness.md`
+- `docs/v3-audit-readiness.md`
 
 ## Existing vs New DAO Rollout
 

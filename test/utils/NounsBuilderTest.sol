@@ -61,7 +61,7 @@ contract NounsBuilderTest is Test {
         vm.label(founder, "FOUNDER");
         vm.label(founder2, "FOUNDER_2");
 
-        managerImpl0 = address(new Manager(address(0), address(0), address(0), address(0), address(0), address(0)));
+        managerImpl0 = address(new Manager(address(0), address(0), address(0), address(0), address(0), zoraDAO));
         manager = Manager(address(new ERC1967Proxy(managerImpl0, abi.encodeWithSignature("initialize(address)", zoraDAO))));
         rewards = address(new MockProtocolRewards());
 

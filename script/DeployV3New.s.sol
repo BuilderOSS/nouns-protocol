@@ -4,6 +4,8 @@ pragma solidity ^0.8.35;
 import "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
+import { DeployHelpers } from "./DeployHelpers.sol";
+import { DeployConstants } from "./DeployConstants.sol";
 import { Manager } from "../src/manager/Manager.sol";
 import { Token } from "../src/token/Token.sol";
 import { Auction } from "../src/auction/Auction.sol";
@@ -17,7 +19,7 @@ import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
 import { L2MigrationDeployer } from "../src/deployers/L2MigrationDeployer.sol";
 import { Constants } from "./Constants.sol";
 
-contract DeployV3New is Script {
+contract DeployV3New is Script, DeployConstants {
     using Strings for uint256;
 
     struct DeploymentResult {
@@ -71,7 +73,7 @@ contract DeployV3New is Script {
 
         vm.stopBroadcast();
 
-        _writeDeploymentFile(chainID, deployment);
+        _writeDeploymentFile(chainID, deployment, deploySalt);
         _logDeployment(deployment);
     }
 
@@ -85,60 +87,101 @@ contract DeployV3New is Script {
     ) internal returns (DeploymentResult memory deployment) {
         Manager manager;
 
-        deployment.managerImpl0 = address(
-            new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL_0")) }(
-                address(0), address(0), address(0), address(0), address(0), address(0)
-            )
+        // Deploy Manager implementation (bootstrap) via CREATE2 factory
+        // CRITICAL: Use all-zero constructor args for cross-chain determinism
+        // builderRewardsRecipient is chain-specific, so we use address(0) here
+        // Manager proxy will be upgraded to the real implementation immediately after
+        deployment.managerImpl0 = DeployHelpers.deployViaFactory(
+            abi.encodePacked(
+                type(Manager).creationCode, abi.encode(address(0), address(0), address(0), address(0), address(0), address(0))
+            ),
+            _deriveSalt(deploySalt, MANAGER_IMPL_0_SALT)
         );
 
+        // Deploy Manager proxy via CREATE2 factory for cross-chain determinism
+        // NOTE: Include initialization data in proxy constructor for atomic deployment
+        // This prevents front-running attacks where someone else calls initialize() before we do
+        // Cross-chain determinism is maintained because deployerAddress is same across chains
         manager = Manager(
-            address(
-                new ERC1967Proxy{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_PROXY")) }(
-                    deployment.managerImpl0, abi.encodeWithSignature("initialize(address)", deployerAddress)
-                )
+            DeployHelpers.deployViaFactory(
+                abi.encodePacked(
+                    type(ERC1967Proxy).creationCode,
+                    abi.encode(deployment.managerImpl0, abi.encodeWithSignature("initialize(address)", deployerAddress))
+                ),
+                _deriveSalt(deploySalt, MANAGER_PROXY_SALT)
             )
         );
         deployment.manager = address(manager);
 
-        deployment.tokenImpl = address(new Token(address(manager)));
-        deployment.metadataRendererImpl = address(new MetadataRenderer(address(manager)));
-        deployment.merklePropertyMetadataImpl =
-            address(new MerklePropertyIPFS{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_PROPERTY_IPFS")) }(address(manager)));
-        deployment.auctionImpl =
-            address(new Auction(address(manager), protocolRewards, weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS));
-        deployment.treasuryImpl = address(new Treasury(address(manager)));
-        deployment.governorImpl = address(new Governor(address(manager)));
+        // Deploy implementations via CREATE3 factory for bytecode-independent cross-chain determinism
+        // CREATE3 enables identical addresses even when constructor args differ per chain
+        deployment.tokenImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(Token).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, TOKEN_IMPL_SALT)
+        );
 
-        deployment.managerImpl = address(
-            new Manager{ salt: _deriveSalt(deploySalt, keccak256("MANAGER_IMPL")) }(
-                deployment.tokenImpl,
-                deployment.metadataRendererImpl,
-                deployment.auctionImpl,
-                deployment.treasuryImpl,
-                deployment.governorImpl,
-                builderRewardsRecipient
-            )
+        deployment.metadataRendererImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(MetadataRenderer).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, METADATA_RENDERER_IMPL_SALT)
+        );
+
+        deployment.merklePropertyMetadataImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(MerklePropertyIPFS).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT)
+        );
+
+        deployment.auctionImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(
+                type(Auction).creationCode,
+                abi.encode(address(manager), protocolRewards, weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS)
+            ),
+            _deriveSalt(deploySalt, AUCTION_IMPL_SALT)
+        );
+
+        deployment.treasuryImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(Treasury).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, TREASURY_IMPL_SALT)
+        );
+
+        deployment.governorImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(Governor).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, GOVERNOR_IMPL_SALT)
+        );
+
+        deployment.managerImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(
+                type(Manager).creationCode,
+                abi.encode(
+                    deployment.tokenImpl,
+                    deployment.metadataRendererImpl,
+                    deployment.auctionImpl,
+                    deployment.treasuryImpl,
+                    deployment.governorImpl,
+                    builderRewardsRecipient
+                )
+            ),
+            _deriveSalt(deploySalt, MANAGER_IMPL_SALT)
         );
 
         manager.upgradeTo(deployment.managerImpl);
 
-        deployment.merkleMinter =
-            address(new MerkleReserveMinter{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_RESERVE_MINTER")) }(address(manager), protocolRewards));
+        // Deploy minters and migration deployer via CREATE3 for cross-chain determinism
+        deployment.merkleMinter = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(MerkleReserveMinter).creationCode, abi.encode(address(manager), protocolRewards)),
+            _deriveSalt(deploySalt, MERKLE_RESERVE_MINTER_SALT)
+        );
 
-        deployment.redeemMinter =
-            address(new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(manager, protocolRewards));
+        deployment.redeemMinter = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(ERC721RedeemMinter).creationCode, abi.encode(manager, protocolRewards)),
+            _deriveSalt(deploySalt, ERC721_REDEEM_MINTER_SALT)
+        );
 
-        deployment.migrationDeployer = address(
-            new L2MigrationDeployer{ salt: _deriveSalt(deploySalt, keccak256("L2_MIGRATION_DEPLOYER")) }(
-                address(manager), deployment.merkleMinter, crossDomainMessenger
-            )
+        deployment.migrationDeployer = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(L2MigrationDeployer).creationCode, abi.encode(address(manager), deployment.merkleMinter, crossDomainMessenger)),
+            _deriveSalt(deploySalt, L2_MIGRATION_DEPLOYER_SALT)
         );
     }
 
-    function _writeDeploymentFile(uint256 chainID, DeploymentResult memory deployment) internal {
+    function _writeDeploymentFile(uint256 chainID, DeploymentResult memory deployment, bytes32 deploySalt) internal {
         string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version3_new.txt"));
 
         vm.writeFile(filePath, "");
+        vm.writeLine(filePath, string(abi.encodePacked("Deploy Salt: ", bytes32ToString(deploySalt))));
         vm.writeLine(filePath, string(abi.encodePacked("Manager: ", addressToString(deployment.manager))));
         vm.writeLine(filePath, string(abi.encodePacked("Token implementation: ", addressToString(deployment.tokenImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Metadata Renderer implementation: ", addressToString(deployment.metadataRendererImpl))));
@@ -210,7 +253,15 @@ contract DeployV3New is Script {
         else return bytes1(uint8(b) + 0x57);
     }
 
-    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
-        return keccak256(abi.encode(deploySalt, label));
+    function bytes32ToString(bytes32 _bytes) private pure returns (string memory) {
+        bytes memory s = new bytes(64);
+        for (uint256 i = 0; i < 32; i++) {
+            bytes1 b = _bytes[i];
+            bytes1 hi = bytes1(uint8(b) / 16);
+            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
+            s[2 * i] = char(hi);
+            s[2 * i + 1] = char(lo);
+        }
+        return string(abi.encodePacked("0x", string(s)));
     }
 }

@@ -264,7 +264,9 @@ contract ManagerTest is NounsBuilderTest {
         assertTrue(attackerPredictedToken != victimToken);
     }
 
-    function test_PredictDeterministicAddressesChangesAcrossManagerUpgrade() public {
+    function test_PredictDeterministicAddressesStableAcrossManagerUpgrade() public {
+        // NOTE: With the new CREATE2 factory approach, addresses are stable across Manager upgrades
+        // because they depend on the factory address (constant) instead of Manager address
         address deployer = address(this);
         IManager.ImplementationParams memory implementationParams = getImplementationParams();
         (address tokenBefore, address metadataBefore, address auctionBefore, address treasuryBefore, address governorBefore) =
@@ -280,18 +282,16 @@ contract ManagerTest is NounsBuilderTest {
         vm.prank(zoraDAO);
         manager.upgradeTo(newManagerImpl);
 
-        IManager.ImplementationParams memory newImplementationParams = IManager.ImplementationParams({
-            token: newTokenImpl, metadataRenderer: newMetadataImpl, auction: newAuctionImpl, treasury: newTreasuryImpl, governor: newGovernorImpl
-        });
-
+        // Same implementation params mean same addresses (since factory is constant)
         (address tokenAfter, address metadataAfter, address auctionAfter, address treasuryAfter, address governorAfter) =
-            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, newImplementationParams);
+            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
 
-        assertTrue(tokenBefore != tokenAfter);
-        assertTrue(metadataBefore != metadataAfter);
-        assertTrue(auctionBefore != auctionAfter);
-        assertTrue(treasuryBefore != treasuryAfter);
-        assertTrue(governorBefore != governorAfter);
+        // Addresses remain the same because CREATE2 factory address is constant
+        assertEq(tokenBefore, tokenAfter);
+        assertEq(metadataBefore, metadataAfter);
+        assertEq(auctionBefore, auctionAfter);
+        assertEq(treasuryBefore, treasuryAfter);
+        assertEq(governorBefore, governorAfter);
     }
 
     function testRevert_DeployDeterministicWithUsedSalt() public {
@@ -326,5 +326,92 @@ contract ManagerTest is NounsBuilderTest {
 
         vm.expectRevert(Manager.IMPLEMENTATION_REQUIRED.selector);
         manager.predictDeterministicAddresses(address(this), DEFAULT_DEPLOY_SALT, implementationParams);
+    }
+
+    function test_CrossChainDeterminismWithDifferentManagerAddresses() public {
+        // This test simulates cross-chain determinism where Manager proxies are at different addresses
+        // With CREATE2 factory, DAO addresses are independent of Manager address
+        // BUT implementation addresses must be the same for DAO addresses to match
+
+        address deployer = address(this);
+        IManager.ImplementationParams memory implementationParams = getImplementationParams();
+
+        // Predict addresses from Manager1 (current manager) with shared implementation bundle
+        (address token1, address metadata1, address auction1, address treasury1, address governor1) =
+            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+
+        // Deploy a new Manager at a different address (simulating different chain)
+        // Deploy new implementations (these would be at different addresses on different chains)
+        address newTokenImpl = address(new Token(address(manager)));
+        address newMetadataImpl = address(new MetadataRenderer(address(manager)));
+        address newAuctionImpl = address(new Auction(address(manager), address(rewards), weth, 1, 2));
+        address newTreasuryImpl = address(new Treasury(address(manager)));
+        address newGovernorImpl = address(new Governor(address(manager)));
+
+        Manager manager2 = new Manager(newTokenImpl, newMetadataImpl, newAuctionImpl, newTreasuryImpl, newGovernorImpl, zoraDAO);
+        // Note: No need to call initialize() as constructor has initializer modifier
+
+        // Verify managers are at different addresses
+        assertTrue(address(manager) != address(manager2), "Managers should be at different addresses");
+
+        // Scenario 1: Using SAME implementation bundle (cross-chain determinism achieved)
+        (address token2Same, address metadata2Same, address auction2Same, address treasury2Same, address governor2Same) =
+            manager2.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+
+        // With same implementation addresses, DAO addresses match despite different Manager addresses
+        assertEq(token1, token2Same, "Token addresses match with same implementations");
+        assertEq(metadata1, metadata2Same, "Metadata addresses match with same implementations");
+        assertEq(auction1, auction2Same, "Auction addresses match with same implementations");
+        assertEq(treasury1, treasury2Same, "Treasury addresses match with same implementations");
+        assertEq(governor1, governor2Same, "Governor addresses match with same implementations");
+
+        // Scenario 2: Using DIFFERENT implementation bundle (addresses differ)
+        IManager.ImplementationParams memory implementationParams2 = IManager.ImplementationParams({
+            token: newTokenImpl, metadataRenderer: newMetadataImpl, auction: newAuctionImpl, treasury: newTreasuryImpl, governor: newGovernorImpl
+        });
+
+        (address token2Diff, address metadata2Diff, address auction2Diff, address treasury2Diff, address governor2Diff) =
+            manager2.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams2);
+
+        // With different implementation addresses, DAO addresses differ
+        assertTrue(token1 != token2Diff, "Token addresses differ with different implementations");
+        assertTrue(metadata1 != metadata2Diff, "Metadata addresses differ with different implementations");
+        assertTrue(auction1 != auction2Diff, "Auction addresses differ with different implementations");
+        assertTrue(treasury1 != treasury2Diff, "Treasury addresses differ with different implementations");
+        assertTrue(governor1 != governor2Diff, "Governor addresses differ with different implementations");
+    }
+
+    function test_FundRecoveryScenario() public {
+        // Simulates the fund recovery use case:
+        // 1. Deploy DAO on Chain A
+        // 2. Funds accidentally sent to predicted treasury on Chain B
+        // 3. Deploy DAO on Chain B to recover funds
+
+        setMockFounderParams();
+        setMockTokenParams();
+        setMockAuctionParams();
+        setMockGovParams();
+        IManager.ImplementationParams memory implementationParams = getImplementationParams();
+
+        address deployer = address(this);
+
+        // Predict treasury address (same on both chains)
+        (,,, address predictedTreasury,) = manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+
+        // Simulate funds sent to predicted address "on Chain B" (before deployment)
+        vm.deal(predictedTreasury, 10 ether);
+        assertEq(predictedTreasury.balance, 10 ether);
+        assertEq(predictedTreasury.code.length, 0, "Treasury not yet deployed");
+
+        // Deploy DAO on "Chain B" using same parameters
+        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
+
+        // Verify treasury deployed to predicted address
+        assertEq(address(treasury), predictedTreasury, "Treasury deployed to predicted address");
+        assertEq(predictedTreasury.code.length > 0, true, "Treasury now has code");
+        assertEq(address(treasury).balance, 10 ether, "Treasury controls the funds");
+
+        // DAO can now recover the funds through governance
+        assertEq(treasury.owner(), address(governor), "Governor controls treasury");
     }
 }

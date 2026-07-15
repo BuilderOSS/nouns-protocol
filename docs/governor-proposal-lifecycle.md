@@ -74,7 +74,7 @@ all revisions use A's original `proposalUpdatePeriodEnd`.
 - Proposer cannot also appear as a signer.
 - Combined votes (proposer + signers) must exceed proposal threshold.
 - Signatures are EIP-712 with nonce + deadline replay protection.
-- Signer sponsorship is capped: max `32` signers per proposal.
+- Signer sponsorship is capped: max `16` signers per proposal.
 - `proposeBySigs` and `updateProposalBySigs` share the same per-signer nonce mapping (`proposeSigNonces`),
   so off-chain signing flows must sequence propose/update sponsorship signatures against one shared counter.
 

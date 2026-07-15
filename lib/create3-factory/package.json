@@ -1,0 +1,17 @@
+{
+  "name": "create3-factory",
+  "version": "1.0.0",
+  "description": "Factory contract for easily deploying contracts to the same address on multiple chains, using CREATE3.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}

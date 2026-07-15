@@ -28,8 +28,15 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     bytes32 internal constant TREASURY_SALT_LABEL = keccak256("TREASURY");
     bytes32 internal constant GOVERNOR_SALT_LABEL = keccak256("GOVERNOR");
 
+    /// @notice The deterministic CREATE2 factory address (Nick's factory)
+    /// @dev This factory is deployed at the same address on all EVM chains
+    ///      Enables cross-chain deterministic deployments independent of Manager address
+    address public constant CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+
     error IMPLEMENTATION_REQUIRED();
     error INVALID_IMPLEMENTATION();
+    error CREATE2_FACTORY_NOT_DEPLOYED();
+    error FACTORY_DEPLOYMENT_FAILED();
 
     ///                                                          ///
     ///                          IMMUTABLES                      ///
@@ -64,6 +71,9 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         address _governorImpl,
         address _builderRewardsRecipient
     ) payable initializer {
+        // Validate that CREATE2 factory is deployed on this chain
+        _validateCreate2Factory();
+
         tokenImpl = _tokenImpl;
         metadataImpl = _metadataImpl;
         auctionImpl = _auctionImpl;
@@ -130,6 +140,9 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         bytes32 _deploySalt,
         ImplementationParams calldata _implementationParams
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
+        // Validate that CREATE2 factory is deployed on this chain
+        _validateCreate2Factory();
+
         _validateImplementationParams(_implementationParams);
 
         return _deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams);
@@ -300,35 +313,35 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ) internal {
         IToken(token)
             .initialize({
-            founders: _founderParams,
-            initStrings: _tokenParams.initStrings,
-            reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
-            metadataRenderer: metadata,
-            auction: auction,
-            initialOwner: founder
-        });
+                founders: _founderParams,
+                initStrings: _tokenParams.initStrings,
+                reservedUntilTokenId: _tokenParams.reservedUntilTokenId,
+                metadataRenderer: metadata,
+                auction: auction,
+                initialOwner: founder
+            });
         IBaseMetadata(metadata).initialize({ initStrings: _tokenParams.initStrings, token: token });
         IAuction(auction)
             .initialize({
-            token: token,
-            founder: founder,
-            treasury: treasury,
-            duration: _auctionParams.duration,
-            reservePrice: _auctionParams.reservePrice,
-            founderRewardRecipent: _auctionParams.founderRewardRecipent,
-            founderRewardBps: _auctionParams.founderRewardBps
-        });
+                token: token,
+                founder: founder,
+                treasury: treasury,
+                duration: _auctionParams.duration,
+                reservePrice: _auctionParams.reservePrice,
+                founderRewardRecipent: _auctionParams.founderRewardRecipent,
+                founderRewardBps: _auctionParams.founderRewardBps
+            });
         ITreasury(treasury).initialize({ governor: governor, timelockDelay: _govParams.timelockDelay });
         IGovernor(governor)
             .initialize({
-            treasury: treasury,
-            token: token,
-            vetoer: _govParams.vetoer,
-            votingDelay: _govParams.votingDelay,
-            votingPeriod: _govParams.votingPeriod,
-            proposalThresholdBps: _govParams.proposalThresholdBps,
-            quorumThresholdBps: _govParams.quorumThresholdBps
-        });
+                treasury: treasury,
+                token: token,
+                vetoer: _govParams.vetoer,
+                votingDelay: _govParams.votingDelay,
+                votingPeriod: _govParams.votingPeriod,
+                proposalThresholdBps: _govParams.proposalThresholdBps,
+                quorumThresholdBps: _govParams.quorumThresholdBps
+            });
 
         emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });
     }
@@ -387,6 +400,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         (token, metadata, auction, treasury, governor) = _deployDeterministicProxies(msg.sender, _deploySalt, _implementationParams);
 
         daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
+
+        emit DAODeployedDeterministic(msg.sender, _deploySalt, token, metadata, auction, treasury, governor);
 
         _initializeDAO(token, metadata, auction, treasury, governor, founder, _founderParams, _tokenParams, _auctionParams, _govParams);
     }
@@ -489,15 +504,25 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         }
     }
 
-    /// @notice Predicts the address of a CREATE2-deployed proxy
-    /// @dev Implements the standard CREATE2 address formula: keccak256(0xff ++ address ++ salt ++ keccak256(init_code))
+    /// @notice Validates that the CREATE2 factory is deployed on the current chain
+    /// @dev Ensures the factory exists before attempting deterministic deployments
+    ///      The factory must have bytecode at CREATE2_FACTORY address
+    function _validateCreate2Factory() internal view {
+        if (CREATE2_FACTORY.code.length == 0) {
+            revert CREATE2_FACTORY_NOT_DEPLOYED();
+        }
+    }
+
+    /// @notice Predicts the address of a CREATE2-deployed proxy via external factory
+    /// @dev Implements the standard CREATE2 address formula: keccak256(0xff ++ factory ++ salt ++ keccak256(init_code))
+    ///      Uses CREATE2_FACTORY instead of address(this) for cross-chain determinism
     ///      IMPORTANT: This must stay in sync with _deployProxy(address, bytes32) for accurate predictions
     /// @param _implementation The implementation address to use in proxy constructor
     /// @param _salt The salt to use for CREATE2 deployment
     /// @return The predicted proxy address
-    function _predictProxyAddress(address _implementation, bytes32 _salt) internal view returns (address) {
+    function _predictProxyAddress(address _implementation, bytes32 _salt) internal pure returns (address) {
         bytes memory creationCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, ""));
-        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), _salt, keccak256(creationCode)));
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), CREATE2_FACTORY, _salt, keccak256(creationCode)));
         return address(uint160(uint256(hash)));
     }
 
@@ -509,13 +534,40 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         return address(new ERC1967Proxy(_implementation, ""));
     }
 
-    /// @notice Deploys an ERC1967 proxy with CREATE2 salt (deterministic)
-    /// @dev Used by both legacy deployment (for metadata/auction/treasury/governor) and deterministic deployment (for all contracts)
+    /// @notice Deploys an ERC1967 proxy with CREATE2 salt (deterministic) via external factory
+    /// @dev Uses the canonical CREATE2 factory for cross-chain deterministic deployments
+    ///      This enables identical DAO addresses across chains even if Manager addresses differ
+    ///      Factory interface: accepts (salt || initCode) as calldata, returns deployed address
     /// @param _implementation The implementation address
     /// @param _salt The CREATE2 salt
     /// @return The deployed proxy address
     function _deployProxy(address _implementation, bytes32 _salt) internal returns (address) {
-        return address(new ERC1967Proxy{ salt: _salt }(_implementation, ""));
+        // Build the initialization code for ERC1967Proxy
+        bytes memory creationCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, ""));
+
+        // Prepare factory payload: salt || initCode
+        bytes memory payload = abi.encodePacked(_salt, creationCode);
+
+        // Deploy via CREATE2 factory
+        (bool success, bytes memory result) = CREATE2_FACTORY.call(payload);
+
+        // Ensure deployment succeeded
+        if (!success) revert FACTORY_DEPLOYMENT_FAILED();
+
+        // Validate return value is exactly 20 bytes (address)
+        if (result.length != 20) revert FACTORY_DEPLOYMENT_FAILED();
+
+        // Extract deployed address from factory return value (20 bytes)
+        address deployed = address(uint160(bytes20(result)));
+
+        // Verify the deployed address matches our prediction
+        address predicted = _predictProxyAddress(_implementation, _salt);
+        if (deployed != predicted) revert FACTORY_DEPLOYMENT_FAILED();
+
+        // Verify contract was actually deployed
+        if (deployed.code.length == 0) revert FACTORY_DEPLOYMENT_FAILED();
+
+        return deployed;
     }
 
     /// @notice Derives a unique salt for CREATE2 deployment by combining deployer, user salt, and contract label

@@ -20,7 +20,7 @@ contract PurpleTests is ViaIRTestHelper {
     string internal description;
 
     function setUp() public {
-        uint256 mainnetFork = vm.createFork(vm.envString("ETH_RPC_MAINNET"));
+        uint256 mainnetFork = vm.createFork(vm.envString("MAINNET_RPC_URL"));
         vm.selectFork(mainnetFork);
         vm.rollFork(16171761);
 

@@ -83,7 +83,7 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
 
     function setUp() public virtual {
         // Create and select mainnet fork
-        mainnetFork = vm.createFork(vm.envString("ETH_RPC_MAINNET"));
+        mainnetFork = vm.createFork(vm.envString("MAINNET_RPC_URL"));
         vm.selectFork(mainnetFork);
 
         // Fork at specific block for consistent testing
@@ -135,9 +135,11 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
     function _deployNewImplementations() internal {
         // Deploy NEW DAO implementation contracts from local code
         // These will be used for testing deterministic deployment
+        address MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
         newTokenImpl = new Token(address(managerProxy));
         newMetadataImpl = new MetadataRenderer(address(managerProxy));
-        newAuctionImpl = new Auction(address(managerProxy), address(0), address(0), 0, 0);
+        newAuctionImpl = new Auction(address(managerProxy), address(0), MAINNET_WETH, 0, 0);
         newTreasuryImpl = new Treasury(address(managerProxy));
         newGovernorImpl = new Governor(address(managerProxy));
 
@@ -192,7 +194,7 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
         assertEq(managerProxy.treasuryImpl(), recordedTreasuryImpl, "treasuryImpl should be preserved");
         assertEq(managerProxy.governorImpl(), recordedGovernorImpl, "governorImpl should be preserved");
 
-        // After upgrade, new Manager has builderRewardsRecipient
+        // After upgrade, builderRewardsRecipient should be preserved
         assertEq(
             Manager(address(managerProxy)).builderRewardsRecipient(),
             recordedBuilderRewardsRecipient,
@@ -321,7 +323,14 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper {
 
     /// @notice Performs the Manager upgrade
     function _performUpgrade() internal {
-        vm.prank(MAINNET_MANAGER_OWNER);
+        // Mainnet WETH address
+        address MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
+        vm.startPrank(MAINNET_MANAGER_OWNER);
+
+        // Upgrade to new Manager implementation
         managerProxy.upgradeTo(address(newManagerImpl));
+
+        vm.stopPrank();
     }
 }

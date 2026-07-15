@@ -19,6 +19,18 @@ interface IManager is IUUPS, IOwnable {
     /// @param governor The governor address
     event DAODeployed(address token, address metadata, address auction, address treasury, address governor);
 
+    /// @notice Emitted when a DAO is deployed deterministically
+    /// @param deployer The deployer address
+    /// @param deploySalt The base salt used for deterministic deployment
+    /// @param token The ERC-721 token address
+    /// @param metadata The metadata renderer address
+    /// @param auction The auction address
+    /// @param treasury The treasury address
+    /// @param governor The governor address
+    event DAODeployedDeterministic(
+        address indexed deployer, bytes32 indexed deploySalt, address token, address metadata, address auction, address treasury, address governor
+    );
+
     /// @notice Emitted when an upgrade is registered by the Builder DAO
     /// @param baseImpl The base implementation address
     /// @param upgradeImpl The upgrade implementation address
