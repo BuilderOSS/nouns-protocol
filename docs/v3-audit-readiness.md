@@ -85,8 +85,8 @@ Reference architecture:
 ### CREATE2 Determinism
 - Manager proxy deployed via CREATE2 factory at `0x4e59b44847b379578588920cA78FbF26c0B4956C`
 - Bootstrap Manager implementation (`managerImpl0`) uses **all-zero constructor args** for cross-chain determinism
-- Manager proxy uses empty init data for identical bytecode across chains
-- Initialization happens in separate transaction via `Manager.initialize(owner)`
+- Manager proxy includes initialization data in constructor for **atomic initialization**
+- Security: Prevents front-running attacks where attacker could call `initialize()` before deployer
 
 ### DAO Deployment Determinism
 - DAOs deployed via `Manager.deployDeterministic` use CREATE2 factory

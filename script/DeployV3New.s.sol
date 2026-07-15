@@ -16,7 +16,6 @@ import { MerklePropertyIPFS } from "../src/token/metadata/renderers/MerkleProper
 import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
 import { ERC721RedeemMinter } from "../src/minters/ERC721RedeemMinter.sol";
 import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
-import { L2MigrationDeployer } from "../src/deployers/L2MigrationDeployer.sol";
 import { Constants } from "./Constants.sol";
 
 contract DeployV3New is Script, DeployConstants {
@@ -34,7 +33,6 @@ contract DeployV3New is Script, DeployConstants {
         address managerImpl;
         address merkleMinter;
         address redeemMinter;
-        address migrationDeployer;
     }
 
     string configFile;
@@ -55,7 +53,6 @@ contract DeployV3New is Script, DeployConstants {
         address deployerAddress = vm.addr(key);
         address protocolRewards = _getKey("ProtocolRewards");
         address builderRewardsRecipient = _getKey("BuilderRewardsRecipient");
-        address crossDomainMessenger = _getKey("CrossDomainMessenger");
         DeploymentResult memory deployment;
 
         console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
@@ -69,7 +66,7 @@ contract DeployV3New is Script, DeployConstants {
 
         vm.startBroadcast(deployerAddress);
 
-        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient, crossDomainMessenger);
+        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient);
 
         vm.stopBroadcast();
 
@@ -82,8 +79,7 @@ contract DeployV3New is Script, DeployConstants {
         address deployerAddress,
         address weth,
         address protocolRewards,
-        address builderRewardsRecipient,
-        address crossDomainMessenger
+        address builderRewardsRecipient
     ) internal returns (DeploymentResult memory deployment) {
         Manager manager;
 
@@ -160,7 +156,7 @@ contract DeployV3New is Script, DeployConstants {
 
         manager.upgradeTo(deployment.managerImpl);
 
-        // Deploy minters and migration deployer via CREATE3 for cross-chain determinism
+        // Deploy minters via CREATE3 for cross-chain determinism
         deployment.merkleMinter = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(MerkleReserveMinter).creationCode, abi.encode(address(manager), protocolRewards)),
             _deriveSalt(deploySalt, MERKLE_RESERVE_MINTER_SALT)
@@ -169,11 +165,6 @@ contract DeployV3New is Script, DeployConstants {
         deployment.redeemMinter = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(ERC721RedeemMinter).creationCode, abi.encode(manager, protocolRewards)),
             _deriveSalt(deploySalt, ERC721_REDEEM_MINTER_SALT)
-        );
-
-        deployment.migrationDeployer = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(L2MigrationDeployer).creationCode, abi.encode(address(manager), deployment.merkleMinter, crossDomainMessenger)),
-            _deriveSalt(deploySalt, L2_MIGRATION_DEPLOYER_SALT)
         );
     }
 
@@ -194,7 +185,6 @@ contract DeployV3New is Script, DeployConstants {
         vm.writeLine(filePath, string(abi.encodePacked("Manager implementation: ", addressToString(deployment.managerImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Merkle Reserve Minter: ", addressToString(deployment.merkleMinter))));
         vm.writeLine(filePath, string(abi.encodePacked("ERC721 Redeem Minter: ", addressToString(deployment.redeemMinter))));
-        vm.writeLine(filePath, string(abi.encodePacked("Migration Deployer: ", addressToString(deployment.migrationDeployer))));
     }
 
     function _logDeployment(DeploymentResult memory deployment) internal view {
@@ -231,9 +221,6 @@ contract DeployV3New is Script, DeployConstants {
 
         console2.log("~~~~~~~~~~ ERC721 REDEEM MINTER ~~~~~~~~~~~");
         console2.logAddress(deployment.redeemMinter);
-
-        console2.log("~~~~~~~~~~ MIGRATION DEPLOYER ~~~~~~~~~~~");
-        console2.logAddress(deployment.migrationDeployer);
     }
 
     function addressToString(address _addr) private pure returns (string memory) {

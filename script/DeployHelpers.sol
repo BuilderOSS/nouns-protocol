@@ -11,7 +11,7 @@ library DeployHelpers {
     /// @notice The CREATE3 factory address
     /// @dev Deployed at the same address on mainnet, optimism, base, and testnets
     /// @dev CREATE3 enables bytecode-independent deterministic deployments
-    address internal constant CREATE3_FACTORY = 0xD252d074EEe65b64433a5a6f30Ab67569362E7e0;
+    address public constant CREATE3_FACTORY = 0xD252d074EEe65b64433a5a6f30Ab67569362E7e0;
 
     /// @notice Deploys a contract via the CREATE2 factory
     /// @param creationCode The complete creation bytecode (including constructor args)

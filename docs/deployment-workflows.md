@@ -12,8 +12,6 @@ Only these network aliases are supported in this workspace:
 - `optimism_sepolia` (`11155420`)
 - `base` (`8453`)
 - `base_sepolia` (`84532`)
-- `zora` (`7777777`)
-- `zora_sepolia` (`999999999`)
 
 Deprecated networks `4` and `5` are removed.
 
@@ -43,8 +41,6 @@ Common env variables used by those sections:
 - `OPTIMISM_SEPOLIA_RPC_URL`
 - `BASE_RPC_URL`
 - `BASE_SEPOLIA_RPC_URL`
-- `ZORA_RPC_URL`
-- `ZORA_SEPOLIA_RPC_URL`
 - `ETHERSCAN_API_KEY`
 - `OPTIMISTIC_ETHERSCAN_API_KEY`
 - `BASESCAN_API_KEY`
@@ -80,10 +76,6 @@ Common env variables used by those sections:
   - Deterministic addresses depend on: deployer address, `DEPLOY_SALT`, and the implementation addresses (from Manager immutables or explicit params).
   - Legacy `Manager.deploy(...)` remains for backward compatibility, but new integrations should use deterministic deploy.
   - Intended for controlled deployment/testing flows.
-
-- `yarn deploy:zora`
-  - Zora-specific deploy + verification command.
-  - Uses custom Blockscout verifier flow intentionally.
 
 ## Cross-Chain Deterministic Deployments
 
@@ -134,7 +126,7 @@ The system uses **CREATE3 factory** (`0xD252d074EEe65b64433a5a6f30Ab67569362E7e0
 
 **✅ Fully Deterministic Across Chains (as of V3 with CREATE3):**
 
-- **Manager proxy** (via CREATE2 with empty init data)
+- **Manager proxy** (via CREATE2 with all-zero bootstrap implementation and atomic initialization)
 - **All implementations** (via CREATE3):
   - Token implementation
   - MetadataRenderer implementation
@@ -146,10 +138,8 @@ The system uses **CREATE3 factory** (`0xD252d074EEe65b64433a5a6f30Ab67569362E7e0
 - **All minters** (via CREATE3):
   - MerkleReserveMinter
   - ERC721RedeemMinter
-- **Migration deployer** (via CREATE3):
-  - L2MigrationDeployer
 
-**Important:** Even though these contracts have chain-specific constructor parameters (e.g., `protocolRewards`, `crossDomainMessenger`, `builderRewardsRecipient`), CREATE3 ensures they deploy to **identical addresses** on all chains when using the same `DEPLOY_SALT`.
+**Important:** Even though these contracts have chain-specific constructor parameters (e.g., `protocolRewards`, `builderRewardsRecipient`), CREATE3 ensures they deploy to **identical addresses** on all chains when using the same `DEPLOY_SALT`.
 
 **Manager Implementation Design:** The Manager implementation has `builderRewardsRecipient` as an immutable constructor parameter. To use different Builder Rewards recipients on different chains while maintaining CREATE3 determinism, the deployment script deploys Manager implementations with chain-specific `builderRewardsRecipient` values. These implementations will have identical addresses across chains thanks to CREATE3, but will have different immutable values. WETH is NOT stored in Manager - it is only used by Auction implementations.
 
@@ -229,8 +219,6 @@ Both factories are deployed on all supported networks:
 - Optimism Sepolia (11155420)
 - Base (8453)
 - Base Sepolia (84532)
-- Zora (7777777)
-- Zora Sepolia (999999999)
 
 The Manager constructor validates that CREATE2 factory exists on deployment. If deploying to a new chain where either factory is not present, it must be deployed first.
 
