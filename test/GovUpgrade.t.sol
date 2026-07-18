@@ -368,7 +368,7 @@ contract GovUpgrade is GovTest {
 
     function _deployMockWithLegacyGovernor() internal {
         governorImpl = address(new LegacyGovernorV2(address(manager)));
-        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO));
+        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, create3Factory));
 
         vm.prank(zoraDAO);
         manager.upgradeTo(managerImpl);

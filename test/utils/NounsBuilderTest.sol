@@ -16,6 +16,8 @@ import { MockERC721 } from "../utils/mocks/MockERC721.sol";
 import { MockERC1155 } from "../utils/mocks/MockERC1155.sol";
 import { WETH } from ".././utils/mocks/WETH.sol";
 import { MockProtocolRewards } from ".././utils/mocks/MockProtocolRewards.sol";
+import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
+import { DAOFactory } from "../../src/factory/DAOFactory.sol";
 
 contract NounsBuilderTest is Test {
     bytes32 internal constant DEFAULT_DEPLOY_SALT = keccak256("DEFAULT_DEPLOY_SALT");
@@ -26,13 +28,17 @@ contract NounsBuilderTest is Test {
     Manager internal manager;
     address internal rewards;
 
-    address internal managerImpl0;
     address internal managerImpl;
     address internal tokenImpl;
     address internal metadataRendererImpl;
     address internal auctionImpl;
     address internal treasuryImpl;
     address internal governorImpl;
+    address internal create3Factory;
+    address internal daoFactory;
+
+    // Nonce for CREATE3 deployments to avoid collisions
+    uint256 internal deployNonce;
 
     address internal nounsDAO;
     address internal zoraDAO;
@@ -61,20 +67,44 @@ contract NounsBuilderTest is Test {
         vm.label(founder, "FOUNDER");
         vm.label(founder2, "FOUNDER_2");
 
-        managerImpl0 = address(new Manager(address(0), address(0), address(0), address(0), address(0), zoraDAO));
-        manager = Manager(address(new ERC1967Proxy(managerImpl0, abi.encodeWithSignature("initialize(address)", zoraDAO))));
+        // Deploy CREATE3Factory for testing
+        CREATE3Factory factory = new CREATE3Factory();
+        create3Factory = address(factory);
+
         rewards = address(new MockProtocolRewards());
 
-        tokenImpl = address(new Token(address(manager)));
-        metadataRendererImpl = address(new MetadataRenderer(address(manager)));
-        auctionImpl = address(new Auction(address(manager), address(rewards), weth, 0, 0));
-        treasuryImpl = address(new Treasury(address(manager)));
-        governorImpl = address(new Governor(address(manager)));
+        // Predict Manager proxy address using CREATE3
+        // Use a unique salt for the base test setup to avoid conflicts with test deployments
+        bytes32 managerProxySalt = keccak256("TEST_SETUP_MANAGER_PROXY");
+        address predictedManagerProxy = factory.getDeployed(address(this), managerProxySalt);
 
-        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO));
+        // Deploy DAOFactory using CREATE3Factory, bound to the predicted Manager address
+        // This ensures bidirectional authorization between Manager and DAOFactory
+        bytes32 daoFactorySalt = keccak256("TEST_SETUP_DAO_FACTORY");
+        bytes memory daoFactoryCreationCode = abi.encodePacked(type(DAOFactory).creationCode, abi.encode(predictedManagerProxy));
+        daoFactory = factory.deploy(daoFactorySalt, daoFactoryCreationCode);
 
-        vm.prank(zoraDAO);
-        manager.upgradeTo(managerImpl);
+        // Deploy implementations - they reference the predicted manager proxy address
+        tokenImpl = address(new Token(predictedManagerProxy));
+        metadataRendererImpl = address(new MetadataRenderer(predictedManagerProxy));
+        auctionImpl = address(new Auction(predictedManagerProxy, address(rewards), weth, 0, 0));
+        treasuryImpl = address(new Treasury(predictedManagerProxy));
+        governorImpl = address(new Governor(predictedManagerProxy));
+
+        // Deploy Manager implementation with all the real implementations and DAOFactory
+        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, daoFactory));
+
+        // Deploy Manager proxy via CREATE3 to the predicted address
+        bytes memory proxyCreationCode = abi.encodePacked(
+            type(ERC1967Proxy).creationCode,
+            abi.encode(managerImpl, abi.encodeWithSignature("initialize(address)", zoraDAO))
+        );
+        address deployedProxy = factory.deploy(managerProxySalt, proxyCreationCode);
+
+        require(deployedProxy == predictedManagerProxy, "Manager proxy address mismatch");
+        manager = Manager(deployedProxy);
+
+        // No need for managerImpl0 or upgradeTo - we deploy with the correct impl from the start
     }
 
     ///                                                          ///

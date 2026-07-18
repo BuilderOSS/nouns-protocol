@@ -8,6 +8,7 @@ import { DeployHelpers } from "./DeployHelpers.sol";
 import { DeployConstants } from "./DeployConstants.sol";
 import { IManager } from "../src/manager/IManager.sol";
 import { Manager } from "../src/manager/Manager.sol";
+import { DAOFactory } from "../src/factory/DAOFactory.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { Token } from "../src/token/Token.sol";
 import { Auction } from "../src/auction/Auction.sol";
@@ -42,6 +43,7 @@ contract DeployV3Upgrade is Script, DeployConstants {
         address protocolRewards = _getKey("ProtocolRewards");
         address weth = _getKey("WETH");
         address builderRewardsRecipient = _getKey("BuilderRewardsRecipient");
+        address create3Factory = _getKey("CREATE3Factory");
 
         _deployUpgrade(
             deployerAddress,
@@ -55,6 +57,7 @@ contract DeployV3Upgrade is Script, DeployConstants {
             protocolRewards,
             weth,
             builderRewardsRecipient,
+            create3Factory,
             chainID,
             deploySalt
         );
@@ -72,6 +75,7 @@ contract DeployV3Upgrade is Script, DeployConstants {
         address protocolRewards,
         address weth,
         address builderRewardsRecipient,
+        address create3Factory,
         uint256 chainID,
         bytes32 deploySalt
     ) private {
@@ -89,6 +93,13 @@ contract DeployV3Upgrade is Script, DeployConstants {
         console2.logAddress(oldManagerImpl);
 
         vm.startBroadcast(deployerAddress);
+
+        // Deploy DAOFactory via CREATE3 for cross-chain deterministic DAO deployments
+        // DAOFactory acts as the canonical deployer, enabling identical DAO addresses across chains
+        // despite different Manager addresses. Bound to this specific Manager proxy.
+        address daoFactory = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(DAOFactory).creationCode, abi.encode(address(managerProxy))), _deriveSalt(deploySalt, DAO_FACTORY_SALT)
+        );
 
         // Deploy all new implementations via CREATE3 factory for bytecode-independent cross-chain determinism
         // CREATE3 enables identical addresses even when constructor args differ per chain
@@ -127,7 +138,9 @@ contract DeployV3Upgrade is Script, DeployConstants {
         address newManagerImpl = DeployHelpers.deployViaCreate3(
             abi.encodePacked(
                 type(Manager).creationCode,
-                abi.encode(newTokenImpl, newMetadataRendererImpl, newAuctionImpl, newTreasuryImpl, newGovernorImpl, builderRewardsRecipient)
+                abi.encode(
+                    newTokenImpl, newMetadataRendererImpl, newAuctionImpl, newTreasuryImpl, newGovernorImpl, builderRewardsRecipient, daoFactory
+                )
             ),
             _deriveSalt(deploySalt, MANAGER_IMPL_SALT)
         );
@@ -146,6 +159,7 @@ contract DeployV3Upgrade is Script, DeployConstants {
 
         vm.writeFile(filePath, "");
         vm.writeLine(filePath, string(abi.encodePacked("Deploy Salt: ", bytes32ToString(deploySalt))));
+        vm.writeLine(filePath, string(abi.encodePacked("DAO Factory: ", addressToString(daoFactory))));
         vm.writeLine(filePath, string(abi.encodePacked("Old Token implementation: ", addressToString(tokenImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("New Token implementation: ", addressToString(newTokenImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Old Metadata Renderer implementation: ", addressToString(metadataRendererImpl))));
@@ -159,6 +173,8 @@ contract DeployV3Upgrade is Script, DeployConstants {
         vm.writeLine(filePath, string(abi.encodePacked("Old Manager implementation: ", addressToString(oldManagerImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("New Manager implementation: ", addressToString(newManagerImpl))));
 
+        console2.log("~~~~~~~~~~ DAO FACTORY ~~~~~~~~~~~");
+        console2.logAddress(daoFactory);
         console2.log("~~~~~~~~~~ NEW TOKEN IMPL ~~~~~~~~~~~");
         console2.logAddress(newTokenImpl);
         console2.log("~~~~~~~~~~ NEW METADATA RENDERER IMPL ~~~~~~~~~~~");

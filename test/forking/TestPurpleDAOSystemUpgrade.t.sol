@@ -13,12 +13,16 @@ import { Manager } from "../../src/manager/Manager.sol";
 import { IGovernor } from "../../src/governance/governor/IGovernor.sol";
 import { MetadataRenderer } from "../../src/token/metadata/MetadataRenderer.sol";
 import { IBaseMetadata } from "../../src/token/metadata/interfaces/IBaseMetadata.sol";
+import { DAOFactory } from "../../src/factory/DAOFactory.sol";
+import { DeployHelpers } from "../../script/DeployHelpers.sol";
+import { DeployConstants } from "../../script/DeployConstants.sol";
+import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 
 /// @title TestPurpleDAOSystemUpgrade
 /// @notice Comprehensive upgrade testing for all 5 Purple DAO contracts
 /// @dev Tests upgrading from deployed mainnet contracts (without via_ir) to new implementations (with via_ir)
 ///      This simulates the real production upgrade scenario
-contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
+contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper, DeployConstants {
     ///                                                          ///
     ///                     PURPLE DAO CONTRACTS                 ///
     ///                                                          ///
@@ -102,6 +106,9 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
         // Initialize time tracking for via_ir safety
         initTime();
 
+        // Ensure CREATE3Factory exists at the expected address
+        address create3Factory = _ensureCreate3FactoryExists();
+
         // Get MetadataRenderer address
         metadataRenderer = MetadataRenderer(address(token.metadataRenderer()));
 
@@ -122,13 +129,22 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
         newGovernorImpl = new Governor(address(manager));
         newTreasuryImpl = new Treasury(address(manager));
         newMetadataRendererImpl = new MetadataRenderer(address(manager));
+
+        // Deploy DAOFactory via CREATE3 for deterministic address across chains
+        bytes memory creationCode = abi.encodePacked(type(DAOFactory).creationCode, abi.encode(address(manager)));
+        bytes32 daoFactorySalt = keccak256("NOUNS_BUILDER_DAO_FACTORY_V1");
+
+        address daoFactory = CREATE3Factory(create3Factory).deploy(daoFactorySalt, creationCode);
+
+        // Deploy new Manager implementation with DAOFactory reference
         newManagerImpl = new Manager(
             address(newTokenImpl),
             address(newMetadataRendererImpl),
             address(newAuctionImpl),
             address(newTreasuryImpl),
             address(newGovernorImpl),
-            purpleBuilderRewards
+            purpleBuilderRewards,
+            daoFactory
         );
 
         // Get old implementation addresses from storage (ERC1967 implementation slot)
@@ -175,6 +191,23 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper {
     ///                                                          ///
     ///                   RECORD STATE HELPERS                   ///
     ///                                                          ///
+
+    /// @notice Ensures CREATE3Factory exists, deploying deterministically via CREATE2 if needed
+    function _ensureCreate3FactoryExists() internal returns (address) {
+        // Deploy CREATE3Factory deterministically using CREATE2 (Nick's factory)
+        // This ensures same address across chains
+        bytes memory creationCode = type(CREATE3Factory).creationCode;
+        bytes32 salt = keccak256("NOUNS_BUILDER_CREATE3_FACTORY");
+
+        address predicted = DeployHelpers.predictAddress(creationCode, salt);
+
+        if (predicted.code.length == 0) {
+            address deployed = DeployHelpers.deployViaFactory(creationCode, salt);
+            require(deployed == predicted, "CREATE3Factory address mismatch");
+        }
+
+        return predicted;
+    }
 
     function _recordTokenStateBefore() internal {
         tokenTotalSupplyBefore = token.totalSupply();

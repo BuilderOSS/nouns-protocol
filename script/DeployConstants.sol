@@ -17,6 +17,9 @@ abstract contract DeployConstants {
     bytes32 internal constant TREASURY_IMPL_SALT = keccak256("TREASURY_IMPL");
     bytes32 internal constant GOVERNOR_IMPL_SALT = keccak256("GOVERNOR_IMPL");
 
+    // Factory salts
+    bytes32 internal constant DAO_FACTORY_SALT = keccak256("DAO_FACTORY");
+
     // Additional contract salts
     bytes32 internal constant MERKLE_PROPERTY_IPFS_SALT = keccak256("MERKLE_PROPERTY_IPFS");
     bytes32 internal constant MERKLE_RESERVE_MINTER_SALT = keccak256("MERKLE_RESERVE_MINTER");

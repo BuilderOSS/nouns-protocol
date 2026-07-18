@@ -13,6 +13,7 @@ import { IAuction } from "../auction/IAuction.sol";
 import { ITreasury } from "../governance/treasury/ITreasury.sol";
 import { IGovernor } from "../governance/governor/IGovernor.sol";
 import { IOwnable } from "../lib/interfaces/IOwnable.sol";
+import { IDAOFactory } from "../factory/IDAOFactory.sol";
 
 import { VersionedContract } from "../VersionedContract.sol";
 import { IVersionedContract } from "../lib/interfaces/IVersionedContract.sol";
@@ -28,14 +29,9 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     bytes32 internal constant TREASURY_SALT_LABEL = keccak256("TREASURY");
     bytes32 internal constant GOVERNOR_SALT_LABEL = keccak256("GOVERNOR");
 
-    /// @notice The deterministic CREATE2 factory address (Nick's factory)
-    /// @dev This factory is deployed at the same address on all EVM chains
-    ///      Enables cross-chain deterministic deployments independent of Manager address
-    address public constant CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-
     error IMPLEMENTATION_REQUIRED();
     error INVALID_IMPLEMENTATION();
-    error CREATE2_FACTORY_NOT_DEPLOYED();
+    error DAO_FACTORY_NOT_DEPLOYED();
     error FACTORY_DEPLOYMENT_FAILED();
 
     ///                                                          ///
@@ -59,6 +55,12 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @notice The address to send Builder DAO rewards to
     address public immutable builderRewardsRecipient;
 
+    /// @notice The DAOFactory address for canonical deterministic deployments
+    /// @dev DAOFactory acts as the canonical deployer for all DAO proxies, ensuring cross-chain
+    ///      deterministic addresses regardless of Manager address. The factory should be deployed
+    ///      at the same address on all chains using CREATE3Factory.
+    address public immutable daoFactory;
+
     ///                                                          ///
     ///                          CONSTRUCTOR                     ///
     ///                                                          ///
@@ -69,10 +71,11 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         address _auctionImpl,
         address _treasuryImpl,
         address _governorImpl,
-        address _builderRewardsRecipient
+        address _builderRewardsRecipient,
+        address _daoFactory
     ) payable initializer {
-        // Validate that CREATE2 factory is deployed on this chain
-        _validateCreate2Factory();
+        // Validate that DAOFactory is deployed
+        _validateDAOFactory(_daoFactory);
 
         tokenImpl = _tokenImpl;
         metadataImpl = _metadataImpl;
@@ -80,6 +83,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         treasuryImpl = _treasuryImpl;
         governorImpl = _governorImpl;
         builderRewardsRecipient = _builderRewardsRecipient;
+        daoFactory = _daoFactory;
     }
 
     ///                                                          ///
@@ -140,8 +144,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         bytes32 _deploySalt,
         ImplementationParams calldata _implementationParams
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
-        // Validate that CREATE2 factory is deployed on this chain
-        _validateCreate2Factory();
+        // Validate that DAOFactory is deployed
+        _validateDAOFactory(daoFactory);
 
         _validateImplementationParams(_implementationParams);
 
@@ -410,6 +414,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @dev Token is deployed first without salt, then its address (shifted left 96 bits) becomes the salt for other contracts.
     ///      The bit shift (<< 96) moves the 160-bit address into the upper portion of the 256-bit salt,
     ///      leaving lower bits as zeros. This ensures a unique salt per deployment while maintaining backward compatibility.
+    ///      Uses CREATE for token (no salt) and CREATE2 for other contracts (with salt), NOT CREATE3.
     /// @param _metadataImplToUse The metadata renderer implementation to use (can be custom or default)
     /// @return token The deployed token proxy address
     /// @return metadata The deployed metadata renderer proxy address
@@ -420,14 +425,17 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         internal
         returns (address token, address metadata, address auction, address treasury, address governor)
     {
-        token = _deployProxy(tokenImpl);
+        // Deploy token using CREATE (no salt) - non-deterministic
+        token = address(new ERC1967Proxy(tokenImpl, ""));
 
+        // Use the token address to precompute the DAO's remaining addresses
         bytes32 salt = bytes32(uint256(uint160(token)) << 96);
 
-        metadata = _deployProxy(_metadataImplToUse, salt);
-        auction = _deployProxy(auctionImpl, salt);
-        treasury = _deployProxy(treasuryImpl, salt);
-        governor = _deployProxy(governorImpl, salt);
+        // Deploy remaining DAO contracts using CREATE2 (with salt) - deterministic based on token address
+        metadata = address(new ERC1967Proxy{ salt: salt }(_metadataImplToUse, ""));
+        auction = address(new ERC1967Proxy{ salt: salt }(auctionImpl, ""));
+        treasury = address(new ERC1967Proxy{ salt: salt }(treasuryImpl, ""));
+        governor = address(new ERC1967Proxy{ salt: salt }(governorImpl, ""));
     }
 
     /// @notice Deploys all DAO proxies with deterministic addresses using CREATE2
@@ -504,26 +512,29 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         }
     }
 
-    /// @notice Validates that the CREATE2 factory is deployed on the current chain
+    /// @notice Validates that the DAOFactory is deployed
     /// @dev Ensures the factory exists before attempting deterministic deployments
-    ///      The factory must have bytecode at CREATE2_FACTORY address
-    function _validateCreate2Factory() internal view {
-        if (CREATE2_FACTORY.code.length == 0) {
-            revert CREATE2_FACTORY_NOT_DEPLOYED();
+    ///      The factory must have bytecode at daoFactory address.
+    ///      Access control is enforced by the DAOFactory itself via its manager immutable.
+    /// @param _daoFactory The DAOFactory address to validate
+    function _validateDAOFactory(address _daoFactory) internal view {
+        if (_daoFactory.code.length == 0) {
+            revert DAO_FACTORY_NOT_DEPLOYED();
         }
     }
 
-    /// @notice Predicts the address of a CREATE2-deployed proxy via external factory
-    /// @dev Implements the standard CREATE2 address formula: keccak256(0xff ++ factory ++ salt ++ keccak256(init_code))
-    ///      Uses CREATE2_FACTORY instead of address(this) for cross-chain determinism
-    ///      IMPORTANT: This must stay in sync with _deployProxy(address, bytes32) for accurate predictions
-    /// @param _implementation The implementation address to use in proxy constructor
-    /// @param _salt The salt to use for CREATE2 deployment
+    /// @notice Predicts the address of a CREATE3-deployed proxy via DAOFactory
+    /// @dev Delegates to DAOFactory's predictAddress function for accurate predictions
+    ///      CRITICAL: Address depends ONLY on (DAOFactory, salt), NOT on Manager address or bytecode
+    ///      This enables cross-chain determinism - same DAOFactory + salt = same address
+    ///      regardless of which Manager is calling it or what the implementation address is
+    /// @param _implementation The implementation address (NOT used in address calculation, only for compatibility)
+    /// @param _salt The salt to use for CREATE3 deployment
     /// @return The predicted proxy address
-    function _predictProxyAddress(address _implementation, bytes32 _salt) internal pure returns (address) {
-        bytes memory creationCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, ""));
-        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), CREATE2_FACTORY, _salt, keccak256(creationCode)));
-        return address(uint160(uint256(hash)));
+    function _predictProxyAddress(address _implementation, bytes32 _salt) internal view returns (address) {
+        // Use DAOFactory's prediction function - DAOFactory is the canonical deployer
+        // This ensures all Managers produce identical predictions
+        return IDAOFactory(daoFactory).predictAddress(_salt);
     }
 
     /// @notice Deploys an ERC1967 proxy without salt (non-deterministic)
@@ -534,31 +545,19 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         return address(new ERC1967Proxy(_implementation, ""));
     }
 
-    /// @notice Deploys an ERC1967 proxy with CREATE2 salt (deterministic) via external factory
-    /// @dev Uses the canonical CREATE2 factory for cross-chain deterministic deployments
-    ///      This enables identical DAO addresses across chains even if Manager addresses differ
-    ///      Factory interface: accepts (salt || initCode) as calldata, returns deployed address
+    /// @notice Deploys an ERC1967 proxy with CREATE3 salt (deterministic) via DAOFactory
+    /// @dev Uses DAOFactory as canonical deployer for bytecode-independent cross-chain determinism
+    ///      This enables identical DAO addresses across chains REGARDLESS of Manager or implementation addresses
+    ///      DAOFactory interface: deployProxy(bytes32 salt, bytes memory creationCode) returns (address)
     /// @param _implementation The implementation address
-    /// @param _salt The CREATE2 salt
+    /// @param _salt The CREATE3 salt
     /// @return The deployed proxy address
     function _deployProxy(address _implementation, bytes32 _salt) internal returns (address) {
         // Build the initialization code for ERC1967Proxy
         bytes memory creationCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(_implementation, ""));
 
-        // Prepare factory payload: salt || initCode
-        bytes memory payload = abi.encodePacked(_salt, creationCode);
-
-        // Deploy via CREATE2 factory
-        (bool success, bytes memory result) = CREATE2_FACTORY.call(payload);
-
-        // Ensure deployment succeeded
-        if (!success) revert FACTORY_DEPLOYMENT_FAILED();
-
-        // Validate return value is exactly 20 bytes (address)
-        if (result.length != 20) revert FACTORY_DEPLOYMENT_FAILED();
-
-        // Extract deployed address from factory return value (20 bytes)
-        address deployed = address(uint160(bytes20(result)));
+        // Deploy via DAOFactory - this is the canonical deployer for all DAO proxies
+        address deployed = IDAOFactory(daoFactory).deployProxy(_salt, creationCode);
 
         // Verify the deployed address matches our prediction
         address predicted = _predictProxyAddress(_implementation, _salt);
@@ -570,16 +569,17 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         return deployed;
     }
 
-    /// @notice Derives a unique salt for CREATE2 deployment by combining deployer, user salt, and contract label
+    /// @notice Derives a unique salt for CREATE3 deployment by combining deployer, user salt, and contract label
     /// @dev This three-part derivation prevents collisions:
     ///      - _deployer prevents different users from interfering with each other's deployments
     ///      - _deploySalt allows same user to deploy multiple DAOs with different addresses
     ///      - _label ensures each contract type gets a unique salt within the same deployment
     ///      SECURITY: Deployers should use unique _deploySalt values to avoid collisions
+    ///      Works identically for CREATE2 and CREATE3 - only the address calculation differs
     /// @param _deployer The address initiating deployment (typically msg.sender)
     /// @param _deploySalt The base salt chosen by the deployer
     /// @param _label The contract-specific label (TOKEN_SALT_LABEL, METADATA_SALT_LABEL, etc.)
-    /// @return The derived salt for CREATE2 deployment
+    /// @return The derived salt for CREATE3 deployment
     function _deriveSalt(address _deployer, bytes32 _deploySalt, bytes32 _label) internal pure returns (bytes32) {
         return keccak256(abi.encode(_deployer, _deploySalt, _label));
     }

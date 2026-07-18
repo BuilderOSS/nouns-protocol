@@ -7,6 +7,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { DeployHelpers } from "./DeployHelpers.sol";
 import { DeployConstants } from "./DeployConstants.sol";
 import { Manager } from "../src/manager/Manager.sol";
+import { DAOFactory } from "../src/factory/DAOFactory.sol";
 import { Token } from "../src/token/Token.sol";
 import { Auction } from "../src/auction/Auction.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
@@ -24,6 +25,7 @@ contract DeployV3New is Script, DeployConstants {
     struct DeploymentResult {
         address managerImpl0;
         address manager;
+        address daoFactory;
         address tokenImpl;
         address metadataRendererImpl;
         address merklePropertyMetadataImpl;
@@ -53,6 +55,7 @@ contract DeployV3New is Script, DeployConstants {
         address deployerAddress = vm.addr(key);
         address protocolRewards = _getKey("ProtocolRewards");
         address builderRewardsRecipient = _getKey("BuilderRewardsRecipient");
+        address create3Factory = _getKey("CREATE3Factory");
         DeploymentResult memory deployment;
 
         console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
@@ -66,7 +69,7 @@ contract DeployV3New is Script, DeployConstants {
 
         vm.startBroadcast(deployerAddress);
 
-        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient);
+        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient, create3Factory);
 
         vm.stopBroadcast();
 
@@ -79,17 +82,19 @@ contract DeployV3New is Script, DeployConstants {
         address deployerAddress,
         address weth,
         address protocolRewards,
-        address builderRewardsRecipient
+        address builderRewardsRecipient,
+        address create3Factory
     ) internal returns (DeploymentResult memory deployment) {
         Manager manager;
 
         // Deploy Manager implementation (bootstrap) via CREATE2 factory
         // CRITICAL: Use all-zero constructor args for cross-chain determinism
-        // builderRewardsRecipient is chain-specific, so we use address(0) here
+        // builderRewardsRecipient and create3Factory are chain-specific, so we use address(0) here
         // Manager proxy will be upgraded to the real implementation immediately after
         deployment.managerImpl0 = DeployHelpers.deployViaFactory(
             abi.encodePacked(
-                type(Manager).creationCode, abi.encode(address(0), address(0), address(0), address(0), address(0), address(0))
+                type(Manager).creationCode,
+                abi.encode(address(0), address(0), address(0), address(0), address(0), address(0), address(0))
             ),
             _deriveSalt(deploySalt, MANAGER_IMPL_0_SALT)
         );
@@ -108,6 +113,13 @@ contract DeployV3New is Script, DeployConstants {
             )
         );
         deployment.manager = address(manager);
+
+        // Deploy DAOFactory via CREATE3 for cross-chain deterministic DAO deployments
+        // DAOFactory acts as the canonical deployer, enabling identical DAO addresses across chains
+        // despite different Manager addresses. Bound to this specific Manager proxy.
+        deployment.daoFactory = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(DAOFactory).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, DAO_FACTORY_SALT)
+        );
 
         // Deploy implementations via CREATE3 factory for bytecode-independent cross-chain determinism
         // CREATE3 enables identical addresses even when constructor args differ per chain
@@ -148,7 +160,8 @@ contract DeployV3New is Script, DeployConstants {
                     deployment.auctionImpl,
                     deployment.treasuryImpl,
                     deployment.governorImpl,
-                    builderRewardsRecipient
+                    builderRewardsRecipient,
+                    deployment.daoFactory
                 )
             ),
             _deriveSalt(deploySalt, MANAGER_IMPL_SALT)
@@ -174,6 +187,7 @@ contract DeployV3New is Script, DeployConstants {
         vm.writeFile(filePath, "");
         vm.writeLine(filePath, string(abi.encodePacked("Deploy Salt: ", bytes32ToString(deploySalt))));
         vm.writeLine(filePath, string(abi.encodePacked("Manager: ", addressToString(deployment.manager))));
+        vm.writeLine(filePath, string(abi.encodePacked("DAO Factory: ", addressToString(deployment.daoFactory))));
         vm.writeLine(filePath, string(abi.encodePacked("Token implementation: ", addressToString(deployment.tokenImpl))));
         vm.writeLine(filePath, string(abi.encodePacked("Metadata Renderer implementation: ", addressToString(deployment.metadataRendererImpl))));
         vm.writeLine(
@@ -196,6 +210,10 @@ contract DeployV3New is Script, DeployConstants {
 
         console2.log("~~~~~~~~~~ MANAGER PROXY ~~~~~~~~~~~");
         console2.logAddress(deployment.manager);
+        console2.log("");
+
+        console2.log("~~~~~~~~~~ DAO FACTORY ~~~~~~~~~~~");
+        console2.logAddress(deployment.daoFactory);
         console2.log("");
 
         console2.log("~~~~~~~~~~ TOKEN IMPL ~~~~~~~~~~~");
