@@ -21,6 +21,10 @@ Reference architecture:
 ### Manager & Deployment Infrastructure
 - CREATE3 deterministic deployments for all implementations
 - CREATE2 deterministic DAO deployments via `deployDeterministic`
+- **DAOFactory** - canonical factory for cross-chain deterministic DAO deployments
+  - Deployed via CREATE3 at deterministic address on all chains
+  - Each Manager implementation references its own DAOFactory instance
+  - Constructor validation ensures correct Manager binding
 - Cross-chain deterministic Manager proxy deployment
 - `builderRewardsRecipient` as immutable in Manager (changeable via upgrade)
 - WETH removed from Manager, kept only in Auction as immutable
@@ -71,6 +75,22 @@ Reference architecture:
 ---
 
 ## Manager & Deployment Security
+
+### DAOFactory Security
+
+- **Constructor Validation**: DAOFactory validates `msg.sender == manager` to ensure correct binding
+  - Prevents deployment of DAOFactory instances bound to wrong Manager
+  - Each Manager implementation has its own DAOFactory instance
+- **Deployment Authorization**: Only the Manager contract that owns the DAOFactory can call `deploy()`
+  - `ONLY_OWNER()` check ensures only the bound Manager can deploy DAOs
+  - Prevents unauthorized DAO deployments through the factory
+- **Address Prediction**: DAOFactory provides `predictAddress(salt)` for pre-deployment address queries
+  - Uses same CREATE2 formula as actual deployment
+  - Enables front-ends to display addresses before deployment
+- **Deployment Validation**: After CREATE2 deployment, DAOFactory validates:
+  - Deployment succeeded (non-zero address)
+  - Contract bytecode exists at predicted address
+  - Reverts with clear error messages on failure
 
 ### CREATE3 Determinism
 - All implementations deployed via CREATE3 factory at `0xD252d074EEe65b64433a5a6f30Ab67569362E7e0`
@@ -174,7 +194,12 @@ Reference architecture:
 - `test_GasUpdateProposalBySigs`
 - `test_GasCancelSignedProposal_16Signers`
 
-### Manager Tests (test/Manager.t.sol)
+### Manager & DAOFactory Tests (test/Manager.t.sol)
+
+**DAOFactory:**
+- `test_DAOFactoryBinding` - verifies DAOFactory is bound to correct Manager
+- `testRevert_DAOFactoryOnlyOwner` - verifies only Manager can call deploy()
+- `test_DAOFactoryPredictAddress` - verifies address prediction matches deployment
 
 **Deterministic Deployment:**
 - `test_DeployDeterministicMatchesPrediction` - verifies addresses match predictions
@@ -415,8 +440,9 @@ manager = Manager(
 2. **Proposal identity calculation** - ensure hash collisions impossible
 3. **Voting snapshot preservation** - verify `timeCreated` immutability on updates
 4. **Cross-chain determinism** - verify CREATE2/CREATE3 address calculations
-5. **Storage layout preservation** - verify no breaking changes for upgrades
-6. **Nonce management** - verify replay protection across all signature types
+5. **DAOFactory authorization** - verify only bound Manager can deploy, constructor validation
+6. **Storage layout preservation** - verify no breaking changes for upgrades
+7. **Nonce management** - verify replay protection across all signature types
 
 ### Medium Priority
 1. **Signer array validation** - verify ordering/uniqueness enforcement

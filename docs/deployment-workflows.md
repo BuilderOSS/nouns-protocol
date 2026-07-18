@@ -81,21 +81,41 @@ Common env variables used by those sections:
 
 ### Overview
 
-The Manager contract uses an external CREATE2 factory (`0x4e59b44847b379578588920cA78FbF26c0B4956C`) to enable **cross-chain deterministic DAO deployments**. This means DAOs can have identical addresses across multiple chains, even when Manager proxies are deployed at different addresses on each chain.
+The Manager contract uses **DAOFactory** as a canonical deployer to enable **cross-chain deterministic DAO deployments**. DAOFactory is deployed via CREATE3 at a deterministic address on all chains, which then uses CREATE2 to deploy DAO proxies. This architecture enables DAOs to have identical addresses across multiple chains, even when Manager proxies are deployed at different addresses on each chain.
+
+**Key Components:**
+
+- **DAOFactory**: Canonical factory contract deployed via CREATE3 (bytecode-independent determinism)
+  - Salt: `keccak256("NOUNS_BUILDER_DAO_FACTORY_V1")`
+  - Deterministic address across all chains despite being bound to chain-specific Manager addresses
+- **Manager**: References DAOFactory as an immutable for DAO deployments
+  - Each Manager implementation is bound to a specific DAOFactory instance
+  - DAOFactory address is set at Manager construction time
 
 ### How It Works
 
-DAO addresses are calculated using the formula:
+DAO addresses are calculated using the CREATE2 formula where DAOFactory acts as the deployer:
 
 ```
-address = keccak256(0xff ++ CREATE2_FACTORY ++ salt ++ keccak256(proxyCreationCode))
+address = keccak256(0xff ++ DAO_FACTORY_ADDRESS ++ salt ++ keccak256(proxyCreationCode))
 ```
 
 Where:
 
-- `CREATE2_FACTORY` = `0x4e59b44847b379578588920cA78FbF26c0B4956C` (constant across all chains)
-- `salt` = `keccak256(deployer ++ DEPLOY_SALT ++ contractLabel)`
+- `DAO_FACTORY_ADDRESS` = Address of DAOFactory contract (deterministic via CREATE3, same on all chains)
+- `salt` = `keccak256(deployerWallet ++ DEPLOY_SALT ++ contractLabel)`
+  - `deployerWallet`: The EOA/contract calling `Manager.deployDeterministic()`
+  - `DEPLOY_SALT`: User-provided salt for namespacing
+  - `contractLabel`: Contract-specific identifier ("TOKEN", "METADATA", etc.)
 - `proxyCreationCode` = ERC1967Proxy bytecode + implementation address
+
+**Deployment Flow:**
+
+1. Manager validates implementations and DAOFactory exists
+2. Manager calls `DAOFactory.deploy(salt, proxyCreationCode)` for each contract
+3. DAOFactory uses CREATE2 to deploy ERC1967Proxy at deterministic address
+4. DAOFactory validates deployment succeeded and returns proxy address
+5. Manager initializes each proxy with DAO-specific parameters
 
 ### Requirements for Cross-Chain DAO Determinism
 
@@ -201,15 +221,24 @@ The only requirements are: same deployer wallet + same deploySalt + same Impleme
 
 **CREATE2 Factory** (`0x4e59b44847b379578588920cA78FbF26c0B4956C`):
 
-- Used for: Manager proxy, DAO contracts
+- Used for: Manager proxy, DAO proxies (via DAOFactory)
 - Address formula: `keccak256(0xff ++ factory ++ salt ++ keccak256(bytecode))`
 - Limitation: Address depends on bytecode (different constructor args = different addresses)
 
 **CREATE3 Factory** (`0xD252d074EEe65b64433a5a6f30Ab67569362E7e0`):
 
-- Used for: All implementations, minters, migration deployer
+- Used for: All implementations, DAOFactory, minters, migration deployer
 - Address formula: Two-step process where final address = `f(salt, deployer)`, independent of bytecode
 - Advantage: Same address even when constructor args differ across chains
+
+**DAOFactory** (deployed via CREATE3 with salt `keccak256("NOUNS_BUILDER_DAO_FACTORY_V1")`):
+
+- Purpose: Canonical deployer for DAO proxy contracts
+- Why it exists: Enables cross-chain DAO determinism despite different Manager addresses
+- Architecture: Each Manager implementation references its own DAOFactory instance as an immutable
+- Security: DAOFactory constructor validates that `msg.sender == manager` to ensure correct binding
+- Deployment: DAOFactory is deployed via CREATE3, making its address deterministic across all chains
+- Usage: Manager calls `daoFactory.deploy(salt, creationCode)` which internally uses CREATE2 factory
 
 Both factories are deployed on all supported networks:
 
