@@ -54,6 +54,10 @@ contract CrossChainDeterminism is ViaIRTestHelper {
     // Deterministic DAOFactory salt (same on both chains for same address)
     bytes32 constant DAO_FACTORY_SALT = keccak256("NOUNS_BUILDER_DAO_FACTORY_V1");
 
+    // Fork at specific blocks for consistent testing (June 2025)
+    uint256 constant MAINNET_FORK_BLOCK = 21200000;
+    uint256 constant OPTIMISM_FORK_BLOCK = 125000000;
+
     ///                                                          ///
     ///                        FORK STATE                        ///
     ///                                                          ///
@@ -81,12 +85,14 @@ contract CrossChainDeterminism is ViaIRTestHelper {
 
         // Setup mainnet
         vm.selectFork(mainnetFork);
+        vm.rollFork(MAINNET_FORK_BLOCK);
         initTime();
         address mainnetCreate3Factory = _ensureCreate3FactoryExists();
         _setupMainnet(mainnetCreate3Factory);
 
         // Setup optimism
         vm.selectFork(optimismFork);
+        vm.rollFork(OPTIMISM_FORK_BLOCK);
         initTime();
         address optimismCreate3Factory = _ensureCreate3FactoryExists();
         _setupOptimism(optimismCreate3Factory);
@@ -366,8 +372,13 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         (address predictedToken, address predictedMetadata, address predictedAuction, address predictedTreasury, address predictedGovernor) =
             mainnetManager.predictDeterministicAddresses(deployer, salt, params);
 
-        // Setup minimal DAO params
-        IManager.FounderParams[] memory founders = new IManager.FounderParams[](0);
+        // Setup minimal DAO params with one founder
+        IManager.FounderParams[] memory founders = new IManager.FounderParams[](1);
+        founders[0] = IManager.FounderParams({
+            wallet: address(this),
+            ownershipPct: 10,
+            vestExpiry: 4 weeks
+        });
 
         IManager.TokenParams memory tokenParams = IManager.TokenParams({
             initStrings: abi.encode("Test DAO", "TEST", "Test Description", "ipfs://test", "https://test.com", "https://renderer.test"),

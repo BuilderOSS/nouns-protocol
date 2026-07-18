@@ -398,6 +398,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         bytes32 _deploySalt,
         ImplementationParams calldata _implementationParams
     ) internal returns (address token, address metadata, address auction, address treasury, address governor) {
+        if (_founderParams.length == 0) revert FOUNDER_REQUIRED();
         address founder = _founderParams[0].wallet;
         if (founder == address(0)) revert FOUNDER_REQUIRED();
 
