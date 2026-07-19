@@ -125,7 +125,8 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         mainnetManagerImpl = _deployManagerImpl(
             mainnetManager,
             mainnetDaoFactory,
-            address(0xaeA77c982515fD4aB72382D9ee1745C874Fa2234) // Builder rewards recipient from addresses/1.json
+            address(0xaeA77c982515fD4aB72382D9ee1745C874Fa2234), // Builder rewards recipient from addresses/1.json
+            MAINNET_WETH
         );
 
         // Upgrade Manager to new implementation using startPrank to maintain owner context
@@ -150,7 +151,8 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         optimismManagerImpl = _deployManagerImpl(
             optimismManager,
             optimismDaoFactory,
-            address(0xaeA77c982515fD4aB72382D9ee1745C874Fa2234) // Same builder rewards recipient
+            address(0xaeA77c982515fD4aB72382D9ee1745C874Fa2234), // Same builder rewards recipient
+            OPTIMISM_WETH
         );
 
         // Upgrade Manager to new implementation using startPrank to maintain owner context
@@ -181,18 +183,19 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         require(DAOFactory(daoFactory).manager() == manager, "DAOFactory manager mismatch");
     }
 
-    /// @notice Deploy new Manager implementation with DAOFactory support
-    /// @param currentManager The current Manager proxy (to read existing immutables)
+    /// @notice Deploy new Manager implementation with DAOFactory support and NEW implementations
+    /// @param managerProxy The Manager proxy address (used as manager reference for new implementations)
     /// @param daoFactory The DAOFactory address to reference
     /// @param builderRewardsRecipient The builder rewards recipient address
+    /// @param weth The WETH address for the chain
     /// @return impl The deployed Manager implementation
-    function _deployManagerImpl(IManager currentManager, address daoFactory, address builderRewardsRecipient) internal returns (Manager impl) {
-        // Get current implementation addresses (for backward compatibility)
-        address tokenImpl = currentManager.tokenImpl();
-        address metadataImpl = currentManager.metadataImpl();
-        address auctionImpl = currentManager.auctionImpl();
-        address treasuryImpl = currentManager.treasuryImpl();
-        address governorImpl = currentManager.governorImpl();
+    function _deployManagerImpl(IManager managerProxy, address daoFactory, address builderRewardsRecipient, address weth) internal returns (Manager impl) {
+        // Deploy NEW implementations with updated initialize() signatures
+        address tokenImpl = address(new Token(address(managerProxy)));
+        address metadataImpl = address(new MetadataRenderer(address(managerProxy)));
+        address auctionImpl = address(new Auction(address(managerProxy), address(0), weth, 0, 0));
+        address treasuryImpl = address(new Treasury(address(managerProxy)));
+        address governorImpl = address(new Governor(address(managerProxy)));
 
         // Deploy new Manager implementation with all immutables
         impl = new Manager(tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderRewardsRecipient, daoFactory);
