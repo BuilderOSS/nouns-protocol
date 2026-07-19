@@ -27,6 +27,7 @@
     "gas-custom-errors": "off",
     "reason-string": "off",
     "max-states-count": "off",
-    "use-natspec": "off"
+    "use-natspec": "off",
+    "no-unused-vars": "off"
   }
 }

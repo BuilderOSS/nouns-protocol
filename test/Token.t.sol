@@ -3,8 +3,7 @@ pragma solidity 0.8.35;
 
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
 
-import { IManager, Manager } from "../src/manager/Manager.sol";
-import { IToken, Token } from "../src/token/Token.sol";
+import { IManager } from "../src/manager/IManager.sol";
 import { TokenTypesV1 } from "../src/token/types/TokenTypesV1.sol";
 import { TokenTypesV2 } from "../src/token/types/TokenTypesV2.sol";
 

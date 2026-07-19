@@ -6,6 +6,7 @@ pragma solidity 0.8.35;
 /// @notice The external Base Metadata errors and functions
 interface ManagerTypesV1 {
     /// @notice Stores deployed addresses for a given token's DAO
+    // forge-lint: disable-next-line(pascal-case-struct)
     struct DAOAddresses {
         /// @notice Address for deployed metadata contract
         address metadata;

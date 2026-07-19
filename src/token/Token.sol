@@ -24,6 +24,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     ///                         IMMUTABLES                       ///
     ///                                                          ///
     /// @notice The contract upgrade manager
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     IManager private immutable manager;
 
     ///                                                          ///
@@ -31,6 +32,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     ///                                                          ///
 
     /// @notice Reverts if caller is not an authorized minter
+    // forge-lint: disable-next-line(unwrapped-modifier-logic)
     modifier onlyMinter() {
         if (!minter[msg.sender]) {
             revert ONLY_AUCTION_OR_MINTER();
@@ -40,6 +42,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
     }
 
     /// @notice Reverts if caller is not an authorized minter
+    // forge-lint: disable-next-line(unwrapped-modifier-logic)
     modifier onlyAuctionOrMinter() {
         if (msg.sender != settings.auction && !minter[msg.sender]) {
             revert ONLY_AUCTION_OR_MINTER();
@@ -152,6 +155,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
                 newFounder.wallet = _founders[i].wallet;
                 newFounder.vestExpiry = uint32(_founders[i].vestExpiry);
                 // Total ownership cannot be above 100 so this fits safely in uint8
+                // forge-lint: disable-next-line(unsafe-typecast)
                 newFounder.ownershipPct = uint8(founderPct);
 
                 // Compute the vesting schedule
@@ -176,6 +180,7 @@ contract Token is IToken, VersionedContract, UUPS, Ownable, ReentrancyGuard, ERC
             }
 
             // Store the founders' details
+            // forge-lint: disable-next-line(unsafe-typecast)
             settings.totalOwnership = uint8(totalOwnership);
             settings.numFounders = numFoundersAdded;
         }

@@ -3,8 +3,10 @@ pragma solidity 0.8.35;
 
 import { CREATE3 } from "solmate/utils/CREATE3.sol";
 import { IDAOFactory } from "./IDAOFactory.sol";
+import { VersionedContract } from "../VersionedContract.sol";
 
 /// @title DAOFactory
+/// @author Nouns Builder Team
 /// @notice Canonical factory for deterministic DAO deployments across chains
 /// @dev This contract acts as the canonical deployer for all DAO proxies. By having all Manager
 ///      contracts route their deployments through this single factory, we achieve cross-chain
@@ -30,11 +32,10 @@ import { IDAOFactory } from "./IDAOFactory.sol";
 ///      4. Result: Same (deployer=X, salt) produces same DAO addresses across all chains
 ///
 ///      This contract should be deployed at the same address on all chains using CREATE3Factory.
-contract DAOFactory is IDAOFactory {
+contract DAOFactory is IDAOFactory, VersionedContract {
     ///                                                          ///
     ///                        IMMUTABLES                        ///
     ///                                                          ///
-
     /// @notice The Manager contract authorized to use this factory
     /// @dev Set in constructor and immutable. Only this Manager can deploy through this factory.
     ///      Each chain has its own DAOFactory+Manager pair, but all DAOFactories are at the same address.

@@ -37,24 +37,31 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///                                                          ///
     ///                          IMMUTABLES                      ///
     ///                                                          ///
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The token implementation address
     address public immutable tokenImpl;
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The metadata renderer implementation address
     address public immutable metadataImpl;
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The auction house implementation address
     address public immutable auctionImpl;
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The treasury implementation address
     address public immutable treasuryImpl;
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The governor implementation address
     address public immutable governorImpl;
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The address to send Builder DAO rewards to
     address public immutable builderRewardsRecipient;
 
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     /// @notice The DAOFactory address for canonical deterministic deployments
     /// @dev DAOFactory acts as the canonical deployer for all DAO proxies, ensuring cross-chain
     ///      deterministic addresses regardless of Manager address. The factory should be deployed
@@ -130,7 +137,6 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @param _auctionParams The auction settings
     /// @param _govParams The governance settings
     /// @param _deploySalt The base salt used to derive per-contract salts
-    /// @param _implementationParams The explicit implementation bundle used for deterministic deployment
     /// @return token The deployed token address
     /// @return metadata The deployed metadata renderer address
     /// @return auction The deployed auction address
@@ -141,34 +147,28 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         TokenParams calldata _tokenParams,
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams,
-        bytes32 _deploySalt,
-        ImplementationParams calldata _implementationParams
+        bytes32 _deploySalt
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
         // Validate that DAOFactory is deployed
         _validateDAOFactory(daoFactory);
 
-        _validateImplementationParams(_implementationParams);
-
-        return _deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams);
+        return _deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt);
     }
 
     /// @notice Predicts deterministic DAO addresses using an explicit implementation bundle
     /// @param _deployer The deployer address used to namespace the deterministic salt
     /// @param _deploySalt The base salt used to derive per-contract salts
-    /// @param _implementationParams The explicit implementation bundle used for deterministic prediction
     /// @return token The predicted token address
     /// @return metadata The predicted metadata renderer address
     /// @return auction The predicted auction address
     /// @return treasury The predicted treasury address
     /// @return governor The predicted governor address
-    function predictDeterministicAddresses(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
+    function predictDeterministicAddresses(address _deployer, bytes32 _deploySalt)
         external
         view
         returns (address token, address metadata, address auction, address treasury, address governor)
     {
-        _validateImplementationParams(_implementationParams);
-
-        return _predictDeterministicAddresses(_deployer, _deploySalt, _implementationParams);
+        return _predictDeterministicAddresses(_deployer, _deploySalt);
     }
 
     ///                                                          ///
@@ -257,10 +257,11 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         }
     }
 
-    /// @notice Safely get the contract version of all DAO contracts given a token address.
+    // forge-lint: disable-next-line(mixed-case-function)
+    /// @notice Safely get the contract version of all DAO contracts given a token address
     /// @param token The ERC-721 token address
-    /// @return Contract versions if found, empty string if not.
-    function getDAOVersions(address token) external view returns (DAOVersionInfo memory) {
+    /// @return daoVersionInfo Contract versions if found, empty string if not
+    function getDAOVersions(address token) external view returns (DAOVersionInfo memory daoVersionInfo) {
         (address metadata, address auction, address treasury, address governor) = getAddresses(token);
         return DAOVersionInfo({
             token: _safeGetVersion(token),
@@ -303,6 +304,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @param _tokenParams The ERC-721 token settings
     /// @param _auctionParams The auction settings
     /// @param _govParams The governance settings
+    // forge-lint: disable-next-line(mixed-case-function)
     function _initializeDAO(
         address token,
         address metadata,
@@ -378,13 +380,12 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     }
 
     /// @notice Internal function for deterministic DAO deployment using CREATE2
-    /// @dev Deploys all contracts with predictable addresses using provided implementation bundle
+    /// @dev Deploys all contracts with predictable addresses using Manager's immutable implementations
     /// @param _founderParams The DAO founders
     /// @param _tokenParams The ERC-721 token settings
     /// @param _auctionParams The auction settings
     /// @param _govParams The governance settings
     /// @param _deploySalt The base salt used to derive per-contract salts
-    /// @param _implementationParams The explicit implementation bundle
     /// @return token The deployed token address
     /// @return metadata The deployed metadata renderer address
     /// @return auction The deployed auction address
@@ -395,14 +396,13 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         TokenParams calldata _tokenParams,
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams,
-        bytes32 _deploySalt,
-        ImplementationParams calldata _implementationParams
+        bytes32 _deploySalt
     ) internal returns (address token, address metadata, address auction, address treasury, address governor) {
         if (_founderParams.length == 0) revert FOUNDER_REQUIRED();
         address founder = _founderParams[0].wallet;
         if (founder == address(0)) revert FOUNDER_REQUIRED();
 
-        (token, metadata, auction, treasury, governor) = _deployDeterministicProxies(msg.sender, _deploySalt, _implementationParams);
+        (token, metadata, auction, treasury, governor) = _deployDeterministicProxies(msg.sender, _deploySalt, _tokenParams);
 
         daoAddressesByToken[token] = DAOAddresses({ metadata: metadata, auction: auction, treasury: treasury, governor: governor });
 
@@ -444,21 +444,22 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///      This prevents collisions across deployers and ensures unique addresses per contract type.
     /// @param _deployer The address initiating the deployment (used in salt derivation to prevent cross-deployer collisions)
     /// @param _deploySalt The base salt provided by caller (should be unique per DAO deployment)
-    /// @param _implementationParams The implementation addresses to use for each proxy
+    /// @param _tokenParams The token parameters containing optional custom renderer
     /// @return token The deployed token proxy address
     /// @return metadata The deployed metadata renderer proxy address
     /// @return auction The deployed auction proxy address
     /// @return treasury The deployed treasury proxy address
     /// @return governor The deployed governor proxy address
-    function _deployDeterministicProxies(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
+    function _deployDeterministicProxies(address _deployer, bytes32 _deploySalt, TokenParams calldata _tokenParams)
         internal
         returns (address token, address metadata, address auction, address treasury, address governor)
     {
-        token = _deployProxy(_implementationParams.token, _deriveSalt(_deployer, _deploySalt, TOKEN_SALT_LABEL));
-        metadata = _deployProxy(_implementationParams.metadataRenderer, _deriveSalt(_deployer, _deploySalt, METADATA_SALT_LABEL));
-        auction = _deployProxy(_implementationParams.auction, _deriveSalt(_deployer, _deploySalt, AUCTION_SALT_LABEL));
-        treasury = _deployProxy(_implementationParams.treasury, _deriveSalt(_deployer, _deploySalt, TREASURY_SALT_LABEL));
-        governor = _deployProxy(_implementationParams.governor, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
+        address metadataImplToUse = _getMetadataImpl(_tokenParams);
+        token = _deployProxy(tokenImpl, _deriveSalt(_deployer, _deploySalt, TOKEN_SALT_LABEL));
+        metadata = _deployProxy(metadataImplToUse, _deriveSalt(_deployer, _deploySalt, METADATA_SALT_LABEL));
+        auction = _deployProxy(auctionImpl, _deriveSalt(_deployer, _deploySalt, AUCTION_SALT_LABEL));
+        treasury = _deployProxy(treasuryImpl, _deriveSalt(_deployer, _deploySalt, TREASURY_SALT_LABEL));
+        governor = _deployProxy(governorImpl, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
     }
 
     /// @notice Returns the metadata renderer implementation to use
@@ -473,44 +474,21 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     /// @dev Uses same salt derivation as _deployDeterministicProxies for accurate prediction
     /// @param _deployer The address that will deploy (affects salt calculation)
     /// @param _deploySalt The base salt to be used
-    /// @param _implementationParams The implementation addresses
     /// @return token The predicted token address
     /// @return metadata The predicted metadata renderer address
     /// @return auction The predicted auction address
     /// @return treasury The predicted treasury address
     /// @return governor The predicted governor address
-    function _predictDeterministicAddresses(address _deployer, bytes32 _deploySalt, ImplementationParams calldata _implementationParams)
+    function _predictDeterministicAddresses(address _deployer, bytes32 _deploySalt)
         internal
         view
         returns (address token, address metadata, address auction, address treasury, address governor)
     {
-        token = _predictProxyAddress(_implementationParams.token, _deriveSalt(_deployer, _deploySalt, TOKEN_SALT_LABEL));
-        metadata = _predictProxyAddress(_implementationParams.metadataRenderer, _deriveSalt(_deployer, _deploySalt, METADATA_SALT_LABEL));
-        auction = _predictProxyAddress(_implementationParams.auction, _deriveSalt(_deployer, _deploySalt, AUCTION_SALT_LABEL));
-        treasury = _predictProxyAddress(_implementationParams.treasury, _deriveSalt(_deployer, _deploySalt, TREASURY_SALT_LABEL));
-        governor = _predictProxyAddress(_implementationParams.governor, _deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
-    }
-
-    /// @notice Validates that implementation parameters contain valid contract addresses
-    /// @dev Checks for non-zero addresses and verifies bytecode exists at each address
-    /// @param _implementationParams The implementation bundle to validate
-    function _validateImplementationParams(ImplementationParams calldata _implementationParams) internal view {
-        if (
-            _implementationParams.token == address(0) || _implementationParams.metadataRenderer == address(0)
-                || _implementationParams.auction == address(0) || _implementationParams.treasury == address(0)
-                || _implementationParams.governor == address(0)
-        ) {
-            revert IMPLEMENTATION_REQUIRED();
-        }
-
-        // Verify each address contains bytecode (is a contract)
-        if (
-            _implementationParams.token.code.length == 0 || _implementationParams.metadataRenderer.code.length == 0
-                || _implementationParams.auction.code.length == 0 || _implementationParams.treasury.code.length == 0
-                || _implementationParams.governor.code.length == 0
-        ) {
-            revert INVALID_IMPLEMENTATION();
-        }
+        token = _predictProxyAddress(_deriveSalt(_deployer, _deploySalt, TOKEN_SALT_LABEL));
+        metadata = _predictProxyAddress(_deriveSalt(_deployer, _deploySalt, METADATA_SALT_LABEL));
+        auction = _predictProxyAddress(_deriveSalt(_deployer, _deploySalt, AUCTION_SALT_LABEL));
+        treasury = _predictProxyAddress(_deriveSalt(_deployer, _deploySalt, TREASURY_SALT_LABEL));
+        governor = _predictProxyAddress(_deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
     }
 
     /// @notice Validates that the DAOFactory is deployed
@@ -518,6 +496,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///      The factory must have bytecode at daoFactory address.
     ///      Access control is enforced by the DAOFactory itself via its manager immutable.
     /// @param _daoFactory The DAOFactory address to validate
+    // forge-lint: disable-next-line(mixed-case-function)
     function _validateDAOFactory(address _daoFactory) internal view {
         if (_daoFactory.code.length == 0) {
             revert DAO_FACTORY_NOT_DEPLOYED();
@@ -529,10 +508,9 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     ///      CRITICAL: Address depends ONLY on (DAOFactory, salt), NOT on Manager address or bytecode
     ///      This enables cross-chain determinism - same DAOFactory + salt = same address
     ///      regardless of which Manager is calling it or what the implementation address is
-    /// @param _implementation The implementation address (NOT used in address calculation, only for compatibility)
     /// @param _salt The salt to use for CREATE3 deployment
     /// @return The predicted proxy address
-    function _predictProxyAddress(address _implementation, bytes32 _salt) internal view returns (address) {
+    function _predictProxyAddress(bytes32 _salt) internal view returns (address) {
         // Use DAOFactory's prediction function - DAOFactory is the canonical deployer
         // This ensures all Managers produce identical predictions
         return IDAOFactory(daoFactory).predictAddress(_salt);
@@ -561,7 +539,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         address deployed = IDAOFactory(daoFactory).deployProxy(_salt, creationCode);
 
         // Verify the deployed address matches our prediction
-        address predicted = _predictProxyAddress(_implementation, _salt);
+        address predicted = _predictProxyAddress(_salt);
         if (deployed != predicted) revert FACTORY_DEPLOYMENT_FAILED();
 
         // Verify contract was actually deployed

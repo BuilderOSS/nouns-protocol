@@ -4,10 +4,10 @@ pragma solidity 0.8.35;
 import { Test } from "forge-std/Test.sol";
 
 import { IManager, Manager } from "../../src/manager/Manager.sol";
-import { IToken, Token } from "../../src/token/Token.sol";
-import { IAuction, Auction } from "../../src/auction/Auction.sol";
-import { IGovernor, Governor } from "../../src/governance/governor/Governor.sol";
-import { ITreasury, Treasury } from "../../src/governance/treasury/Treasury.sol";
+import { Token } from "../../src/token/Token.sol";
+import { Auction } from "../../src/auction/Auction.sol";
+import { Governor } from "../../src/governance/governor/Governor.sol";
+import { Treasury } from "../../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../../src/token/metadata/MetadataRenderer.sol";
 import { MetadataRendererTypesV1 } from "../../src/token/metadata/types/MetadataRendererTypesV1.sol";
 
@@ -95,10 +95,8 @@ contract NounsBuilderTest is Test {
         managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, daoFactory));
 
         // Deploy Manager proxy via CREATE3 to the predicted address
-        bytes memory proxyCreationCode = abi.encodePacked(
-            type(ERC1967Proxy).creationCode,
-            abi.encode(managerImpl, abi.encodeWithSignature("initialize(address)", zoraDAO))
-        );
+        bytes memory proxyCreationCode =
+            abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(managerImpl, abi.encodeWithSignature("initialize(address)", zoraDAO)));
         address deployedProxy = factory.deploy(managerProxySalt, proxyCreationCode);
 
         require(deployedProxy == predictedManagerProxy, "Manager proxy address mismatch");
@@ -346,11 +344,10 @@ contract NounsBuilderTest is Test {
         IManager.TokenParams memory _tokenParams,
         IManager.AuctionParams memory _auctionParams,
         IManager.GovParams memory _govParams,
-        bytes32 _deploySalt,
-        IManager.ImplementationParams memory _implementationParams
+        bytes32 _deploySalt
     ) internal virtual {
         (address _token, address _metadata, address _auction, address _treasury, address _governor) =
-            manager.deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt, _implementationParams);
+            manager.deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt);
 
         token = Token(_token);
         metadataRenderer = MetadataRenderer(_metadata);
@@ -363,12 +360,6 @@ contract NounsBuilderTest is Test {
         vm.label(address(auction), "AUCTION");
         vm.label(address(treasury), "TREASURY");
         vm.label(address(governor), "GOVERNOR");
-    }
-
-    function getImplementationParams() internal view returns (IManager.ImplementationParams memory) {
-        return IManager.ImplementationParams({
-            token: tokenImpl, metadataRenderer: metadataRendererImpl, auction: auctionImpl, treasury: treasuryImpl, governor: governorImpl
-        });
     }
 
     ///                                                          ///

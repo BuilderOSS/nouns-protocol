@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 /// @title IDAOFactory
+/// @author Nouns Builder Team
 /// @notice Interface for the canonical DAO deployment factory
 /// @dev This factory acts as the canonical deployer for all DAO proxies, enabling cross-chain
 ///      deterministic deployments regardless of the Manager contract's address.
@@ -9,7 +10,6 @@ interface IDAOFactory {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a proxy is deployed
     /// @param deployer The address that initiated the deployment (typically a Manager contract)
     /// @param deployed The address of the deployed proxy

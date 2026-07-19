@@ -8,11 +8,8 @@ import { Token } from "../../src/token/Token.sol";
 import { TokenTypesV1 } from "../../src/token/types/TokenTypesV1.sol";
 import { Governor } from "../../src/governance/governor/Governor.sol";
 import { GovernorTypesV1 } from "../../src/governance/governor/types/GovernorTypesV1.sol";
-import { IManager } from "../../src/manager/IManager.sol";
 import { Manager } from "../../src/manager/Manager.sol";
-import { IGovernor } from "../../src/governance/governor/IGovernor.sol";
 import { MetadataRenderer } from "../../src/token/metadata/MetadataRenderer.sol";
-import { IBaseMetadata } from "../../src/token/metadata/interfaces/IBaseMetadata.sol";
 import { DAOFactory } from "../../src/factory/DAOFactory.sol";
 import { DeployHelpers } from "../../script/DeployHelpers.sol";
 import { DeployConstants } from "../../script/DeployConstants.sol";
@@ -197,7 +194,7 @@ contract TestPurpleDAOSystemUpgrade is ViaIRTestHelper, DeployConstants {
         // Deploy CREATE3Factory deterministically using CREATE2 (Nick's factory)
         // This ensures same address across chains
         bytes memory creationCode = type(CREATE3Factory).creationCode;
-        bytes32 salt = keccak256("NOUNS_BUILDER_CREATE3_FACTORY");
+        bytes32 salt = keccak256("CREATE3_FACTORY");
 
         address predicted = DeployHelpers.predictAddress(creationCode, salt);
 

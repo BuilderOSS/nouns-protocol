@@ -9,9 +9,9 @@ import { MockCrossDomainMessenger } from "./utils/mocks/MockCrossDomainMessenger
 
 import { IToken, Token } from "../src/token/Token.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
-import { IAuction, Auction } from "../src/auction/Auction.sol";
-import { IGovernor, Governor } from "../src/governance/governor/Governor.sol";
-import { ITreasury, Treasury } from "../src/governance/treasury/Treasury.sol";
+import { Auction } from "../src/auction/Auction.sol";
+import { Governor } from "../src/governance/governor/Governor.sol";
+import { Treasury } from "../src/governance/treasury/Treasury.sol";
 
 contract L2MigrationDeployerTest is NounsBuilderTest {
     MockCrossDomainMessenger xDomainMessenger;

@@ -4,7 +4,6 @@ pragma solidity 0.8.35;
 import { GovTest } from "./Gov.t.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { IGovernor } from "../src/governance/governor/IGovernor.sol";
-import { ERC1967Proxy } from "../src/lib/proxy/ERC1967Proxy.sol";
 import { Manager } from "../src/manager/Manager.sol";
 import { LegacyGovernorV2 } from "./utils/mocks/LegacyGovernorV2.sol";
 

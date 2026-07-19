@@ -771,6 +771,7 @@ function calculateProposalId(
 ```
 
 **⚠️ CRITICAL:**
+
 - This MUST match the Governor contract's calculation exactly
 - The `description` parameter MUST be the exact raw string from the attestation
 - DO NOT parse and re-stringify the description - `JSON.stringify()` can change whitespace and property order, producing a different hash

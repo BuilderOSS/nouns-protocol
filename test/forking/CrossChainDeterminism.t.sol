@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import { Test } from "forge-std/Test.sol";
 import { ViaIRTestHelper } from "../utils/ViaIRTestHelper.sol";
 
 import { Manager } from "../../src/manager/Manager.sol";
@@ -35,7 +34,6 @@ contract CrossChainDeterminism is ViaIRTestHelper {
     ///                                                          ///
     ///                    PRODUCTION ADDRESSES                  ///
     ///                                                          ///
-
     // Mainnet (Chain ID 1)
     address constant MAINNET_MANAGER_PROXY = 0xd310A3041dFcF14Def5ccBc508668974b5da7174;
     address constant MAINNET_MANAGER_OWNER = 0xDC9b96Ea4966d063Dd5c8dbaf08fe59062091B6D;
@@ -52,7 +50,7 @@ contract CrossChainDeterminism is ViaIRTestHelper {
     bytes32 constant ERC1967_IMPL_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     // Deterministic DAOFactory salt (same on both chains for same address)
-    bytes32 constant DAO_FACTORY_SALT = keccak256("NOUNS_BUILDER_DAO_FACTORY_V1");
+    bytes32 constant DAO_FACTORY_SALT = keccak256("DAO_FACTORY");
 
     // Fork at specific blocks for consistent testing (June 2025)
     uint256 constant MAINNET_FORK_BLOCK = 21200000;
@@ -103,7 +101,7 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         // Deploy CREATE3Factory deterministically using CREATE2 (Nick's factory)
         // This ensures same address across chains
         bytes memory creationCode = type(CREATE3Factory).creationCode;
-        bytes32 salt = keccak256("NOUNS_BUILDER_CREATE3_FACTORY");
+        bytes32 salt = keccak256("CREATE3_FACTORY");
 
         address predicted = DeployHelpers.predictAddress(creationCode, salt);
 
@@ -188,10 +186,7 @@ contract CrossChainDeterminism is ViaIRTestHelper {
     /// @param daoFactory The DAOFactory address to reference
     /// @param builderRewardsRecipient The builder rewards recipient address
     /// @return impl The deployed Manager implementation
-    function _deployManagerImpl(IManager currentManager, address daoFactory, address builderRewardsRecipient)
-        internal
-        returns (Manager impl)
-    {
+    function _deployManagerImpl(IManager currentManager, address daoFactory, address builderRewardsRecipient) internal returns (Manager impl) {
         // Get current implementation addresses (for backward compatibility)
         address tokenImpl = currentManager.tokenImpl();
         address metadataImpl = currentManager.metadataImpl();
@@ -200,9 +195,7 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         address governorImpl = currentManager.governorImpl();
 
         // Deploy new Manager implementation with all immutables
-        impl = new Manager(
-            tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderRewardsRecipient, daoFactory
-        );
+        impl = new Manager(tokenImpl, metadataImpl, auctionImpl, treasuryImpl, governorImpl, builderRewardsRecipient, daoFactory);
     }
 
     ///                                                          ///
@@ -213,9 +206,7 @@ contract CrossChainDeterminism is ViaIRTestHelper {
     function test_DAOFactoryDeterministicAcrossChains() public {
         // DAOFactory should be at the SAME address on both chains
         // This is critical for cross-chain determinism
-        assertEq(
-            mainnetDaoFactory, optimismDaoFactory, "DAOFactory addresses must match - this is the foundation of cross-chain determinism"
-        );
+        assertEq(mainnetDaoFactory, optimismDaoFactory, "DAOFactory addresses must match - this is the foundation of cross-chain determinism");
 
         // Log the addresses for visibility
         emit log_named_address("DAOFactory address (both chains)", mainnetDaoFactory);
@@ -255,33 +246,15 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         // Implementation addresses are DIFFERENT (as expected)
         assertTrue(mainnetTokenImpl != optimismTokenImpl, "Implementation addresses differ between chains");
 
-        // Create implementation params for mainnet
-        IManager.ImplementationParams memory mainnetParams = IManager.ImplementationParams({
-            token: mainnetTokenImpl,
-            metadataRenderer: mainnetMetadataImpl,
-            auction: mainnetAuctionImpl,
-            treasury: mainnetTreasuryImpl,
-            governor: mainnetGovernorImpl
-        });
-
-        // Create implementation params for optimism
-        IManager.ImplementationParams memory optimismParams = IManager.ImplementationParams({
-            token: optimismTokenImpl,
-            metadataRenderer: optimismMetadataImpl,
-            auction: optimismAuctionImpl,
-            treasury: optimismTreasuryImpl,
-            governor: optimismGovernorImpl
-        });
-
         // Predict addresses on MAINNET
         vm.selectFork(mainnetFork);
         (address mainnetToken, address mainnetMetadata, address mainnetAuction, address mainnetTreasury, address mainnetGovernor) =
-            mainnetManager.predictDeterministicAddresses(deployer, salt, mainnetParams);
+            mainnetManager.predictDeterministicAddresses(deployer, salt);
 
         // Predict addresses on OPTIMISM
         vm.selectFork(optimismFork);
         (address optimismToken, address optimismMetadata, address optimismAuction, address optimismTreasury, address optimismGovernor) =
-            optimismManager.predictDeterministicAddresses(deployer, salt, optimismParams);
+            optimismManager.predictDeterministicAddresses(deployer, salt);
 
         // ========== CRITICAL ASSERTIONS: Predictions MUST match ==========
         // Despite:
@@ -328,19 +301,12 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         // Implementations are DIFFERENT
         assertTrue(auctionImpl1 != auctionImpl2, "Auction implementations should differ");
 
-        // Create params with different implementations
-        IManager.ImplementationParams memory params1 =
-            IManager.ImplementationParams({ token: tokenImpl1, metadataRenderer: metadataImpl1, auction: auctionImpl1, treasury: treasuryImpl1, governor: governorImpl1 });
-
-        IManager.ImplementationParams memory params2 =
-            IManager.ImplementationParams({ token: tokenImpl2, metadataRenderer: metadataImpl2, auction: auctionImpl2, treasury: treasuryImpl2, governor: governorImpl2 });
-
-        // Predict with BOTH sets of implementations
+        // Predict addresses with same salt (implementations don't matter anymore - using Manager's immutables)
         (address token1, address metadata1, address auction1, address treasury1, address governor1) =
-            mainnetManager.predictDeterministicAddresses(deployer, salt, params1);
+            mainnetManager.predictDeterministicAddresses(deployer, salt);
 
         (address token2, address metadata2, address auction2, address treasury2, address governor2) =
-            mainnetManager.predictDeterministicAddresses(deployer, salt, params2);
+            mainnetManager.predictDeterministicAddresses(deployer, salt);
 
         // Predictions MUST be IDENTICAL (CREATE3 is bytecode-independent)
         assertEq(token1, token2, "Predictions must be bytecode-independent");
@@ -358,27 +324,13 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         address deployer = address(this);
         bytes32 salt = keccak256("ACTUAL_DEPLOYMENT_TEST");
 
-        // Deploy implementations
-        address tokenImpl = address(new Token(address(mainnetManager)));
-        address metadataImpl = address(new MetadataRenderer(address(mainnetManager)));
-        address auctionImpl = address(new Auction(address(mainnetManager), address(0), MAINNET_WETH, 0, 0));
-        address treasuryImpl = address(new Treasury(address(mainnetManager)));
-        address governorImpl = address(new Governor(address(mainnetManager)));
-
-        IManager.ImplementationParams memory params =
-            IManager.ImplementationParams({ token: tokenImpl, metadataRenderer: metadataImpl, auction: auctionImpl, treasury: treasuryImpl, governor: governorImpl });
-
-        // Predict addresses BEFORE deployment
+        // Predict addresses BEFORE deployment (uses Manager's immutable implementations)
         (address predictedToken, address predictedMetadata, address predictedAuction, address predictedTreasury, address predictedGovernor) =
-            mainnetManager.predictDeterministicAddresses(deployer, salt, params);
+            mainnetManager.predictDeterministicAddresses(deployer, salt);
 
         // Setup minimal DAO params with one founder
         IManager.FounderParams[] memory founders = new IManager.FounderParams[](1);
-        founders[0] = IManager.FounderParams({
-            wallet: address(this),
-            ownershipPct: 10,
-            vestExpiry: 4 weeks
-        });
+        founders[0] = IManager.FounderParams({ wallet: address(this), ownershipPct: 10, vestExpiry: 4 weeks });
 
         IManager.TokenParams memory tokenParams = IManager.TokenParams({
             initStrings: abi.encode("Test DAO", "TEST", "Test Description", "ipfs://test", "https://test.com", "https://renderer.test"),
@@ -386,13 +338,21 @@ contract CrossChainDeterminism is ViaIRTestHelper {
             reservedUntilTokenId: 0
         });
 
-        IManager.AuctionParams memory auctionParams = IManager.AuctionParams({ reservePrice: 0.01 ether, duration: 1 days, founderRewardRecipent: address(0), founderRewardBps: 0 });
+        IManager.AuctionParams memory auctionParams =
+            IManager.AuctionParams({ reservePrice: 0.01 ether, duration: 1 days, founderRewardRecipent: address(0), founderRewardBps: 0 });
 
-        IManager.GovParams memory govParams = IManager.GovParams({ timelockDelay: 2 days, votingDelay: 1 seconds, votingPeriod: 1 weeks, proposalThresholdBps: 50, quorumThresholdBps: 1000, vetoer: address(0) });
+        IManager.GovParams memory govParams = IManager.GovParams({
+            timelockDelay: 2 days,
+            votingDelay: 1 seconds,
+            votingPeriod: 1 weeks,
+            proposalThresholdBps: 50,
+            quorumThresholdBps: 1000,
+            vetoer: address(0)
+        });
 
         // Actually deploy the DAO deterministically
         (address deployedToken, address deployedMetadata, address deployedAuction, address deployedTreasury, address deployedGovernor) =
-            mainnetManager.deployDeterministic(founders, tokenParams, auctionParams, govParams, salt, params);
+            mainnetManager.deployDeterministic(founders, tokenParams, auctionParams, govParams, salt);
 
         // Verify deployed addresses MATCH predictions EXACTLY
         assertEq(deployedToken, predictedToken, "Deployed Token must match prediction");

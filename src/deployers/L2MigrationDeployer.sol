@@ -4,7 +4,6 @@ pragma solidity 0.8.35;
 import { IManager } from "../manager/IManager.sol";
 import { IToken } from "../token/IToken.sol";
 import { IGovernor } from "../governance/governor/IGovernor.sol";
-import { IPropertyIPFSMetadataRenderer } from "../token/metadata/interfaces/IPropertyIPFSMetadataRenderer.sol";
 import { MerkleReserveMinter } from "../minters/MerkleReserveMinter.sol";
 import { TokenTypesV2 } from "../token/types/TokenTypesV2.sol";
 import { Ownable } from "../lib/utils/Ownable.sol";

@@ -55,7 +55,6 @@ contract DeployV3New is Script, DeployConstants {
         address deployerAddress = vm.addr(key);
         address protocolRewards = _getKey("ProtocolRewards");
         address builderRewardsRecipient = _getKey("BuilderRewardsRecipient");
-        address create3Factory = _getKey("CREATE3Factory");
         DeploymentResult memory deployment;
 
         console2.log("~~~~~~~~~~ CHAIN ID ~~~~~~~~~~~");
@@ -69,7 +68,7 @@ contract DeployV3New is Script, DeployConstants {
 
         vm.startBroadcast(deployerAddress);
 
-        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient, create3Factory);
+        deployment = _deployAll(deploySalt, deployerAddress, weth, protocolRewards, builderRewardsRecipient);
 
         vm.stopBroadcast();
 
@@ -77,24 +76,41 @@ contract DeployV3New is Script, DeployConstants {
         _logDeployment(deployment);
     }
 
-    function _deployAll(
-        bytes32 deploySalt,
-        address deployerAddress,
-        address weth,
-        address protocolRewards,
-        address builderRewardsRecipient,
-        address create3Factory
-    ) internal returns (DeploymentResult memory deployment) {
+    // solhint-disable-next-line function-max-lines
+    function _deployAll(bytes32 deploySalt, address deployerAddress, address weth, address protocolRewards, address builderRewardsRecipient)
+        internal
+        returns (DeploymentResult memory deployment)
+    {
         Manager manager;
 
+        // Predict Manager proxy address (needed for DAOFactory constructor)
+        address predictedManagerProxy = DeployHelpers.predictAddress(
+            abi.encodePacked(
+                type(ERC1967Proxy).creationCode,
+                abi.encode(
+                    // We need to predict managerImpl0 address first
+                    DeployHelpers.predictAddress(
+                        abi.encodePacked(
+                            type(Manager).creationCode, abi.encode(address(0), address(0), address(0), address(0), address(0), address(0), address(0))
+                        ),
+                        _deriveSalt(deploySalt, MANAGER_IMPL_0_SALT)
+                    ),
+                    abi.encodeWithSignature("initialize(address)", deployerAddress)
+                )
+            ),
+            _deriveSalt(deploySalt, MANAGER_PROXY_SALT)
+        );
+
+        // Predict DAOFactory address (needed for bootstrap Manager constructor)
+        address predictedDAOFactory = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, DAO_FACTORY_SALT), deployerAddress);
+
         // Deploy Manager implementation (bootstrap) via CREATE2 factory
-        // CRITICAL: Use all-zero constructor args for cross-chain determinism
-        // builderRewardsRecipient and create3Factory are chain-specific, so we use address(0) here
+        // CRITICAL: Uses predicted DAOFactory address to break circular dependency
+        // This bootstrap Manager is never initialized - it's just a placeholder for the proxy
         // Manager proxy will be upgraded to the real implementation immediately after
         deployment.managerImpl0 = DeployHelpers.deployViaFactory(
             abi.encodePacked(
-                type(Manager).creationCode,
-                abi.encode(address(0), address(0), address(0), address(0), address(0), address(0), address(0))
+                type(Manager).creationCode, abi.encode(address(0), address(0), address(0), address(0), address(0), address(0), predictedDAOFactory)
             ),
             _deriveSalt(deploySalt, MANAGER_IMPL_0_SALT)
         );
@@ -114,12 +130,18 @@ contract DeployV3New is Script, DeployConstants {
         );
         deployment.manager = address(manager);
 
+        // Verify Manager deployed at predicted address
+        require(address(manager) == predictedManagerProxy, "Manager proxy address mismatch");
+
         // Deploy DAOFactory via CREATE3 for cross-chain deterministic DAO deployments
         // DAOFactory acts as the canonical deployer, enabling identical DAO addresses across chains
         // despite different Manager addresses. Bound to this specific Manager proxy.
         deployment.daoFactory = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(DAOFactory).creationCode, abi.encode(address(manager))), _deriveSalt(deploySalt, DAO_FACTORY_SALT)
         );
+
+        // Verify DAOFactory deployed at predicted address
+        require(deployment.daoFactory == predictedDAOFactory, "DAOFactory address mismatch");
 
         // Deploy implementations via CREATE3 factory for bytecode-independent cross-chain determinism
         // CREATE3 enables identical addresses even when constructor args differ per chain
@@ -242,31 +264,10 @@ contract DeployV3New is Script, DeployConstants {
     }
 
     function addressToString(address _addr) private pure returns (string memory) {
-        bytes memory s = new bytes(40);
-        for (uint256 i = 0; i < 20; i++) {
-            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - i)))));
-            bytes1 hi = bytes1(uint8(b) / 16);
-            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
-            s[2 * i] = char(hi);
-            s[2 * i + 1] = char(lo);
-        }
-        return string(abi.encodePacked("0x", string(s)));
-    }
-
-    function char(bytes1 b) private pure returns (bytes1 c) {
-        if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
-        else return bytes1(uint8(b) + 0x57);
+        return DeployHelpers.addressToString(_addr);
     }
 
     function bytes32ToString(bytes32 _bytes) private pure returns (string memory) {
-        bytes memory s = new bytes(64);
-        for (uint256 i = 0; i < 32; i++) {
-            bytes1 b = _bytes[i];
-            bytes1 hi = bytes1(uint8(b) / 16);
-            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
-            s[2 * i] = char(hi);
-            s[2 * i + 1] = char(lo);
-        }
-        return string(abi.encodePacked("0x", string(s)));
+        return DeployHelpers.bytes32ToString(_bytes);
     }
 }

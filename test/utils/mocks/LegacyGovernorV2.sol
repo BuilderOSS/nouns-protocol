@@ -205,6 +205,7 @@ contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStor
             _newProposalThresholdBps < MIN_PROPOSAL_THRESHOLD_BPS || _newProposalThresholdBps > MAX_PROPOSAL_THRESHOLD_BPS
                 || _newProposalThresholdBps >= settings.quorumThresholdBps
         ) revert INVALID_PROPOSAL_THRESHOLD_BPS();
+        // forge-lint: disable-next-line(unsafe-typecast)
         settings.proposalThresholdBps = uint16(_newProposalThresholdBps);
     }
 

@@ -4,8 +4,6 @@ pragma solidity 0.8.35;
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
 
 import { IManager, Manager } from "../src/manager/Manager.sol";
-import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
-import { DAOFactory } from "../src/factory/DAOFactory.sol";
 
 import { MockImpl } from "./utils/mocks/MockImpl.sol";
 import { Token } from "../src/token/Token.sol";
@@ -173,11 +171,10 @@ contract ManagerTest is NounsBuilderTest {
         setMockGovParams();
 
         address deployer = address(this);
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
         (address predictedToken, address predictedMetadata, address predictedAuction, address predictedTreasury, address predictedGovernor) =
-            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT);
 
-        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
+        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
 
         assertEq(address(token), predictedToken);
         assertEq(address(metadataRenderer), predictedMetadata);
@@ -188,11 +185,10 @@ contract ManagerTest is NounsBuilderTest {
 
     function test_PredictDeterministicAddressesChangesWithSalt() public {
         address deployer = address(this);
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
         (address tokenA, address metadataA, address auctionA, address treasuryA, address governorA) =
-            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT);
         (address tokenB, address metadataB, address auctionB, address treasuryB, address governorB) =
-            manager.predictDeterministicAddresses(deployer, ALT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(deployer, ALT_DEPLOY_SALT);
 
         assertTrue(tokenA != tokenB);
         assertTrue(metadataA != metadataB);
@@ -201,35 +197,14 @@ contract ManagerTest is NounsBuilderTest {
         assertTrue(governorA != governorB);
     }
 
-    function test_PredictDeterministicAddressesChangesWithImplementationBundle() public {
-        // With CREATE3, addresses are bytecode-independent and should NOT change with different implementations
-        // This test now verifies addresses STAY THE SAME regardless of implementation changes
-        IManager.ImplementationParams memory defaultImplementationParams = getImplementationParams();
-        IManager.ImplementationParams memory altImplementationParams = getImplementationParams();
-        altImplementationParams.metadataRenderer = altMetadataImpl;
-
-        (address defaultToken, address defaultMetadata, address defaultAuction, address defaultTreasury, address defaultGovernor) =
-            manager.predictDeterministicAddresses(address(this), DEFAULT_DEPLOY_SALT, defaultImplementationParams);
-        (address altToken, address altMetadata, address altAuction, address altTreasury, address altGovernor) =
-            manager.predictDeterministicAddresses(address(this), DEFAULT_DEPLOY_SALT, altImplementationParams);
-
-        // With CREATE3, addresses are the same because they only depend on (factory, deployer, salt), not bytecode
-        assertEq(defaultToken, altToken, "Token addresses match (bytecode-independent)");
-        assertEq(defaultMetadata, altMetadata, "Metadata addresses match (bytecode-independent)");
-        assertEq(defaultAuction, altAuction, "Auction addresses match (bytecode-independent)");
-        assertEq(defaultTreasury, altTreasury, "Treasury addresses match (bytecode-independent)");
-        assertEq(defaultGovernor, altGovernor, "Governor addresses match (bytecode-independent)");
-    }
-
     function test_PredictDeterministicAddressesChangesWithDeployer() public {
         address attacker = vm.addr(ATTACKER_PK);
         address victim = vm.addr(VICTIM_PK);
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
 
         (address attackerToken, address attackerMetadata, address attackerAuction, address attackerTreasury, address attackerGovernor) =
-            manager.predictDeterministicAddresses(attacker, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(attacker, DEFAULT_DEPLOY_SALT);
         (address victimToken, address victimMetadata, address victimAuction, address victimTreasury, address victimGovernor) =
-            manager.predictDeterministicAddresses(victim, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(victim, DEFAULT_DEPLOY_SALT);
 
         assertTrue(attackerToken != victimToken);
         assertTrue(attackerMetadata != victimMetadata);
@@ -246,26 +221,25 @@ contract ManagerTest is NounsBuilderTest {
         setMockTokenParams();
         setMockAuctionParams();
         setMockGovParams();
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
 
-        (address attackerPredictedToken,,,,) = manager.predictDeterministicAddresses(attacker, DEFAULT_DEPLOY_SALT, implementationParams);
+        (address attackerPredictedToken,,,,) = manager.predictDeterministicAddresses(attacker, DEFAULT_DEPLOY_SALT);
         (
             address victimPredictedToken,
             address victimPredictedMetadata,
             address victimPredictedAuction,
             address victimPredictedTreasury,
             address victimPredictedGovernor
-        ) = manager.predictDeterministicAddresses(victim, DEFAULT_DEPLOY_SALT, implementationParams);
+        ) = manager.predictDeterministicAddresses(victim, DEFAULT_DEPLOY_SALT);
 
         vm.prank(attacker);
-        manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
+        manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
 
         (address attackerMetadata,,,) = manager.getAddresses(attackerPredictedToken);
         assertTrue(attackerMetadata != address(0));
 
         vm.prank(victim);
         (address victimToken, address victimMetadata, address victimAuction, address victimTreasury, address victimGovernor) =
-            manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
 
         assertEq(victimToken, victimPredictedToken);
         assertEq(victimMetadata, victimPredictedMetadata);
@@ -279,23 +253,23 @@ contract ManagerTest is NounsBuilderTest {
         // NOTE: With the new CREATE3 factory approach, addresses are stable across Manager upgrades
         // because they depend on the factory address and deployer, not Manager address or implementation addresses
         address deployer = address(this);
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
         (address tokenBefore, address metadataBefore, address auctionBefore, address treasuryBefore, address governorBefore) =
-            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT);
 
         address newTokenImpl = address(new Token(address(manager)));
         address newMetadataImpl = address(new MetadataRenderer(address(manager)));
         address newAuctionImpl = address(new Auction(address(manager), address(rewards), weth, 1, 2));
         address newTreasuryImpl = address(new Treasury(address(manager)));
         address newGovernorImpl = address(new Governor(address(manager)));
-        address newManagerImpl = address(new Manager(newTokenImpl, newMetadataImpl, newAuctionImpl, newTreasuryImpl, newGovernorImpl, zoraDAO, daoFactory));
+        address newManagerImpl =
+            address(new Manager(newTokenImpl, newMetadataImpl, newAuctionImpl, newTreasuryImpl, newGovernorImpl, zoraDAO, daoFactory));
 
         vm.prank(zoraDAO);
         manager.upgradeTo(newManagerImpl);
 
         // Same implementation params mean same addresses (since CREATE3 factory and deployer are constant)
         (address tokenAfter, address metadataAfter, address auctionAfter, address treasuryAfter, address governorAfter) =
-            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+            manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT);
 
         // Addresses remain the same because CREATE3 factory address and deployer are constant
         assertEq(tokenBefore, tokenAfter);
@@ -310,33 +284,11 @@ contract ManagerTest is NounsBuilderTest {
         setMockTokenParams();
         setMockAuctionParams();
         setMockGovParams();
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
 
-        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
+        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
 
         vm.expectRevert();
-        manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
-    }
-
-    function testRevert_DeployDeterministicWithZeroImplementation() public {
-        setMockFounderParams();
-        setMockTokenParams();
-        setMockAuctionParams();
-        setMockGovParams();
-
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
-        implementationParams.metadataRenderer = address(0);
-
-        vm.expectRevert(Manager.IMPLEMENTATION_REQUIRED.selector);
-        manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
-    }
-
-    function testRevert_PredictDeterministicAddressesWithZeroImplementation() public {
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
-        implementationParams.governor = address(0);
-
-        vm.expectRevert(Manager.IMPLEMENTATION_REQUIRED.selector);
-        manager.predictDeterministicAddresses(address(this), DEFAULT_DEPLOY_SALT, implementationParams);
+        manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
     }
 
     function test_FundRecoveryScenario() public {
@@ -349,12 +301,11 @@ contract ManagerTest is NounsBuilderTest {
         setMockTokenParams();
         setMockAuctionParams();
         setMockGovParams();
-        IManager.ImplementationParams memory implementationParams = getImplementationParams();
 
         address deployer = address(this);
 
         // Predict treasury address (same on both chains)
-        (,,, address predictedTreasury,) = manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT, implementationParams);
+        (,,, address predictedTreasury,) = manager.predictDeterministicAddresses(deployer, DEFAULT_DEPLOY_SALT);
 
         // Simulate funds sent to predicted address "on Chain B" (before deployment)
         vm.deal(predictedTreasury, 10 ether);
@@ -362,7 +313,7 @@ contract ManagerTest is NounsBuilderTest {
         assertEq(predictedTreasury.code.length, 0, "Treasury not yet deployed");
 
         // Deploy DAO on "Chain B" using same parameters
-        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT, implementationParams);
+        deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
 
         // Verify treasury deployed to predicted address
         assertEq(address(treasury), predictedTreasury, "Treasury deployed to predicted address");

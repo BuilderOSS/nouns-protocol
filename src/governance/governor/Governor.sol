@@ -250,6 +250,14 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
             revert SIGNED_PROPOSAL_MUST_USE_SIGNATURES();
         }
 
+        // Ensure proposer still meets threshold (consistent with updateProposalBySigs)
+        // Cannot realistically underflow and `getVotes` would revert
+        unchecked {
+            if (getVotes(proposals[_proposalId].proposer, block.timestamp - 1) <= proposalThreshold()) {
+                revert VOTES_BELOW_PROPOSAL_THRESHOLD();
+            }
+        }
+
         Proposal memory oldProposal = proposals[_proposalId];
 
         // updateProposal (without signatures) creates an unsigned replacement proposal,

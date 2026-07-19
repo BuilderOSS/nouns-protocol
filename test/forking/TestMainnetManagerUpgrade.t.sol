@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import { Test } from "forge-std/Test.sol";
 import { ViaIRTestHelper } from "../utils/ViaIRTestHelper.sol";
 
 import { Manager } from "../../src/manager/Manager.sol";
 import { IManager } from "../../src/manager/IManager.sol";
-import { IToken } from "../../src/token/IToken.sol";
-import { IGovernor } from "../../src/governance/governor/IGovernor.sol";
-import { ITreasury } from "../../src/governance/treasury/ITreasury.sol";
-import { IAuction } from "../../src/auction/IAuction.sol";
-import { IBaseMetadata } from "../../src/token/metadata/interfaces/IBaseMetadata.sol";
 
 import { Token } from "../../src/token/Token.sol";
 import { MetadataRenderer } from "../../src/token/metadata/MetadataRenderer.sol";
@@ -115,7 +109,7 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper, DeployConstants {
         // Deploy CREATE3Factory deterministically using CREATE2 (Nick's factory)
         // This ensures same address across chains
         bytes memory creationCode = type(CREATE3Factory).creationCode;
-        bytes32 salt = keccak256("NOUNS_BUILDER_CREATE3_FACTORY");
+        bytes32 salt = keccak256("CREATE3_FACTORY");
 
         address predicted = DeployHelpers.predictAddress(creationCode, salt);
 
@@ -290,38 +284,6 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper, DeployConstants {
     ///                                                          ///
 
     /// @notice Tests that zero address implementations are rejected
-    function test_Validation_ZeroAddressImplementationReverts() public {
-        _performUpgrade();
-
-        IManager.ImplementationParams memory impls = IManager.ImplementationParams({
-            token: address(0),
-            metadataRenderer: address(newMetadataImpl),
-            auction: address(newAuctionImpl),
-            treasury: address(newTreasuryImpl),
-            governor: address(newGovernorImpl)
-        });
-
-        // This should fail validation before deployment
-        vm.expectRevert(abi.encodeWithSignature("IMPLEMENTATION_REQUIRED()"));
-        managerProxy.predictDeterministicAddresses(address(this), keccak256("TEST"), impls);
-    }
-
-    /// @notice Tests that non-contract addresses are rejected
-    function test_Validation_EOAImplementationReverts() public {
-        _performUpgrade();
-
-        IManager.ImplementationParams memory impls = IManager.ImplementationParams({
-            token: address(0x9999), // EOA address (no code)
-            metadataRenderer: address(newMetadataImpl),
-            auction: address(newAuctionImpl),
-            treasury: address(newTreasuryImpl),
-            governor: address(newGovernorImpl)
-        });
-
-        // This should fail validation due to no bytecode
-        vm.expectRevert(abi.encodeWithSignature("INVALID_IMPLEMENTATION()"));
-        managerProxy.predictDeterministicAddresses(address(this), keccak256("TEST"), impls);
-    }
 
     ///                                                          ///
     ///              SECTION D: VERSION INFORMATION              ///
@@ -361,9 +323,6 @@ contract TestMainnetManagerUpgrade is ViaIRTestHelper, DeployConstants {
 
     /// @notice Performs the Manager upgrade
     function _performUpgrade() internal {
-        // Mainnet WETH address
-        address MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
         vm.startPrank(MAINNET_MANAGER_OWNER);
 
         // Upgrade to new Manager implementation

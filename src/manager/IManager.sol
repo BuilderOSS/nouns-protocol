@@ -79,38 +79,9 @@ interface IManager is IUUPS, IOwnable {
         string governor;
     }
 
-    /// @notice The implementation addresses used for deterministic deployment and prediction
-    /// @dev SECURITY WARNING: Implementation addresses must be trusted, verified contracts that implement
-    ///      the expected interfaces. The Manager only validates that addresses are non-zero and contain bytecode,
-    ///      but does NOT verify interface compliance or contract legitimacy.
-    ///
-    ///      TRUST ASSUMPTIONS:
-    ///      - Deployers must verify implementation contracts before use
-    ///      - Malicious implementations could steal funds or compromise DAO governance
-    ///      - Consider using only officially registered/verified implementations
-    ///
-    ///      RECOMMENDED VERIFICATION CHECKLIST:
-    ///      1. Verify source code on block explorer
-    ///      2. Check implementation matches expected interface (IToken, IAuction, etc.)
-    ///      3. Ensure implementation is not malicious or upgradeable to malicious code
-    ///      4. Confirm implementation version compatibility
-    ///      5. Test with small value deployment first
-    /// @param token The token implementation address
-    /// @param metadataRenderer The metadata renderer implementation address
-    /// @param auction The auction implementation address
-    /// @param treasury The treasury implementation address
-    /// @param governor The governor implementation address
-    struct ImplementationParams {
-        address token;
-        address metadataRenderer;
-        address auction;
-        address treasury;
-        address governor;
-    }
-
     /// @notice The ERC-721 token parameters
     /// @param initStrings The encoded token name, symbol, collection description, collection image uri, renderer base uri
-    /// @param metadataRenderer Deprecated: only honored by legacy deploy(...). Deterministic deployment uses ImplementationParams.metadataRenderer.
+    /// @param metadataRenderer Optional custom metadata renderer (uses Manager's default if address(0))
     /// @param reservedUntilTokenId The tokenId that a DAO's auctions will start at
     struct TokenParams {
         bytes initStrings;
@@ -166,7 +137,7 @@ interface IManager is IUUPS, IOwnable {
     function governorImpl() external view returns (address);
 
     /// @notice Deprecated: deploys a DAO with custom token, auction, and governance settings for backward compatibility only.
-    /// @dev New integrations should use deterministic deployment with explicit ImplementationParams.
+    /// @dev New integrations should use deterministic deployment
     /// @param founderParams The DAO founder(s)
     /// @param tokenParams The ERC-721 token settings
     /// @param auctionParams The auction settings
@@ -188,7 +159,6 @@ interface IManager is IUUPS, IOwnable {
     ///      - deploySalt should be unique for each deployment. Using the same salt twice will cause revert.
     ///      - msg.sender is included in salt derivation to prevent cross-deployer collisions
     ///      - Recommended: use keccak256(abi.encode(daoName, timestamp, nonce)) or similar for deploySalt
-    ///      - See ImplementationParams documentation for critical trust assumptions
     ///
     ///      GAS COSTS: Deterministic deployment may cost slightly more gas than legacy deploy()
     ///      due to CREATE2 overhead. However, benefits include:
@@ -200,7 +170,6 @@ interface IManager is IUUPS, IOwnable {
     /// @param auctionParams The auction settings
     /// @param govParams The governance settings
     /// @param deploySalt The base salt used to derive per-contract CREATE2 salts (must be unique)
-    /// @param implementationParams The explicit implementation bundle used for deterministic deployment
     /// @return token The deployed token address
     /// @return metadataRenderer The deployed metadata renderer address
     /// @return auction The deployed auction address
@@ -211,20 +180,18 @@ interface IManager is IUUPS, IOwnable {
         TokenParams calldata tokenParams,
         AuctionParams calldata auctionParams,
         GovParams calldata govParams,
-        bytes32 deploySalt,
-        ImplementationParams calldata implementationParams
+        bytes32 deploySalt
     ) external returns (address token, address metadataRenderer, address auction, address treasury, address governor);
 
     /// @notice Predicts deterministic DAO addresses using an explicit implementation bundle
     /// @param deployer The deployer address used to namespace the deterministic salt
     /// @param deploySalt The base salt used to derive per-contract CREATE2 salts
-    /// @param implementationParams The explicit implementation bundle used for deterministic prediction
     /// @return token The predicted token address
     /// @return metadataRenderer The predicted metadata renderer address
     /// @return auction The predicted auction address
     /// @return treasury The predicted treasury address
     /// @return governor The predicted governor address
-    function predictDeterministicAddresses(address deployer, bytes32 deploySalt, ImplementationParams calldata implementationParams)
+    function predictDeterministicAddresses(address deployer, bytes32 deploySalt)
         external
         view
         returns (address token, address metadataRenderer, address auction, address treasury, address governor);

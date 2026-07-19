@@ -43,7 +43,6 @@ contract DeployV3Upgrade is Script, DeployConstants {
         address protocolRewards = _getKey("ProtocolRewards");
         address weth = _getKey("WETH");
         address builderRewardsRecipient = _getKey("BuilderRewardsRecipient");
-        address create3Factory = _getKey("CREATE3Factory");
 
         _deployUpgrade(
             deployerAddress,
@@ -57,12 +56,12 @@ contract DeployV3Upgrade is Script, DeployConstants {
             protocolRewards,
             weth,
             builderRewardsRecipient,
-            create3Factory,
             chainID,
             deploySalt
         );
     }
 
+    // solhint-disable-next-line function-max-lines
     function _deployUpgrade(
         address deployerAddress,
         IManager managerProxy,
@@ -75,7 +74,6 @@ contract DeployV3Upgrade is Script, DeployConstants {
         address protocolRewards,
         address weth,
         address builderRewardsRecipient,
-        address create3Factory,
         uint256 chainID,
         bytes32 deploySalt
     ) private {
@@ -190,31 +188,10 @@ contract DeployV3Upgrade is Script, DeployConstants {
     }
 
     function addressToString(address _addr) private pure returns (string memory) {
-        bytes memory s = new bytes(40);
-        for (uint256 i = 0; i < 20; i++) {
-            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - i)))));
-            bytes1 hi = bytes1(uint8(b) / 16);
-            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
-            s[2 * i] = char(hi);
-            s[2 * i + 1] = char(lo);
-        }
-        return string(abi.encodePacked("0x", string(s)));
-    }
-
-    function char(bytes1 b) private pure returns (bytes1 c) {
-        if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
-        else return bytes1(uint8(b) + 0x57);
+        return DeployHelpers.addressToString(_addr);
     }
 
     function bytes32ToString(bytes32 _bytes) private pure returns (string memory) {
-        bytes memory s = new bytes(64);
-        for (uint256 i = 0; i < 32; i++) {
-            bytes1 b = _bytes[i];
-            bytes1 hi = bytes1(uint8(b) / 16);
-            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
-            s[2 * i] = char(hi);
-            s[2 * i + 1] = char(lo);
-        }
-        return string(abi.encodePacked("0x", string(s)));
+        return DeployHelpers.bytes32ToString(_bytes);
     }
 }

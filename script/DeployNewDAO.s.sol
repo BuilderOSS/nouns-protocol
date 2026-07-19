@@ -52,16 +52,9 @@ contract SetupDaoScript is Script {
         founders[0] = IManager.FounderParams({ wallet: deployerAddress, ownershipPct: 10, vestExpiry: 30 days });
 
         IManager manager = IManager(_getKey("Manager"));
-        IManager.ImplementationParams memory implementationParams = IManager.ImplementationParams({
-            token: manager.tokenImpl(),
-            metadataRenderer: manager.metadataImpl(),
-            auction: manager.auctionImpl(),
-            treasury: manager.treasuryImpl(),
-            governor: manager.governorImpl()
-        });
 
         (address token, address metadata, address auction, address treasury, address governor) =
-            manager.predictDeterministicAddresses(deployerAddress, deploySalt, implementationParams);
+            manager.predictDeterministicAddresses(deployerAddress, deploySalt);
 
         console2.log("~~~~~~~~~~ PREDICTED TOKEN ~~~~~~~~~~~");
         console2.logAddress(token);
@@ -82,7 +75,7 @@ contract SetupDaoScript is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        manager.deployDeterministic(founders, tokenParams, auctionParams, govParams, deploySalt, implementationParams);
+        manager.deployDeterministic(founders, tokenParams, auctionParams, govParams, deploySalt);
 
         //now that we have a DAO process a proposal
 

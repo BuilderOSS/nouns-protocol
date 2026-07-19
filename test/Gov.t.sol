@@ -2310,7 +2310,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
     ///                                                          ///
 
     /// @notice Invariant: Total votes on a proposal can never exceed token supply
-    function invariant_VotesNeverExceedSupply() public {
+    function test_VotesNeverExceedSupply() public {
         deployMock();
         mintVoter1();
 
@@ -2339,7 +2339,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
     }
 
     /// @notice Invariant: Only one proposal can exist per proposal ID
-    function invariant_OnlyOneActiveProposalPerID() public {
+    function test_OnlyOneActiveProposalPerID() public {
         deployMock();
         mintVoter1();
 
@@ -2360,7 +2360,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
     }
 
     /// @notice Invariant: Replaced proposals are always marked as canceled
-    function invariant_ReplacedProposalsAlwaysCanceled() public {
+    function test_ReplacedProposalsAlwaysCanceled() public {
         deployMock();
         mintVoter1();
 
@@ -2413,7 +2413,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
     }
 
     /// @notice Invariant: Proposal state transitions are monotonic (no backwards movement)
-    function invariant_StateTransitionsMonotonic() public {
+    function test_StateTransitionsMonotonic() public {
         deployMock();
         mintVoter1();
 

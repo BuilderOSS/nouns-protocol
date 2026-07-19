@@ -100,4 +100,42 @@ library DeployHelpers {
 
         return address(uint160(uint256(finalHash)));
     }
+
+    /// @notice Converts an address to a hex string (lowercase, without checksum)
+    /// @param _addr The address to convert
+    /// @return The hex string representation with 0x prefix
+    function addressToString(address _addr) internal pure returns (string memory) {
+        bytes memory s = new bytes(40);
+        for (uint256 i = 0; i < 20; i++) {
+            bytes1 b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - i)))));
+            bytes1 hi = bytes1(uint8(b) / 16);
+            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
+            s[2 * i] = char(hi);
+            s[2 * i + 1] = char(lo);
+        }
+        return string(abi.encodePacked("0x", string(s)));
+    }
+
+    /// @notice Converts a bytes32 value to a hex string
+    /// @param _bytes The bytes32 value to convert
+    /// @return The hex string representation with 0x prefix
+    function bytes32ToString(bytes32 _bytes) internal pure returns (string memory) {
+        bytes memory s = new bytes(64);
+        for (uint256 i = 0; i < 32; i++) {
+            bytes1 b = _bytes[i];
+            bytes1 hi = bytes1(uint8(b) / 16);
+            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
+            s[2 * i] = char(hi);
+            s[2 * i + 1] = char(lo);
+        }
+        return string(abi.encodePacked("0x", string(s)));
+    }
+
+    /// @notice Converts a hex nibble (0-15) to its ASCII character representation
+    /// @param b The nibble to convert (must be 0-15)
+    /// @return c The ASCII character ('0'-'9' or 'a'-'f')
+    function char(bytes1 b) internal pure returns (bytes1 c) {
+        if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
+        else return bytes1(uint8(b) + 0x57);
+    }
 }
