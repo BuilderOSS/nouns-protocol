@@ -69,8 +69,15 @@ contract MerklePropertyIPFS is IMerklePropertyIPFS, PropertyIPFS {
     ///                          ATTRIBUTES                      ///
     ///                                                          ///
 
-    /// @notice Sets the attributes for a token
-    /// @param _params The parameters to use
+    /// @notice Sets the attributes for a token using a Merkle proof
+    /// @param _params The parameters containing tokenId, attributes, and Merkle proof
+    /// @dev This function is permissionless but requires a valid Merkle proof against the owner-controlled root.
+    ///      IMPORTANT: This function can be called BEFORE a token is minted. This is intentional and enables:
+    ///      - Pre-mint attribute assignment for reveal workflows
+    ///      - Merkle allowlists with predetermined traits
+    ///      - Gas-optimized batch operations where attributes are set separately from minting
+    ///      When attributes are pre-set, onMinted() will skip pseudorandom generation and preserve these values.
+    ///      Only attribute combinations in the Merkle tree (controlled by owner via setAttributeMerkleRoot) can be set.
     function setAttributes(SetAttributeParams calldata _params) external {
         _setAttributesWithProof(_params);
     }

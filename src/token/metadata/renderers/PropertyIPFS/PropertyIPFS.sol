@@ -244,6 +244,13 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
         uint16[16] storage tokenAttributes = $._attributes[_tokenId];
 
         // If the attributes are already set from _setAttributes they don't need to be generated
+        // IMPORTANT: This intentionally allows pre-mint attribute setting for Merkle-based reveal workflows.
+        // When attributes are pre-set via MerklePropertyIPFS.setAttributes() with a valid proof,
+        // this check skips pseudorandom generation and preserves the predetermined attributes.
+        // This enables use cases like:
+        // - Merkle allowlists with predetermined traits
+        // - Reveal mechanics where attributes are committed before minting
+        // - Gas-optimized batch operations where attributes are set separately from minting
         if (tokenAttributes[0] != 0) return true;
 
         // Compute some randomness for the token id

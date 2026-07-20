@@ -583,6 +583,103 @@ contract MerklePropertyIPFSTest is Test {
     }
 
     ///                                                          ///
+    ///          PRE-MINT ATTRIBUTE SETTING TESTS               ///
+    ///                                                          ///
+
+    /// @notice Test that setAttributes() before mint enables tokenURI() to render for unminted token
+    /// @dev This verifies the intentional design that allows Merkle-based pre-mint attribute assignment
+    function test_SetAttributesBeforeMint_EnablesTokenURI() external {
+        // Add properties
+        (string[] memory names, IPropertyIPFS.ItemParam[] memory items, IPropertyIPFS.IPFSGroup memory ipfsGroup) = _mockMetadata();
+
+        vm.prank(owner);
+        metadata.addProperties(names, items, ipfsGroup);
+
+        uint16[16] memory attributes;
+        attributes[0] = 1; // 1 property
+        attributes[1] = 0; // Valid item index
+
+        // Generate valid Merkle proof
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = keccak256(abi.encodePacked(uint256(1), attributes));
+        bytes32 root = helper.buildMerkleRoot(leaves);
+
+        vm.prank(owner);
+        metadata.setAttributeMerkleRoot(root);
+
+        bytes32[] memory proof = helper.generateProof(leaves, 0);
+
+        IMerklePropertyIPFS.SetAttributeParams memory params =
+            IMerklePropertyIPFS.SetAttributeParams({ tokenId: 1, attributes: attributes, proof: proof });
+
+        // Set attributes BEFORE token is minted
+        metadata.setAttributes(params);
+
+        // Verify token is NOT minted yet (would revert if we checked ownerOf on Token contract)
+        // But we can still render tokenURI because attributes are set
+        string memory uri = metadata.tokenURI(1);
+        assertGt(bytes(uri).length, 0, "Should generate non-empty tokenURI for unminted token with pre-set attributes");
+
+        // Verify the attributes are stored correctly
+        uint16[16] memory storedAttributes = metadata.getRawAttributes(1);
+        assertEq(keccak256(abi.encode(storedAttributes)), keccak256(abi.encode(attributes)), "Pre-set attributes should be stored");
+    }
+
+    /// @notice Test that minting a token with pre-set attributes preserves those attributes (no regeneration)
+    /// @dev This verifies that onMinted() skips generation when attributes are already set (PropertyIPFS.sol:247)
+    function test_MintingWithPreSetAttributes_PreservesAttributes() external {
+        // Add properties
+        (string[] memory names, IPropertyIPFS.ItemParam[] memory items, IPropertyIPFS.IPFSGroup memory ipfsGroup) = _mockMetadata();
+
+        vm.prank(owner);
+        metadata.addProperties(names, items, ipfsGroup);
+
+        uint16[16] memory preSetAttributes;
+        preSetAttributes[0] = 1; // 1 property
+        preSetAttributes[1] = 1; // Choose item 1 specifically
+
+        // Generate valid Merkle proof
+        bytes32[] memory leaves = new bytes32[](1);
+        leaves[0] = keccak256(abi.encodePacked(uint256(5), preSetAttributes));
+        bytes32 root = helper.buildMerkleRoot(leaves);
+
+        vm.prank(owner);
+        metadata.setAttributeMerkleRoot(root);
+
+        bytes32[] memory proof = helper.generateProof(leaves, 0);
+
+        IMerklePropertyIPFS.SetAttributeParams memory params =
+            IMerklePropertyIPFS.SetAttributeParams({ tokenId: 5, attributes: preSetAttributes, proof: proof });
+
+        // Step 1: Set attributes BEFORE minting
+        metadata.setAttributes(params);
+
+        // Verify attributes are set
+        uint16[16] memory attributesBeforeMint = metadata.getRawAttributes(5);
+        assertEq(attributesBeforeMint[0], 1, "Property count should be 1");
+        assertEq(attributesBeforeMint[1], 1, "Item index should be 1");
+
+        // Step 2: Simulate minting by calling onMinted() (which the Token contract would call)
+        vm.prank(address(token));
+        bool result = metadata.onMinted(5);
+        assertTrue(result, "onMinted should return true");
+
+        // Step 3: Verify attributes were NOT regenerated - they should be exactly the same
+        uint16[16] memory attributesAfterMint = metadata.getRawAttributes(5);
+        assertEq(
+            keccak256(abi.encode(attributesAfterMint)),
+            keccak256(abi.encode(preSetAttributes)),
+            "Pre-set attributes should be preserved after minting (no regeneration)"
+        );
+        assertEq(attributesAfterMint[0], 1, "Property count should still be 1");
+        assertEq(attributesAfterMint[1], 1, "Item index should still be 1 (not regenerated)");
+
+        // Step 4: Verify tokenURI still works
+        string memory uri = metadata.tokenURI(5);
+        assertGt(bytes(uri).length, 0, "Should still generate non-empty tokenURI");
+    }
+
+    ///                                                          ///
     ///          HELPER FUNCTIONS                               ///
     ///                                                          ///
 

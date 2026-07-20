@@ -498,7 +498,8 @@ Converted all standalone scripts to CREATE3:
 address predicted = DeployHelpers.predictCreate3Address(derivedSalt, broadcaster);
 address deployed = DeployHelpers.deployViaCreate3(
     abi.encodePacked(type(MerklePropertyIPFS).creationCode, abi.encode(...)),
-    derivedSalt
+    derivedSalt,
+    broadcaster
 );
 require(deployed == predicted, "Address mismatch");
 ```
@@ -1047,11 +1048,11 @@ Added comprehensive documentation for signature ordering requirements across mul
 **Gas Cost Table:**
 
 | Signers | Validation Gas | Wasted if Wrong Order | Wasted if Below Threshold |
-|---------|----------------|----------------------|---------------------------|
-| 1 | ~30k | ~30k | ~30k |
-| 4 | ~120k | ~120k | ~120k |
-| 8 | ~240k | ~240k | ~240k |
-| 16 | ~480k | ~480k | ~480k |
+| ------- | -------------- | --------------------- | ------------------------- |
+| 1       | ~30k           | ~30k                  | ~30k                      |
+| 4       | ~120k          | ~120k                 | ~120k                     |
+| 8       | ~240k          | ~240k                 | ~240k                     |
+| 16      | ~480k          | ~480k                 | ~480k                     |
 
 **Sorting Examples:**
 
@@ -1182,12 +1183,13 @@ This section documents the key commits that resolved audit findings in chronolog
 
 ### Phase 1: V3 CREATE3 Foundation (August 2024 - January 2025)
 
-| Commit | Date | Summary |
-|--------|------|---------|
+| Commit                                                                                                    | Date     | Summary                                                            |
+| --------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
 | [`8b39d11`](https://github.com/BuilderOSS/nouns-protocol/commit/8b39d1196dbd65bea03805f39e1533ea3fd03650) | Jan 2025 | feat: V3 with CREATE3 deterministic deployments and security fixes |
-| [`ec2efe0`](https://github.com/BuilderOSS/nouns-protocol/commit/ec2efe0dd5bb1dfe63eb06a9d5bf9bc66d4e5f32) | Jan 2025 | fix: address 5 critical V3 CREATE3 deployment findings |
+| [`ec2efe0`](https://github.com/BuilderOSS/nouns-protocol/commit/ec2efe0dd5bb1dfe63eb06a9d5bf9bc66d4e5f32) | Jan 2025 | fix: address 5 critical V3 CREATE3 deployment findings             |
 
 **Findings Resolved:**
+
 - F-01: DeployV3New bootstrap circular dependency
 - F-02: CREATE2 initcode prediction mismatch
 - F-03: Merkle attribute validation
@@ -1201,24 +1203,26 @@ This section documents the key commits that resolved audit findings in chronolog
 
 ### Phase 2: DAOFactory Integration (July 2026)
 
-| Commit | Date | Summary |
-|--------|------|---------|
-| [`13fcb9d`](https://github.com/BuilderOSS/nouns-protocol/commit/13fcb9d2c67b79d252838135a122c52b66e65ed3) | Jul 2026 | feat: add DAOFactory for cross-chain deterministic DAO deployments |
-| [`8c17e7b`](https://github.com/BuilderOSS/nouns-protocol/commit/8c17e7b9d7fd58fa89053b2d82a5880e6f823b81) | Jul 2026 | fix: resolve CrossChainDeterminism test failures |
-| [`c6f9139`](https://github.com/BuilderOSS/nouns-protocol/commit/c6f9139f9232a1989353e9f0db597dc1dd721859) | Jul 2026 | docs: update documentation to reflect DAOFactory architecture |
+| Commit                                                                                                    | Date     | Summary                                                                 |
+| --------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------- |
+| [`13fcb9d`](https://github.com/BuilderOSS/nouns-protocol/commit/13fcb9d2c67b79d252838135a122c52b66e65ed3) | Jul 2026 | feat: add DAOFactory for cross-chain deterministic DAO deployments      |
+| [`8c17e7b`](https://github.com/BuilderOSS/nouns-protocol/commit/8c17e7b9d7fd58fa89053b2d82a5880e6f823b81) | Jul 2026 | fix: resolve CrossChainDeterminism test failures                        |
+| [`c6f9139`](https://github.com/BuilderOSS/nouns-protocol/commit/c6f9139f9232a1989353e9f0db597dc1dd721859) | Jul 2026 | docs: update documentation to reflect DAOFactory architecture           |
 | [`fffc49d`](https://github.com/BuilderOSS/nouns-protocol/commit/fffc49d2c65bdcc677042d0081312bc33cf28abe) | Jul 2026 | refactor: remove ImplementationParams, consolidate helpers, update docs |
 
 **Findings Resolved:**
+
 - F-01: Complete resolution with DAOFactory
 - F-05: Enhanced validation
 
 ### Phase 3: Final Audit Remediation (July 2026)
 
-| Commit | Date | Summary |
-|--------|------|---------|
+| Commit                                                                                                    | Date     | Summary                                                                         |
+| --------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------- |
 | [`b1689be`](https://github.com/BuilderOSS/nouns-protocol/commit/b1689bede164fa425184f78c5d0e8131ad64fb64) | Jul 2026 | fix: security audit remediation - F-06, F-11, and breaking change documentation |
 
 **Findings Resolved:**
+
 - F-06: Zero-item property validation
 - F-08: castVoteBySig breaking change (documented)
 - F-11: Deterministic deployment unit coverage
