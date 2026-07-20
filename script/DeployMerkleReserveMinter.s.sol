@@ -49,7 +49,9 @@ contract DeployContracts is Script, DeployConstants {
         bytes32 merkleReserveMinterSalt = _deriveSalt(deploySalt, MERKLE_RESERVE_MINTER_SALT);
         address predictedMerkleReserveMinter = DeployHelpers.predictCreate3Address(merkleReserveMinterSalt, deployerAddress);
         address merkleReserveMinter = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(MerkleReserveMinter).creationCode, abi.encode(managerAddress, protocolRewards)), merkleReserveMinterSalt
+            abi.encodePacked(type(MerkleReserveMinter).creationCode, abi.encode(managerAddress, protocolRewards)),
+            merkleReserveMinterSalt,
+            deployerAddress
         );
         require(merkleReserveMinter == predictedMerkleReserveMinter, "MerkleReserveMinter address mismatch");
 

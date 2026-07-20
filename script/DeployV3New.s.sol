@@ -89,7 +89,9 @@ contract DeployV3New is Script, DeployConstants {
         // DAOFactory acts as the canonical deployer, enabling identical DAO addresses across chains
         // despite different Manager addresses. Bound to the predicted Manager proxy.
         deployment.daoFactory = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(DAOFactory).creationCode, abi.encode(predictedManagerProxy)), _deriveSalt(deploySalt, DAO_FACTORY_SALT)
+            abi.encodePacked(type(DAOFactory).creationCode, abi.encode(predictedManagerProxy)),
+            _deriveSalt(deploySalt, DAO_FACTORY_SALT),
+            deployerAddress
         );
 
         // Verify DAOFactory deployed at predicted address
@@ -98,17 +100,19 @@ contract DeployV3New is Script, DeployConstants {
         // Deploy implementations via CREATE3 factory for bytecode-independent cross-chain determinism
         // CREATE3 enables identical addresses even when constructor args differ per chain
         deployment.tokenImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(Token).creationCode, abi.encode(predictedManagerProxy)), _deriveSalt(deploySalt, TOKEN_IMPL_SALT)
+            abi.encodePacked(type(Token).creationCode, abi.encode(predictedManagerProxy)), _deriveSalt(deploySalt, TOKEN_IMPL_SALT), deployerAddress
         );
 
         deployment.metadataRendererImpl = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(MetadataRenderer).creationCode, abi.encode(predictedManagerProxy)),
-            _deriveSalt(deploySalt, METADATA_RENDERER_IMPL_SALT)
+            _deriveSalt(deploySalt, METADATA_RENDERER_IMPL_SALT),
+            deployerAddress
         );
 
         deployment.merklePropertyMetadataImpl = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(MerklePropertyIPFS).creationCode, abi.encode(predictedManagerProxy)),
-            _deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT)
+            _deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT),
+            deployerAddress
         );
 
         deployment.auctionImpl = DeployHelpers.deployViaCreate3(
@@ -116,15 +120,20 @@ contract DeployV3New is Script, DeployConstants {
                 type(Auction).creationCode,
                 abi.encode(predictedManagerProxy, protocolRewards, weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS)
             ),
-            _deriveSalt(deploySalt, AUCTION_IMPL_SALT)
+            _deriveSalt(deploySalt, AUCTION_IMPL_SALT),
+            deployerAddress
         );
 
         deployment.treasuryImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(Treasury).creationCode, abi.encode(predictedManagerProxy)), _deriveSalt(deploySalt, TREASURY_IMPL_SALT)
+            abi.encodePacked(type(Treasury).creationCode, abi.encode(predictedManagerProxy)),
+            _deriveSalt(deploySalt, TREASURY_IMPL_SALT),
+            deployerAddress
         );
 
         deployment.governorImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(Governor).creationCode, abi.encode(predictedManagerProxy)), _deriveSalt(deploySalt, GOVERNOR_IMPL_SALT)
+            abi.encodePacked(type(Governor).creationCode, abi.encode(predictedManagerProxy)),
+            _deriveSalt(deploySalt, GOVERNOR_IMPL_SALT),
+            deployerAddress
         );
 
         deployment.managerImpl = DeployHelpers.deployViaCreate3(
@@ -140,7 +149,8 @@ contract DeployV3New is Script, DeployConstants {
                     deployment.daoFactory
                 )
             ),
-            _deriveSalt(deploySalt, MANAGER_IMPL_SALT)
+            _deriveSalt(deploySalt, MANAGER_IMPL_SALT),
+            deployerAddress
         );
 
         // Deploy Manager proxy via CREATE3 with initialization data for atomic ownership setup.
@@ -148,7 +158,8 @@ contract DeployV3New is Script, DeployConstants {
             abi.encodePacked(
                 type(ERC1967Proxy).creationCode, abi.encode(deployment.managerImpl, abi.encodeWithSignature("initialize(address)", deployerAddress))
             ),
-            _deriveSalt(deploySalt, MANAGER_PROXY_SALT)
+            _deriveSalt(deploySalt, MANAGER_PROXY_SALT),
+            deployerAddress
         );
 
         require(deployment.manager == predictedManagerProxy, "Manager proxy address mismatch");
@@ -157,12 +168,14 @@ contract DeployV3New is Script, DeployConstants {
         // Deploy minters via CREATE3 for cross-chain determinism
         deployment.merkleMinter = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(MerkleReserveMinter).creationCode, abi.encode(deployment.manager, protocolRewards)),
-            _deriveSalt(deploySalt, MERKLE_RESERVE_MINTER_SALT)
+            _deriveSalt(deploySalt, MERKLE_RESERVE_MINTER_SALT),
+            deployerAddress
         );
 
         deployment.redeemMinter = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(ERC721RedeemMinter).creationCode, abi.encode(deployment.manager, protocolRewards)),
-            _deriveSalt(deploySalt, ERC721_REDEEM_MINTER_SALT)
+            _deriveSalt(deploySalt, ERC721_REDEEM_MINTER_SALT),
+            deployerAddress
         );
     }
 

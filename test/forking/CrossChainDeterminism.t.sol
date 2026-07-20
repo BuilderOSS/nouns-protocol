@@ -98,19 +98,17 @@ contract CrossChainDeterminism is ViaIRTestHelper {
 
     /// @notice Ensures CREATE3Factory exists, deploying deterministically via CREATE2 if needed
     function _ensureCreate3FactoryExists() internal returns (address) {
-        // Deploy CREATE3Factory deterministically using CREATE2 (Nick's factory)
-        // This ensures same address across chains
-        bytes memory creationCode = type(CREATE3Factory).creationCode;
-        bytes32 salt = keccak256("CREATE3_FACTORY");
+        // Use the hardcoded CREATE3_FACTORY address from DeployHelpers
+        // The factory is assumed to exist at this address across chains
+        address factory = DeployHelpers.CREATE3_FACTORY;
 
-        address predicted = DeployHelpers.predictAddress(creationCode, salt);
-
-        if (predicted.code.length == 0) {
-            address deployed = DeployHelpers.deployViaFactory(creationCode, salt);
-            require(deployed == predicted, "CREATE3Factory address mismatch");
+        // If it doesn't exist in the fork, deploy it directly
+        if (factory.code.length == 0) {
+            CREATE3Factory deployed = new CREATE3Factory();
+            vm.etch(factory, address(deployed).code);
         }
 
-        return predicted;
+        return factory;
     }
 
     /// @notice Setup mainnet fork: deploy DAOFactory, upgrade Manager

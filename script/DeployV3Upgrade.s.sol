@@ -97,7 +97,9 @@ contract DeployV3Upgrade is Script, DeployConstants {
         // DAOFactory acts as the canonical deployer, enabling identical DAO addresses across chains
         // despite different Manager addresses. Bound to this specific Manager proxy.
         address daoFactory = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(DAOFactory).creationCode, abi.encode(address(managerProxy))), _deriveSalt(deploySalt, DAO_FACTORY_SALT)
+            abi.encodePacked(type(DAOFactory).creationCode, abi.encode(address(managerProxy))),
+            _deriveSalt(deploySalt, DAO_FACTORY_SALT),
+            deployerAddress
         );
 
         // Deploy all new implementations via CREATE3 factory for bytecode-independent cross-chain determinism
@@ -105,13 +107,14 @@ contract DeployV3Upgrade is Script, DeployConstants {
 
         // Token implementation
         address newTokenImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(Token).creationCode, abi.encode(address(managerProxy))), _deriveSalt(deploySalt, TOKEN_IMPL_SALT)
+            abi.encodePacked(type(Token).creationCode, abi.encode(address(managerProxy))), _deriveSalt(deploySalt, TOKEN_IMPL_SALT), deployerAddress
         );
 
         // MetadataRenderer implementation
         address newMetadataRendererImpl = DeployHelpers.deployViaCreate3(
             abi.encodePacked(type(MetadataRenderer).creationCode, abi.encode(address(managerProxy))),
-            _deriveSalt(deploySalt, METADATA_RENDERER_IMPL_SALT)
+            _deriveSalt(deploySalt, METADATA_RENDERER_IMPL_SALT),
+            deployerAddress
         );
 
         // Auction implementation
@@ -120,17 +123,22 @@ contract DeployV3Upgrade is Script, DeployConstants {
                 type(Auction).creationCode,
                 abi.encode(address(managerProxy), protocolRewards, weth, Constants.REWARD_BUILDER_BPS, Constants.REWARD_REFERRAL_BPS)
             ),
-            _deriveSalt(deploySalt, AUCTION_IMPL_SALT)
+            _deriveSalt(deploySalt, AUCTION_IMPL_SALT),
+            deployerAddress
         );
 
         // Treasury implementation
         address newTreasuryImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(Treasury).creationCode, abi.encode(address(managerProxy))), _deriveSalt(deploySalt, TREASURY_IMPL_SALT)
+            abi.encodePacked(type(Treasury).creationCode, abi.encode(address(managerProxy))),
+            _deriveSalt(deploySalt, TREASURY_IMPL_SALT),
+            deployerAddress
         );
 
         // Governor implementation
         address newGovernorImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(Governor).creationCode, abi.encode(address(managerProxy))), _deriveSalt(deploySalt, GOVERNOR_IMPL_SALT)
+            abi.encodePacked(type(Governor).creationCode, abi.encode(address(managerProxy))),
+            _deriveSalt(deploySalt, GOVERNOR_IMPL_SALT),
+            deployerAddress
         );
 
         // Manager implementation
@@ -141,7 +149,8 @@ contract DeployV3Upgrade is Script, DeployConstants {
                     newTokenImpl, newMetadataRendererImpl, newAuctionImpl, newTreasuryImpl, newGovernorImpl, builderRewardsRecipient, daoFactory
                 )
             ),
-            _deriveSalt(deploySalt, MANAGER_IMPL_SALT)
+            _deriveSalt(deploySalt, MANAGER_IMPL_SALT),
+            deployerAddress
         );
 
         // NOTE: this script intentionally does not execute the upgrade. On production, run these calls through the

@@ -50,7 +50,9 @@ contract DeployContracts is Script, DeployConstants {
         bytes32 redeemMinterSalt = _deriveSalt(deploySalt, ERC721_REDEEM_MINTER_SALT);
         address predictedRedeemMinter = DeployHelpers.predictCreate3Address(redeemMinterSalt, deployerAddress);
         address redeemMinter = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(ERC721RedeemMinter).creationCode, abi.encode(Manager(managerAddress), protocolRewards)), redeemMinterSalt
+            abi.encodePacked(type(ERC721RedeemMinter).creationCode, abi.encode(Manager(managerAddress), protocolRewards)),
+            redeemMinterSalt,
+            deployerAddress
         );
         require(redeemMinter == predictedRedeemMinter, "ERC721RedeemMinter address mismatch");
 

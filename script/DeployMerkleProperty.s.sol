@@ -41,7 +41,7 @@ contract DeployMerkleProperty is Script, DeployConstants {
         bytes32 merklePropertySalt = _deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT);
         address predictedMerkleMetadataImpl = DeployHelpers.predictCreate3Address(merklePropertySalt, deployerAddress);
         address merkleMetadataImpl = DeployHelpers.deployViaCreate3(
-            abi.encodePacked(type(MerklePropertyIPFS).creationCode, abi.encode(_getKey("Manager"))), merklePropertySalt
+            abi.encodePacked(type(MerklePropertyIPFS).creationCode, abi.encode(_getKey("Manager"))), merklePropertySalt, deployerAddress
         );
         require(merkleMetadataImpl == predictedMerkleMetadataImpl, "MerkleProperty address mismatch");
 
