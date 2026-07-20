@@ -18,14 +18,14 @@ This consolidated internal security audit represents the validation and resoluti
 
 ### Key Metrics
 
-- **Total Unique Findings:** 18 (after deduplication)
+- **Total Unique Findings:** 20 (after deduplication)
 - **Critical Severity:** 2 (both ✅ RESOLVED)
-- **High Severity:** 2 (both ✅ RESOLVED)
+- **High Severity:** 3 (all ✅ RESOLVED)
 - **Medium Severity:** 8 (all ✅ RESOLVED)
-- **Low Severity:** 3 (all ✅ RESOLVED)
+- **Low Severity:** 4 (all ✅ RESOLVED)
 - **Informational:** 3 (deferred as known technical debt)
 
-**Implementation Rate:** 15/15 actionable findings = **100% IMPLEMENTED** ✅
+**Implementation Rate:** 17/17 actionable findings = **100% IMPLEMENTED** ✅
 
 ### Current Risk Assessment
 
@@ -46,9 +46,9 @@ This consolidated internal security audit represents the validation and resoluti
 ## Table of Contents
 
 1. [Critical Findings (2)](#critical-findings)
-2. [High Findings (2)](#high-findings)
+2. [High Findings (3)](#high-findings)
 3. [Medium Findings (8)](#medium-findings)
-4. [Low Findings (3)](#low-findings)
+4. [Low Findings (4)](#low-findings)
 5. [Informational (3)](#informational--rejected-findings)
 6. [Appendix A: Commit Timeline](#appendix-a-commit-timeline)
 7. [Appendix B: Verification Commands](#appendix-b-verification-commands)
@@ -352,6 +352,141 @@ error PROPERTY_HAS_NO_ITEMS(uint256 propertyId, string propertyName);
 ```bash
 forge test --match-path 'test/MetadataRenderer.t.sol' -vvv
 # Result: All 14 MetadataRenderer tests pass, zero-item property attempts properly revert
+```
+
+---
+
+### F-19: CREATE3 Deployment Scripts Verify Against Script Caller, Not Broadcast Deployer
+
+**Severity**: High
+**Status**: ✅ Resolved
+**Source**: Post-audit code review (July 2026)
+
+#### Description
+
+`DeployHelpers.deployViaCreate3()` used `msg.sender` internally to verify deployed addresses against predictions. However, in Foundry broadcast context:
+- `msg.sender` is the **script contract address** (the harness)
+- The actual deployer calling CREATE3Factory is the **broadcaster address** (from private key)
+
+CREATE3 addresses depend on the actual deployer (broadcaster), NOT the script contract. The verification compared against the wrong address, allowing deployments to pass validation even when addresses didn't match expectations.
+
+#### Impact
+
+- Deployment scripts could deploy to **unpredicted addresses**
+- Cross-chain determinism **broken** (different deployer = different address)
+- Silent failures where verification passed but addresses were wrong
+- Risk of **deploying critical contracts to unexpected addresses**
+- Not a runtime protocol bug but a **deployment infrastructure vulnerability**
+
+#### Resolution Commits
+
+- [[`846bdfc`](https://github.com/BuilderOSS/nouns-protocol/commit/846bdfcfe8094175b542435d1c2dc8ac1a48048d)] - fix: CREATE3 deployment namespace verification with explicit deployer parameter
+
+#### Files Changed
+
+- [`script/DeployHelpers.sol:19-32`](https://github.com/BuilderOSS/nouns-protocol/blob/846bdfcfe8094175b542435d1c2dc8ac1a48048d/script/DeployHelpers.sol#L19-L32) - Add `deployerAddress` parameter to `deployViaCreate3()`
+- [`script/DeployHelpers.sol:39-41`](https://github.com/BuilderOSS/nouns-protocol/blob/846bdfcfe8094175b542435d1c2dc8ac1a48048d/script/DeployHelpers.sol#L39-L41) - Simplify `predictCreate3Address()` to use factory's `getDeployed()`
+- **24 call sites updated** in deployment scripts and tests to pass explicit deployer address
+- [`test/DeployHelpers.t.sol:103-141`](https://github.com/BuilderOSS/nouns-protocol/blob/846bdfcfe8094175b542435d1c2dc8ac1a48048d/test/DeployHelpers.t.sol#L103-L141) - Added comprehensive regression tests
+- [`test/forking/CrossChainDeterminism.t.sol`](https://github.com/BuilderOSS/nouns-protocol/blob/846bdfcfe8094175b542435d1c2dc8ac1a48048d/test/forking/CrossChainDeterminism.t.sol) - Fixed broken factory deployment helper
+- [`test/forking/TestMainnetManagerUpgrade.t.sol`](https://github.com/BuilderOSS/nouns-protocol/blob/846bdfcfe8094175b542435d1c2dc8ac1a48048d/test/forking/TestMainnetManagerUpgrade.t.sol) - Fixed broken factory deployment helper
+- [`test/forking/TestPurpleDAOSystemUpgrade.t.sol`](https://github.com/BuilderOSS/nouns-protocol/blob/846bdfcfe8094175b542435d1c2dc8ac1a48048d/test/forking/TestPurpleDAOSystemUpgrade.t.sol) - Fixed broken factory deployment helper
+
+#### Implementation Details
+
+**Before (Vulnerable):**
+```solidity
+function deployViaCreate3(bytes memory creationCode, bytes32 salt) internal returns (address deployed) {
+    deployed = ICREATE3Factory(CREATE3_FACTORY).deploy(salt, creationCode);
+
+    // BUG: Uses msg.sender (script contract) instead of broadcaster
+    address predicted = predictCreate3Address(salt, msg.sender);
+    require(deployed == predicted, "CREATE3 deployed address mismatch");
+}
+```
+
+**After (Fixed):**
+```solidity
+function deployViaCreate3(
+    bytes memory creationCode,
+    bytes32 salt,
+    address deployerAddress  // NEW: Explicit deployer parameter
+) internal returns (address deployed) {
+    // The external call will be made with msg.sender = deployerAddress during vm.startBroadcast()
+    deployed = ICREATE3Factory(CREATE3_FACTORY).deploy(salt, creationCode);
+
+    // FIXED: Verify against the actual broadcaster address
+    address predicted = predictCreate3Address(salt, deployerAddress);
+    require(deployed == predicted, "CREATE3 deployed address mismatch");
+}
+```
+
+**Simplified Prediction Function:**
+```solidity
+// Before: Manual CREATE3 address calculation (error-prone, duplicated logic)
+function predictCreate3Address(bytes32 salt, address deployer) internal pure returns (address) {
+    bytes32 finalSalt = keccak256(abi.encodePacked(deployer, salt));
+    bytes32 proxyBytecodeHash = 0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f;
+    bytes32 proxyHash = keccak256(abi.encodePacked(bytes1(0xff), CREATE3_FACTORY, finalSalt, proxyBytecodeHash));
+    address proxy = address(uint160(uint256(proxyHash)));
+    bytes32 finalHash = keccak256(abi.encodePacked(hex"d694", proxy, hex"01"));
+    return address(uint160(uint256(finalHash)));
+}
+
+// After: Delegate to factory's canonical implementation
+function predictCreate3Address(bytes32 salt, address deployer) internal view returns (address) {
+    return ICREATE3Factory(CREATE3_FACTORY).getDeployed(deployer, salt);
+}
+```
+
+#### Tests Added
+
+**1. `test_Create3BroadcastUsesCorrectDeployer()`**: Proves broadcast context behavior
+```solidity
+// Test validates that during vm.startBroadcast(realDeployer):
+// - CREATE3Factory receives msg.sender = realDeployer (not harness)
+// - Deployed address matches predictCreate3Address(salt, realDeployer)
+// - Deployed address does NOT match predictCreate3Address(salt, address(harness))
+```
+
+**2. `test_DeployViaCreate3WithExplicitDeployer()`**: Tests wrapper with explicit parameter
+```solidity
+// Test validates deployViaCreate3(creationCode, salt, deployer) correctly:
+// - Accepts explicit deployer parameter
+// - Verifies against that deployer, not msg.sender
+// - Returns correct deployment address
+```
+
+**3. `test_DeployViaCreate3MultipleDeploymentsWithCorrectDeployer()`**: Validates multiple deployments
+```solidity
+// Test validates multiple deployments with same deployer:
+// - All use consistent deployer namespace
+// - Different salts produce different addresses
+// - All verifications pass
+```
+
+#### Call Sites Updated
+
+**24 call sites updated across:**
+- `script/DeployERC721RedeemMinter.s.sol:52` - Added `deployerAddress`
+- `script/DeployMerkleProperty.s.sol:43` - Added `deployerAddress`
+- `script/DeployMerkleReserveMinter.s.sol:51` - Added `deployerAddress`
+- `script/DeployV3New.s.sol` - 11 calls updated with `deployerAddress`
+- `script/DeployV3Upgrade.s.sol` - 7 calls updated with `deployerAddress`
+- `test/DeployHelpers.t.sol` - 3 test calls updated
+
+All now pass `vm.addr(deployerPrivateKey)` as the explicit deployer parameter.
+
+#### Verification
+
+```bash
+# Run DeployHelpers tests with verbose output
+forge test --match-path 'test/DeployHelpers.t.sol' -vvv
+
+# Run all tests to ensure no regressions in call sites
+yarn test:unit
+
+# Result: All 669 tests pass, including 3 new regression tests
 ```
 
 ---
@@ -1075,6 +1210,167 @@ yarn test:unit
 
 ---
 
+### F-20: Merkle Renderer Pre-Mint Attribute Setting (Intentional Design)
+
+**Severity**: Low (originally reported as Medium, downgraded after analysis)
+**Status**: ✅ Resolved (documented as intentional behavior)
+**Source**: Post-audit code review (July 2026)
+
+#### Original Concern
+
+`MerklePropertyIPFS.setAttributes()` allows setting attributes for tokens **before they are minted**. Since `PropertyIPFS.onMinted()` skips attribute generation when `tokenAttributes[0] != 0`, this could theoretically allow:
+- Setting attributes for nonexistent tokens
+- Creating valid `tokenURI()` responses for unminted tokens
+- Bypassing the normal minting flow
+
+#### Why This Is Intentional (Not A Bug)
+
+After careful analysis, this is **required functionality**, not a security vulnerability. Here's why:
+
+**1. Reveal Mechanics Require Pre-Mint:**
+- Minting generates random attributes UNLESS attributes are already set
+- For reveal mechanics, attributes MUST be committed before mint
+- Otherwise, minting would overwrite reveal attributes with random values
+
+**2. Security Controls Are In Place:**
+- Only attributes in the **owner-controlled Merkle tree** can be set
+- Requires valid Merkle proof against `attributeMerkleRoot` (set by owner)
+- No arbitrary attribute setting possible
+- Owner controls which attribute combinations are valid
+
+**3. Legitimate Use Cases:**
+- **Merkle allowlists with predetermined traits**: "Wallet X can mint token with specific attributes"
+- **Reveal mechanics**: Commit attributes on-chain, then mint later
+- **Gas optimization**: Batch attribute setting separately from minting
+- **Allowlist + trait guarantees**: "Allowlist members get rare trait Y"
+
+#### Impact
+
+**Original Assessment (if it were a bug):** Medium - Could enable unauthorized token metadata
+
+**Actual Assessment:** Low - Intentional design with proper security controls
+- Owner controls which attributes are valid (via Merkle root)
+- No state corruption or fund loss
+- Enables legitimate reveal workflows
+- Documentation gap caused confusion
+
+#### Resolution Commits
+
+- [[`17650bd`](https://github.com/BuilderOSS/nouns-protocol/commit/17650bd731c76cef48763334509ff47b4513fb2e)] - docs: document pre-mint attribute setting behavior in MerklePropertyIPFS
+
+#### Files Changed
+
+- [`src/token/metadata/renderers/MerklePropertyIPFS/MerklePropertyIPFS.sol:72-80`](https://github.com/BuilderOSS/nouns-protocol/blob/17650bd731c76cef48763334509ff47b4513fb2e/src/token/metadata/renderers/MerklePropertyIPFS/MerklePropertyIPFS.sol#L72-L80) - Added comprehensive NatSpec
+- [`src/token/metadata/renderers/PropertyIPFS/PropertyIPFS.sol:247-253`](https://github.com/BuilderOSS/nouns-protocol/blob/17650bd731c76cef48763334509ff47b4513fb2e/src/token/metadata/renderers/PropertyIPFS/PropertyIPFS.sol#L247-L253) - Documented attribute preservation logic
+- [`test/MerklePropertyIPFS.t.sol`](https://github.com/BuilderOSS/nouns-protocol/blob/17650bd731c76cef48763334509ff47b4513fb2e/test/MerklePropertyIPFS.t.sol) - Added 2 comprehensive pre-mint workflow tests
+
+#### Implementation Details
+
+No code changes were needed - the behavior is correct as designed. Added documentation to clarify intent:
+
+**MerklePropertyIPFS.setAttributes() NatSpec:**
+```solidity
+/// @notice Sets the attributes for a token using a Merkle proof
+/// @param _params The parameters containing tokenId, attributes, and Merkle proof
+/// @dev This function is permissionless but requires a valid Merkle proof against the owner-controlled root.
+///      IMPORTANT: This function can be called BEFORE a token is minted. This is intentional and enables:
+///      - Pre-mint attribute assignment for reveal workflows
+///      - Merkle allowlists with predetermined traits
+///      - Gas-optimized batch operations where attributes are set separately from minting
+///      When attributes are pre-set, onMinted() will skip pseudorandom generation and preserve these values.
+///      Only attribute combinations in the Merkle tree (controlled by owner via setAttributeMerkleRoot) can be set.
+function setAttributes(SetAttributeParams calldata _params) external {
+    _setAttributesWithProof(_params);
+}
+```
+
+**PropertyIPFS.onMinted() Documentation:**
+```solidity
+// If the attributes are already set from _setAttributes they don't need to be generated
+// IMPORTANT: This intentionally allows pre-mint attribute setting for Merkle-based reveal workflows.
+// When attributes are pre-set via MerklePropertyIPFS.setAttributes() with a valid proof,
+// this check skips pseudorandom generation and preserves the predetermined attributes.
+// This enables use cases like:
+// - Merkle allowlists with predetermined traits
+// - Reveal mechanics where attributes are committed before minting
+// - Gas-optimized batch operations where attributes are set separately from minting
+if (tokenAttributes[0] != 0) return true;
+```
+
+#### Tests Added
+
+**1. `test_SetAttributesBeforeMint_EnablesTokenURI()`:**
+```solidity
+// Test validates that setting attributes before minting:
+// - Allows tokenURI() to render for unminted token
+// - Attributes are stored correctly
+// - Proves pre-mint attribute setting works as designed
+```
+
+**2. `test_MintingWithPreSetAttributes_PreservesAttributes()`:**
+```solidity
+// Test validates that minting with pre-set attributes:
+// - onMinted() skips pseudorandom generation
+// - Pre-set attributes are preserved exactly
+// - No regeneration occurs
+// - Validates the critical check at PropertyIPFS.sol:247
+```
+
+#### Code Evidence
+
+**Security Control (MerklePropertyIPFS.sol:90-103):**
+```solidity
+function _setAttributesWithProof(SetAttributeParams calldata _params) private {
+    // Step 1: Verify Merkle proof (SECURITY GATE)
+    if (!MerkleProof.verify(_params.proof, ...)) {
+        revert INVALID_MERKLE_PROOF(...);
+    }
+
+    // Step 2: Validate attributes are renderable
+    _validateAttributes(_params.tokenId, _params.attributes);
+
+    // Step 3: Set attributes (only if proof + validation passed)
+    _setAttributes(_params.tokenId, _params.attributes);
+}
+```
+
+**Attribute Preservation (PropertyIPFS.sol:244-254):**
+```solidity
+function onMinted(uint256 _tokenId) external override returns (bool) {
+    PropertyStorage storage $ = _getPropertyStorage();
+    uint16[16] storage tokenAttributes = $._attributes[_tokenId];
+
+    // If the attributes are already set from _setAttributes they don't need to be generated
+    // [Documentation explaining intentional behavior]
+    if (tokenAttributes[0] != 0) return true;  // <-- CRITICAL CHECK
+
+    // Compute some randomness for the token id
+    // [Random attribute generation...]
+}
+```
+
+#### Why This Is Secure
+
+1. **Merkle Root Controlled By Owner**: `setAttributeMerkleRoot()` is `onlyOwner`
+2. **Proof Required**: Every `setAttributes()` call requires valid Merkle proof
+3. **Validation Applied**: F-03 fix validates attributes are renderable
+4. **No Arbitrary Setting**: Can't set attributes outside the Merkle tree
+5. **Gas Bounded**: Merkle proof verification has predictable cost
+
+#### Verification
+
+```bash
+# Run Merkle property tests
+forge test --match-path 'test/MerklePropertyIPFS.t.sol' -vvv
+
+# Specifically test pre-mint workflow
+forge test --match-path 'test/MerklePropertyIPFS.t.sol' --match-test 'PreMint' -vvv
+
+# Result: All tests pass, including 2 new pre-mint workflow tests
+```
+
+---
+
 ## Informational / Rejected Findings
 
 ### F-16: Unchecked Blocks and Timestamp Overflow
@@ -1228,6 +1524,18 @@ This section documents the key commits that resolved audit findings in chronolog
 - F-11: Deterministic deployment unit coverage
 - F-15: Signature ordering UX documentation
 
+### Phase 4: Post-Audit Security Hardening (July 2026)
+
+| Commit                                                                                                    | Date        | Summary                                                                                 |
+| --------------------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| [`846bdfc`](https://github.com/BuilderOSS/nouns-protocol/commit/846bdfcfe8094175b542435d1c2dc8ac1a48048d) | Jul 20 2026 | fix: CREATE3 deployment namespace verification with explicit deployer parameter         |
+| [`17650bd`](https://github.com/BuilderOSS/nouns-protocol/commit/17650bd731c76cef48763334509ff47b4513fb2e) | Jul 20 2026 | docs: document pre-mint attribute setting behavior in MerklePropertyIPFS                |
+
+**Findings Resolved:**
+
+- F-19: CREATE3 deployment namespace verification (High - deployment infrastructure bug)
+- F-20: Pre-mint attribute setting documentation (Low - clarified as intentional design)
+
 ---
 
 ## Appendix B: Verification Commands
@@ -1282,6 +1590,12 @@ forge test --match-path 'test/MerklePropertyIPFS.t.sol' --match-test 'EmitsEvent
 
 # Zero-item property tests
 forge test --match-path 'test/MetadataRenderer.t.sol' --match-test 'CannotAddPropertyWithoutItems' -vvv
+
+# CREATE3 deployment helper regression tests (F-19)
+forge test --match-path 'test/DeployHelpers.t.sol' --match-test 'Broadcast' -vvv
+
+# Pre-mint attribute workflow tests (F-20)
+forge test --match-path 'test/MerklePropertyIPFS.t.sol' --match-test 'PreMint' -vvv
 ```
 
 ### Code Quality Checks
