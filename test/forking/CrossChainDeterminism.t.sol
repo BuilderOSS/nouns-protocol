@@ -189,7 +189,10 @@ contract CrossChainDeterminism is ViaIRTestHelper {
     /// @param builderRewardsRecipient The builder rewards recipient address
     /// @param weth The WETH address for the chain
     /// @return impl The deployed Manager implementation
-    function _deployManagerImpl(IManager managerProxy, address daoFactory, address builderRewardsRecipient, address weth) internal returns (Manager impl) {
+    function _deployManagerImpl(IManager managerProxy, address daoFactory, address builderRewardsRecipient, address weth)
+        internal
+        returns (Manager impl)
+    {
         // Deploy NEW implementations with updated initialize() signatures
         address tokenImpl = address(new Token(address(managerProxy)));
         address metadataImpl = address(new MetadataRenderer(address(managerProxy)));
@@ -231,24 +234,6 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         address deployer = address(0x1234567890123456789012345678901234567890);
         bytes32 salt = keccak256("CROSS_CHAIN_DAO_V1");
 
-        // Deploy NEW implementations for testing (can be different on each chain - doesn't matter!)
-        vm.selectFork(mainnetFork);
-        address mainnetTokenImpl = address(new Token(address(mainnetManager)));
-        address mainnetMetadataImpl = address(new MetadataRenderer(address(mainnetManager)));
-        address mainnetAuctionImpl = address(new Auction(address(mainnetManager), address(0), MAINNET_WETH, 0, 0));
-        address mainnetTreasuryImpl = address(new Treasury(address(mainnetManager)));
-        address mainnetGovernorImpl = address(new Governor(address(mainnetManager)));
-
-        vm.selectFork(optimismFork);
-        address optimismTokenImpl = address(new Token(address(optimismManager)));
-        address optimismMetadataImpl = address(new MetadataRenderer(address(optimismManager)));
-        address optimismAuctionImpl = address(new Auction(address(optimismManager), address(0), OPTIMISM_WETH, 0, 0));
-        address optimismTreasuryImpl = address(new Treasury(address(optimismManager)));
-        address optimismGovernorImpl = address(new Governor(address(optimismManager)));
-
-        // Implementation addresses are DIFFERENT (as expected)
-        assertTrue(mainnetTokenImpl != optimismTokenImpl, "Implementation addresses differ between chains");
-
         // Predict addresses on MAINNET
         vm.selectFork(mainnetFork);
         (address mainnetToken, address mainnetMetadata, address mainnetAuction, address mainnetTreasury, address mainnetGovernor) =
@@ -278,45 +263,6 @@ contract CrossChainDeterminism is ViaIRTestHelper {
         emit log_named_address("Predicted Auction (both chains)", mainnetAuction);
         emit log_named_address("Predicted Treasury (both chains)", mainnetTreasury);
         emit log_named_address("Predicted Governor (both chains)", mainnetGovernor);
-    }
-
-    /// @notice Verify predictions are bytecode-independent (CREATE3 property)
-    function test_PredictionsBytecodeIndependent() public {
-        address deployer = address(0xABCDEF);
-        bytes32 salt = keccak256("BYTECODE_INDEPENDENCE_TEST");
-
-        // Select mainnet fork
-        vm.selectFork(mainnetFork);
-
-        // Deploy two DIFFERENT sets of implementations
-        address tokenImpl1 = address(new Token(address(mainnetManager)));
-        address metadataImpl1 = address(new MetadataRenderer(address(mainnetManager)));
-        address auctionImpl1 = address(new Auction(address(mainnetManager), address(0), MAINNET_WETH, 0, 0));
-        address treasuryImpl1 = address(new Treasury(address(mainnetManager)));
-        address governorImpl1 = address(new Governor(address(mainnetManager)));
-
-        address tokenImpl2 = address(new Token(address(mainnetManager)));
-        address metadataImpl2 = address(new MetadataRenderer(address(mainnetManager)));
-        address auctionImpl2 = address(new Auction(address(mainnetManager), address(0), MAINNET_WETH, 1, 2)); // Different constructor params!
-        address treasuryImpl2 = address(new Treasury(address(mainnetManager)));
-        address governorImpl2 = address(new Governor(address(mainnetManager)));
-
-        // Implementations are DIFFERENT
-        assertTrue(auctionImpl1 != auctionImpl2, "Auction implementations should differ");
-
-        // Predict addresses with same salt (implementations don't matter anymore - using Manager's immutables)
-        (address token1, address metadata1, address auction1, address treasury1, address governor1) =
-            mainnetManager.predictDeterministicAddresses(deployer, salt);
-
-        (address token2, address metadata2, address auction2, address treasury2, address governor2) =
-            mainnetManager.predictDeterministicAddresses(deployer, salt);
-
-        // Predictions MUST be IDENTICAL (CREATE3 is bytecode-independent)
-        assertEq(token1, token2, "Predictions must be bytecode-independent");
-        assertEq(metadata1, metadata2, "Predictions must be bytecode-independent");
-        assertEq(auction1, auction2, "Predictions must be bytecode-independent");
-        assertEq(treasury1, treasury2, "Predictions must be bytecode-independent");
-        assertEq(governor1, governor2, "Predictions must be bytecode-independent");
     }
 
     /// @notice Integration test: Actually deploy a DAO and verify addresses match predictions

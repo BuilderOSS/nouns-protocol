@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import { IOwnable } from "../lib/interfaces/IOwnable.sol";
 import { IToken } from "../token/IToken.sol";
 import { Manager } from "../manager/Manager.sol";

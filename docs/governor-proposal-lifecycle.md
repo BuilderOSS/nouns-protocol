@@ -78,6 +78,152 @@ all revisions use A's original `proposalUpdatePeriodEnd`.
 - `proposeBySigs` and `updateProposalBySigs` share the same per-signer nonce mapping (`proposeSigNonces`),
   so off-chain signing flows must sequence propose/update sponsorship signatures against one shared counter.
 
+### Signature Ordering Requirements (CRITICAL)
+
+#### Why Ordering Matters
+
+The `proposeBySigs` and `updateProposalBySigs` functions require signatures to be sorted by signer address in **ascending order** (lowest address to highest address). This is enforced for:
+
+1. **Gas efficiency**: Cheap ordering check vs expensive signature verification
+2. **Duplicate prevention**: Ensures no signer counted twice
+3. **Deterministic validation**: Consistent validation order
+
+#### Gas Warning
+
+**IMPORTANT**: Signatures are validated (~30k gas each) BEFORE checking if combined votes meet the threshold. If you submit:
+
+- Unsorted signatures → Reverts with `INVALID_SIGNATURE_ORDER` (wastes gas)
+- Signatures with insufficient voting power → Reverts with `VOTES_BELOW_PROPOSAL_THRESHOLD` (wastes MORE gas)
+
+**Gas Cost Breakdown:**
+| Signers | Validation Gas | Wasted if Wrong Order | Wasted if Below Threshold |
+|---------|----------------|----------------------|---------------------------|
+| 1 | ~30k | ~30k | ~30k |
+| 4 | ~120k | ~120k | ~120k |
+| 8 | ~240k | ~240k | ~240k |
+| 16 | ~480k | ~480k | ~480k |
+
+#### How to Sort Addresses
+
+**JavaScript/TypeScript:**
+
+```javascript
+// Given an array of signers with {address, signature}
+const signers = [
+  { address: "0xCCC...", signature: "0x..." },
+  { address: "0xAAA...", signature: "0x..." },
+  { address: "0xBBB...", signature: "0x..." },
+];
+
+// Sort by address (case-insensitive)
+const sorted = signers.sort((a, b) =>
+  a.address.toLowerCase().localeCompare(b.address.toLowerCase()),
+);
+
+// Result: [0xAAA, 0xBBB, 0xCCC]
+```
+
+**Solidity (for testing/off-chain computation):**
+
+```solidity
+function sortAddresses(address[] memory addresses)
+  public pure returns (address[] memory)
+{
+  address[] memory sorted = new address[](addresses.length);
+  for (uint i = 0; i < addresses.length; i++) {
+    sorted[i] = addresses[i];
+  }
+
+  // Insertion sort (sufficient for ≤16 elements)
+  for (uint i = 1; i < sorted.length; i++) {
+    address current = sorted[i];
+    uint j = i;
+    while (j > 0 && sorted[j-1] > current) {
+      sorted[j] = sorted[j-1];
+      j--;
+    }
+    sorted[j] = current;
+  }
+  return sorted;
+}
+```
+
+**Python:**
+
+```python
+# Sort list of signer addresses
+signers = ["0xCCC...", "0xAAA...", "0xBBB..."]
+sorted_signers = sorted(signers, key=str.lower)
+# Result: ['0xAAA...', '0xBBB...', '0xCCC...']
+```
+
+#### Pre-Flight Validation
+
+To avoid wasting gas, validate voting power BEFORE submitting:
+
+```javascript
+// 1. Get current proposal threshold
+const threshold = await governor.proposalThreshold();
+
+// 2. Calculate combined voting power
+let totalVotes = await governor.getVotes(proposer, lastBlock);
+for (const signer of signers) {
+  const votes = await governor.getVotes(signer.address, lastBlock);
+  totalVotes += votes;
+}
+
+// 3. Check threshold before submitting
+if (totalVotes <= threshold) {
+  throw new Error(`Insufficient votes: ${totalVotes} <= ${threshold}`);
+}
+
+// 4. Sort signers
+const sortedSigners = signers.sort((a, b) =>
+  a.address.toLowerCase().localeCompare(b.address.toLowerCase()),
+);
+
+// 5. Submit
+await governor.proposeBySigs(sortedSigners, targets, values, calldatas, description);
+```
+
+#### Common Pitfalls
+
+❌ **Wrong:** Unsorted addresses
+
+```javascript
+signers = [
+  { address: "0xCCC...", signature: "..." },
+  { address: "0xAAA...", signature: "..." },
+]; // WRONG ORDER - will revert
+```
+
+❌ **Wrong:** Including proposer as signer
+
+```javascript
+signers = [
+  { address: proposerAddress, signature: "..." }, // Proposer cannot be signer
+];
+```
+
+❌ **Wrong:** Duplicate addresses
+
+```javascript
+signers = [
+  { address: "0xAAA...", signature: "..." },
+  { address: "0xAAA...", signature: "..." }, // Duplicate
+];
+```
+
+✅ **Correct:** Sorted, unique, excluding proposer
+
+```javascript
+signers = [
+  { address: "0xAAA...", signature: "..." },
+  { address: "0xBBB...", signature: "..." },
+  { address: "0xCCC...", signature: "..." },
+]; // Correct ascending order
+```
+
 ## Update Paths
 
 ### `updateProposal`

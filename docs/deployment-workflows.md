@@ -54,12 +54,12 @@ Common env variables used by those sections:
   - Requires `WETH`, `ProtocolRewards`, `BuilderRewardsRecipient`, and `CrossDomainMessenger` in `addresses/<chainid>.json`.
   - Output file: `deploys/<chainid>.version3_new.txt` (includes deploy salt for reference).
 
-- `yarn deploy:v3-upgrade`
-  - Deploy only new v3 upgrade impls for existing manager deployments.
+- `yarn prepare:v3-upgrade`
+  - Prepares new v3 upgrade artifacts for existing manager deployments. It does not execute the upgrade.
   - Deploys: Token, MetadataRenderer, Auction, Treasury, Governor and Manager implementations via CREATE3 factory.
   - Uses CREATE3 salts derived from `DEPLOY_SALT` - same salts as `v3-new` for consistency.
   - Reuses existing implementation addresses from `addresses/<chainid>.json`.
-  - Output file: `deploys/<chainid>.version3_upgrade.txt` (includes deploy salt for reference).
+  - Output file: `deploys/<chainid>.version3_prepare_upgrade.txt` (includes deploy salt and explicitly records `Upgrade Executed: false`).
   - **IMPORTANT:** The new Manager implementation will have a new `builderRewardsRecipient` immutable value. To change this value, you must deploy a NEW Manager implementation with the desired value and upgrade to it.
 
 - `yarn deploy:erc721-redeem-minter`
@@ -271,6 +271,7 @@ manager.deployDeterministic(founders, tokenParams, auctionParams, govParams, dep
 ```
 
 **Result:** Identical DAO addresses on both chains if:
+
 - Same deployer wallet
 - Same `deploySalt`
 - Same Manager implementation addresses (tokenImpl, auctionImpl, governorImpl, etc.)
@@ -329,6 +330,7 @@ NETWORK=optimism PRIVATE_KEY=<key> DEPLOY_SALT=my_protocol_v1 yarn deploy:v3-new
 The DAOFactory contract was introduced in V3 to solve a critical cross-chain determinism problem:
 
 **The Problem:**
+
 - DAO proxy addresses must be deterministic across chains for fund recovery
 - CREATE2 address calculation includes the deployer's address
 - If Manager deploys DAOs directly, DAO addresses depend on Manager's address
@@ -336,6 +338,7 @@ The DAOFactory contract was introduced in V3 to solve a critical cross-chain det
 - **Result:** Same DAO would have different addresses on different chains
 
 **The Solution:**
+
 - Introduce DAOFactory as a canonical deployer
 - DAOFactory is deployed via CREATE3 at the same address on all chains
 - Manager delegates all DAO deployments to DAOFactory
@@ -345,6 +348,7 @@ The DAOFactory contract was introduced in V3 to solve a critical cross-chain det
 ### How DAOFactory Works
 
 **Deployment:**
+
 ```solidity
 // DAOFactory is deployed via CREATE3 with a fixed salt
 bytes32 salt = keccak256("NOUNS_BUILDER_DAO_FACTORY_V1");
@@ -355,6 +359,7 @@ Manager manager = new Manager(tokenImpl, ..., daoFactory);
 ```
 
 **DAO Deployment Flow:**
+
 ```solidity
 // 1. User calls Manager.deployDeterministic()
 manager.deployDeterministic(founders, tokenParams, auctionParams, govParams, deploySalt);
@@ -371,6 +376,7 @@ function deployProxy(bytes32 salt, bytes memory creationCode) external returns (
 ```
 
 **Key Benefits:**
+
 - **Cross-chain determinism**: DAOFactory at same address on all chains
 - **Manager flexibility**: Managers can be at different addresses without affecting DAOs
 - **Upgrade safety**: Manager upgrades don't change DAO addresses
@@ -379,12 +385,14 @@ function deployProxy(bytes32 salt, bytes memory creationCode) external returns (
 ### DAOFactory vs CREATE3Factory
 
 **CREATE3Factory** (`0xD252d074EEe65b64433a5a6f30Ab67569362E7e0`):
+
 - Used for: implementations, DAOFactory itself, minters
 - Public: Anyone can deploy
 - Bytecode-independent determinism
 - Salt namespacing: `keccak256(deployer ++ salt)`
 
 **DAOFactory** (deployed via CREATE3):
+
 - Used for: DAO proxies only
 - Restricted: Only authorized Manager can deploy
 - Bytecode-independent determinism (uses CREATE3 internally)
@@ -424,6 +432,7 @@ IManager(address(managerProxy)).upgradeTo(address(realManagerImpl));
 ```
 
 **Result:**
+
 - Manager proxy initialized atomically (prevents frontrunning)
 - DAOFactory bound to Manager proxy
 - Manager implementation has correct DAOFactory immutable
@@ -432,21 +441,25 @@ IManager(address(managerProxy)).upgradeTo(address(realManagerImpl));
 ### Security Considerations
 
 **Authorization:**
+
 - DAOFactory only accepts deployments from its bound Manager
 - Prevents unauthorized parties from deploying to predicted DAO addresses
 - Each Manager has its own DAOFactory instance
 
 **Salt Construction:**
+
 - Includes deployer wallet address: `keccak256(deployer ++ deploySalt ++ label)`
 - Prevents different deployers from colliding
 - Only original deployer can recreate identical DAO addresses
 
 **Immutability:**
+
 - Manager's `daoFactory` address is immutable
 - Cannot be changed after Manager deployment
 - To change DAOFactory, must deploy new Manager implementation
 
 **Upgrade Path:**
+
 - Manager can be upgraded to new implementation
 - New implementation can reference new DAOFactory
 - Existing DAOs unaffected (already deployed)
@@ -512,7 +525,7 @@ When upgrading an existing Manager deployment to V3:
 # Step 1: Deploy new V3 implementations
 source .env
 export NETWORK=mainnet
-yarn deploy:v3-upgrade
+yarn prepare:v3-upgrade
 
 # Step 2: Upgrade the Manager proxy to the new implementation
 # (Use your preferred governance/multisig tool to call manager.upgradeTo(newManagerImpl))

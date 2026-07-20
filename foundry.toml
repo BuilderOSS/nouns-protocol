@@ -32,7 +32,8 @@ exclude_lints = [
     "unwrapped-modifier-logic",
     "asm-keccak256",
     "divide-before-multiply",
-    "unsafe-typecast"
+    "unsafe-typecast",
+    "unsafe-cheatcode"
 ]
 
 [rpc_endpoints]

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.35;
 
-import "forge-std/Script.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 import { DeployHelpers } from "./DeployHelpers.sol";
@@ -92,7 +92,8 @@ contract DeployV3Upgrade is Script, DeployConstants {
 
         vm.startBroadcast(deployerAddress);
 
-        // Deploy DAOFactory via CREATE3 for cross-chain deterministic DAO deployments
+        // Prepare upgrade artifacts only. Production upgrade execution remains a separate multisig/governance step.
+        // Deploy DAOFactory via CREATE3 for cross-chain deterministic DAO deployments.
         // DAOFactory acts as the canonical deployer, enabling identical DAO addresses across chains
         // despite different Manager addresses. Bound to this specific Manager proxy.
         address daoFactory = DeployHelpers.deployViaCreate3(
@@ -143,7 +144,8 @@ contract DeployV3Upgrade is Script, DeployConstants {
             _deriveSalt(deploySalt, MANAGER_IMPL_SALT)
         );
 
-        // NOTE: the following upgrade steps are commented out because they are only needed for testnet, on mainnet the upgrade is done via multisigs
+        // NOTE: this script intentionally does not execute the upgrade. On production, run these calls through the
+        // configured multisig/governance owner path after reviewing the generated artifact.
         // managerProxy.upgradeTo(newManagerImpl);
         // managerProxy.registerUpgrade(tokenImpl, newTokenImpl);
         // managerProxy.registerUpgrade(metadataRendererImpl, newMetadataRendererImpl);
@@ -153,9 +155,12 @@ contract DeployV3Upgrade is Script, DeployConstants {
 
         vm.stopBroadcast();
 
-        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version3_upgrade.txt"));
+        string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".version3_prepare_upgrade.txt"));
 
         vm.writeFile(filePath, "");
+        vm.writeLine(filePath, "Upgrade Executed: false");
+        vm.writeLine(filePath, "Execution Path: multisig/governance");
+        vm.writeLine(filePath, "Next Step: execute upgradeTo/registerUpgrade through the configured owner path");
         vm.writeLine(filePath, string(abi.encodePacked("Deploy Salt: ", bytes32ToString(deploySalt))));
         vm.writeLine(filePath, string(abi.encodePacked("DAO Factory: ", addressToString(daoFactory))));
         vm.writeLine(filePath, string(abi.encodePacked("Old Token implementation: ", addressToString(tokenImpl))));

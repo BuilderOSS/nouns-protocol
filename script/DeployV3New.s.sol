@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.35;
 
-import "forge-std/Script.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 import { DeployHelpers } from "./DeployHelpers.sol";

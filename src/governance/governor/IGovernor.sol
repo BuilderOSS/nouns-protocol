@@ -234,7 +234,27 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
         returns (bytes32);
 
     /// @notice Creates a proposal from msg.sender backed by offchain signer sponsorships
-    /// @param proposerSignatures The proposer signatures
+    /// @dev CRITICAL: Signatures MUST be sorted by signer address in ascending order
+    ///
+    ///      Gas Warning: All signatures are validated (~30k gas each) BEFORE threshold check.
+    ///      If combined votes don't meet threshold, gas is wasted. Pre-validate voting power!
+    ///
+    ///      Requirements:
+    ///      - At least one signature required
+    ///      - Maximum 16 signers (MAX_PROPOSAL_SIGNERS)
+    ///      - Signers MUST be sorted ascending: signers[i].address < signers[i+1].address
+    ///      - Proposer (msg.sender) cannot also be a signer
+    ///      - Combined voting power (proposer + signers) must exceed proposal threshold
+    ///
+    ///      Example sorting (JavaScript):
+    ///      ```javascript
+    ///      const signers = [...]; // Array of {address, signature}
+    ///      const sorted = signers.sort((a, b) =>
+    ///        a.address.toLowerCase().localeCompare(b.address.toLowerCase())
+    ///      );
+    ///      ```
+    ///
+    /// @param proposerSignatures The proposer signatures (MUST BE SORTED BY SIGNER ADDRESS)
     /// @param targets The target addresses to call
     /// @param values The ETH values of each call
     /// @param calldatas The calldata of each call
@@ -264,8 +284,29 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     ) external returns (bytes32);
 
     /// @notice Updates a signed proposal with signer approvals
+    /// @dev CRITICAL: Signatures MUST be sorted by signer address in ascending order
+    ///
+    ///      Gas Warning: All signatures are validated (~30k gas each) BEFORE threshold check.
+    ///      If combined votes don't meet threshold, gas is wasted. Pre-validate voting power!
+    ///
+    ///      Requirements:
+    ///      - At least one signature required
+    ///      - Maximum 16 signers (MAX_PROPOSAL_SIGNERS)
+    ///      - Signers MUST be sorted ascending: signers[i].address < signers[i+1].address
+    ///      - Proposer (msg.sender) cannot also be a signer
+    ///      - Combined voting power (proposer + signers) must exceed proposal threshold
+    ///      - Proposal must be in updatable period
+    ///
+    ///      Example sorting (JavaScript):
+    ///      ```javascript
+    ///      const signers = [...]; // Array of {address, signature}
+    ///      const sorted = signers.sort((a, b) =>
+    ///        a.address.toLowerCase().localeCompare(b.address.toLowerCase())
+    ///      );
+    ///      ```
+    ///
     /// @param proposalId The proposal ID to update
-    /// @param proposerSignatures The proposer signatures
+    /// @param proposerSignatures The proposer signatures (MUST BE SORTED BY SIGNER ADDRESS)
     /// @param targets The target addresses to call
     /// @param values The ETH values of each call
     /// @param calldatas The calldata of each call

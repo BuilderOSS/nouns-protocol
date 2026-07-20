@@ -102,6 +102,7 @@ contract MerklePropertyIPFS is IMerklePropertyIPFS, PropertyIPFS {
         _setAttributes(_params.tokenId, _params.attributes);
     }
 
+    /// @notice Validates that attributes are valid for the current property configuration
     /// @dev Validates that Merkle-proved attributes are renderable against current property configuration
     /// @param _tokenId The token ID (for error messages)
     /// @param _attributes The attributes to validate

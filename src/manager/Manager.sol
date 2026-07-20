@@ -151,6 +151,11 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         GovParams calldata _govParams,
         bytes32 _deploySalt
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
+        // Validate DAOFactory binding for clear error messages
+        // This prevents confusing UNAUTHORIZED errors from DAOFactory if binding is wrong
+        // Gas cost: ~2,600 gas per deployment for improved UX
+        _validateDAOFactory(daoFactory);
+
         return _deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt);
     }
 
@@ -492,7 +497,14 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     }
 
     /// @notice Validates that the DAOFactory is deployed and bound to this Manager proxy
-    /// @dev Constructors must use _validateDAOFactoryContract instead because address(this) is the implementation there.
+    /// @dev This function provides explicit binding validation with clear error messages.
+    ///      It is intentionally NOT called in the constructor because address(this) would
+    ///      be the implementation address, not the proxy address that the factory is bound to.
+    ///      Constructors must use _validateDAOFactoryContract instead.
+    ///
+    ///      Design decision: This validation is called in deployDeterministic for better UX
+    ///      (clear INVALID_FACTORY_BINDING errors) at the cost of ~2,600 gas per deployment.
+    ///      Wrong bindings would otherwise fail at DAOFactory with UNAUTHORIZED error.
     /// @param _daoFactory The DAOFactory address to validate
     // forge-lint: disable-next-line(mixed-case-function)
     function _validateDAOFactory(address _daoFactory) internal view {
@@ -504,7 +516,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         }
     }
 
-    /// @dev Validates that a DAOFactory contract is deployed and exposes the expected interface.
+    /// @notice Validates that a DAOFactory contract is deployed and exposes the expected interface
+    /// @dev This function only validates contract existence and interface, not binding to this Manager
     /// @param _daoFactory The DAOFactory address to validate
     function _validateDAOFactoryContract(address _daoFactory) private view {
         if (_daoFactory.code.length == 0) {
@@ -514,8 +527,10 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         _getFactoryManager(_daoFactory);
     }
 
-    /// @dev Helper function to read factory binding and validate interface support.
+    /// @notice Reads the manager address bound to a DAOFactory contract
+    /// @dev Helper function to read factory binding and validate interface support
     /// @param _factory The factory address to check
+    /// @return boundManager The address of the manager bound to the factory
     function _getFactoryManager(address _factory) private view returns (address boundManager) {
         (bool success, bytes memory data) = _factory.staticcall(abi.encodeWithSelector(IDAOFactory.manager.selector));
 

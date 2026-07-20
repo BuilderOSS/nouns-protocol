@@ -7,7 +7,6 @@ import { MetadataRendererTypesV2 } from "../src/token/metadata/types/MetadataRen
 
 import { Base64URIDecoder } from "./utils/Base64URIDecoder.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import "forge-std/console2.sol";
 
 contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
     function _tokenAddressString() internal view returns (string memory) {

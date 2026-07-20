@@ -9,7 +9,6 @@ import { MockImpl } from "./utils/mocks/MockImpl.sol";
 import { Token } from "../src/token/Token.sol";
 import { Auction } from "../src/auction/Auction.sol";
 import { DAOFactory } from "../src/factory/DAOFactory.sol";
-import { IDAOFactory } from "../src/factory/IDAOFactory.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { Treasury } from "../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
@@ -200,7 +199,7 @@ contract ManagerTest is NounsBuilderTest {
         new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, address(mockImpl));
     }
 
-    function testRevert_DeployDeterministicWithWrongFactoryBindingUnauthorized() public {
+    function testRevert_DeployDeterministicWithWrongFactoryBinding() public {
         address wrongBoundManager = address(0xBEEF);
         address wrongFactory = address(new DAOFactory(wrongBoundManager));
         address newManagerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, wrongFactory));
@@ -213,7 +212,7 @@ contract ManagerTest is NounsBuilderTest {
         setMockAuctionParams();
         setMockGovParams();
 
-        vm.expectRevert(IDAOFactory.UNAUTHORIZED.selector);
+        vm.expectRevert(abi.encodeWithSelector(Manager.INVALID_FACTORY_BINDING.selector, wrongFactory, address(manager), wrongBoundManager));
         manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
     }
 

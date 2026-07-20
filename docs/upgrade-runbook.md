@@ -53,10 +53,10 @@ cast storage $MANAGER_PROXY 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920
 source .env
 export NETWORK=<network>
 export DEPLOY_SALT=<your_salt>
-yarn deploy:v3-upgrade
+yarn prepare:v3-upgrade
 ```
 
-Record outputs from `deploys/*.txt` and update `addresses/<chainid>.json` manually.
+Record outputs from `deploys/*.version3_prepare_upgrade.txt` and update `addresses/<chainid>.json` manually. This command prepares upgrade artifacts only; upgrade execution remains a separate manager-owner transaction.
 
 **Note:** V2 deployment commands (`yarn deploy:v2-upgrade`) have been removed. All new deployments should use V3.
 

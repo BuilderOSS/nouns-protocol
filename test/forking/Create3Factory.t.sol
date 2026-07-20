@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { ICREATE3Factory } from "create3-factory/ICREATE3Factory.sol";
 import { DeployHelpers } from "../../script/DeployHelpers.sol";
 

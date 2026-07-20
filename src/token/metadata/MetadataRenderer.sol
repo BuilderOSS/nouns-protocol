@@ -138,6 +138,7 @@ contract MetadataRenderer is
         _addProperties(_names, _items, _ipfsGroup);
     }
 
+    // solhint-disable-next-line function-max-lines
     function _addProperties(string[] calldata _names, ItemParam[] calldata _items, IPFSGroup calldata _ipfsGroup) internal {
         // Cache the existing amount of IPFS data stored
         uint256 dataLength = ipfsData.length;
@@ -324,7 +325,7 @@ contract MetadataRenderer is
 
     /// @dev Generates a psuedo-random seed for a token id
     function _generateSeed(uint256 _tokenId) private view returns (uint256) {
-        return uint256(keccak256(abi.encode(_tokenId, blockhash(block.number), block.coinbase, block.timestamp)));
+        return uint256(keccak256(abi.encode(_tokenId, blockhash(block.number - 1), block.prevrandao, block.timestamp)));
     }
 
     /// @dev Encodes the reference URI of an item

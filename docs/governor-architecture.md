@@ -56,7 +56,9 @@ Notes:
   - the proposal has no signers, or
   - the proposer independently met proposal threshold at creation time.
 - `updateProposalBySigs` is the update path for signed proposals; it accepts a fresh signer set (which need not match the original) and re-checks the combined threshold.
-- Signer arrays are strict ordered (cheap validation); frontend must sort before submit.
+- Signer arrays are strict ordered (ascending by address, no duplicates); frontend MUST sort before submit.
+  This is enforced via cheap ordering check before expensive signature verification (~30k gas per signature).
+  See `docs/governor-proposal-lifecycle.md` "Signature Ordering Requirements" for sorting examples and gas implications.
 - Signed proposals cap signer sponsorship to 16 addresses.
 - Signature revocation by hash is intentionally omitted; replay protection relies on nonces + deadlines.
 

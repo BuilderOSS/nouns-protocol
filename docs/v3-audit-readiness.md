@@ -81,6 +81,17 @@ Reference architecture:
 - All vote weight queries use original creation timestamp, NOT update timestamp
 - Prevents proposers from gaming the system by updating to capture favorable snapshots
 
+### NFT Metadata Randomness
+
+- **MetadataRenderer** and **PropertyIPFS** use improved entropy sources for attribute generation:
+  - `blockhash(block.number - 1)` - Uses previous block hash (not current, which is always 0)
+  - `block.prevrandao` - Post-Merge RANDAO beacon (more manipulation-resistant than `block.coinbase`)
+  - `block.timestamp` - Block timestamp
+  - `tokenId` - Unique token identifier
+- Combined entropy provides sufficient randomness for pseudo-random NFT trait assignment
+- Seeds are deterministic per token (same tokenId always produces same traits)
+- Manipulation resistance: Cannot predict attributes before previous block is mined
+
 ---
 
 ## Manager & Deployment Security
@@ -401,9 +412,10 @@ manager = Manager(
 - [ ] Record all addresses in `deploys/<chainid>.version3_new.txt`
 - [ ] Update `addresses/<chainid>.json` with deployed addresses
 
-### Existing Manager Upgrade (`yarn deploy:v3-upgrade`)
+### Existing Manager Upgrade Preparation (`yarn prepare:v3-upgrade`)
 
-- [ ] Deploy new implementations
+- [ ] Prepare/deploy new implementation artifacts
+- [ ] Confirm generated artifact says `Upgrade Executed: false`
 - [ ] Verify new Manager implementation has correct `builderRewardsRecipient` immutable
 - [ ] Execute `Manager.upgradeTo(newManagerImpl)` via manager owner
 - [ ] Verify Manager upgrade successful

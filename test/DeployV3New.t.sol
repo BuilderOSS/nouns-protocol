@@ -76,7 +76,8 @@ contract DeployV3NewTest is Test, DeployConstants {
         address predictedDAOFactory = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, DAO_FACTORY_SALT), broadcaster);
         address predictedTokenImpl = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, TOKEN_IMPL_SALT), broadcaster);
         address predictedMetadataRendererImpl = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, METADATA_RENDERER_IMPL_SALT), broadcaster);
-        address predictedMerklePropertyMetadataImpl = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT), broadcaster);
+        address predictedMerklePropertyMetadataImpl =
+            DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT), broadcaster);
         address predictedAuctionImpl = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, AUCTION_IMPL_SALT), broadcaster);
         address predictedTreasuryImpl = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, TREASURY_IMPL_SALT), broadcaster);
         address predictedGovernorImpl = DeployHelpers.predictCreate3Address(_deriveSalt(deploySalt, GOVERNOR_IMPL_SALT), broadcaster);

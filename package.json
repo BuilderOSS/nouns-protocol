@@ -42,7 +42,7 @@
     "prepublishOnly": "rm -rf ./dist && forge clean && mkdir -p ./dist/artifacts && yarn build && cp -R src dist && cp -R addresses dist",
     "generate:interfaces": "forge script script/GetInterfaceIds.s.sol:GetInterfaceIds -vvvvv",
     "deploy:dao": "source .env && forge script script/DeployNewDAO.s.sol:SetupDaoScript --private-key $PRIVATE_KEY --broadcast --rpc-url $NETWORK -vvvv",
-    "deploy:v3-upgrade": "source .env && forge script script/DeployV3Upgrade.s.sol:DeployV3Upgrade --private-key $PRIVATE_KEY --rpc-url $NETWORK --broadcast --verify",
+    "prepare:v3-upgrade": "source .env && forge script script/DeployV3Upgrade.s.sol:DeployV3Upgrade --private-key $PRIVATE_KEY --rpc-url $NETWORK --broadcast --verify",
     "deploy:v3-new": "source .env && forge script script/DeployV3New.s.sol:DeployV3New --private-key $PRIVATE_KEY --rpc-url $NETWORK --broadcast --verify --slow",
     "deploy:erc721-redeem-minter": "source .env && forge script script/DeployERC721RedeemMinter.s.sol:DeployContracts --private-key $PRIVATE_KEY --rpc-url $NETWORK --broadcast --verify",
     "deploy:merkle-property": "source .env && forge script script/DeployMerkleProperty.s.sol:DeployMerkleProperty --private-key $PRIVATE_KEY --rpc-url $NETWORK --broadcast --verify",

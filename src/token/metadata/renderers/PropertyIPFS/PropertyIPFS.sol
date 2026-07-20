@@ -131,6 +131,7 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
         _addProperties(_names, _items, _ipfsGroup);
     }
 
+    // solhint-disable-next-line function-max-lines
     function _addProperties(string[] calldata _names, ItemParam[] calldata _items, IPFSGroup calldata _ipfsGroup) internal {
         PropertyIPFSStorage storage $ = _getPropertyIPFSStorage();
 
