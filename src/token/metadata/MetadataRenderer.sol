@@ -162,6 +162,12 @@ contract MetadataRenderer is
             }
         }
 
+        // If adding new properties, ensure they will have items
+        // (Without items, properties would cause division by zero during minting)
+        if (numNewProperties > 0 && numNewItems == 0) {
+            revert PROPERTY_HAS_NO_ITEMS(numStoredProperties, _names[0]);
+        }
+
         unchecked {
             // Check if not too many items are stored
             if (numStoredProperties + numNewProperties > 15) {
@@ -214,6 +220,14 @@ contract MetadataRenderer is
                 // Store the new item's name and reference slot
                 newItem.name = _items[i].name;
                 newItem.referenceSlot = uint16(dataLength);
+            }
+
+            // Validate all newly-added properties have at least one item
+            // This prevents division by zero during token minting (line 254: seed % numItems)
+            for (uint256 i = numStoredProperties; i < properties.length; ++i) {
+                if (properties[i].items.length == 0) {
+                    revert PROPERTY_HAS_NO_ITEMS(i, properties[i].name);
+                }
             }
         }
     }

@@ -8,6 +8,8 @@ import { IManager, Manager } from "../src/manager/Manager.sol";
 import { MockImpl } from "./utils/mocks/MockImpl.sol";
 import { Token } from "../src/token/Token.sol";
 import { Auction } from "../src/auction/Auction.sol";
+import { DAOFactory } from "../src/factory/DAOFactory.sol";
+import { IDAOFactory } from "../src/factory/IDAOFactory.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { Treasury } from "../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
@@ -164,6 +166,16 @@ contract ManagerTest is NounsBuilderTest {
         vm.stopPrank();
     }
 
+    function testRevert_DeployWithEmptyFounderArray() public {
+        IManager.FounderParams[] memory emptyFounders = new IManager.FounderParams[](0);
+        setMockTokenParams();
+        setMockAuctionParams();
+        setMockGovParams();
+
+        vm.expectRevert(IManager.FOUNDER_REQUIRED.selector);
+        manager.deploy(emptyFounders, tokenParams, auctionParams, govParams);
+    }
+
     function test_DeployDeterministicMatchesPrediction() public {
         setMockFounderParams();
         setMockTokenParams();
@@ -181,6 +193,28 @@ contract ManagerTest is NounsBuilderTest {
         assertEq(address(auction), predictedAuction);
         assertEq(address(treasury), predictedTreasury);
         assertEq(address(governor), predictedGovernor);
+    }
+
+    function testRevert_ManagerConstructorWithNonFactoryContract() public {
+        vm.expectRevert(abi.encodeWithSelector(Manager.INVALID_FACTORY_CONTRACT.selector, address(mockImpl)));
+        new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, address(mockImpl));
+    }
+
+    function testRevert_DeployDeterministicWithWrongFactoryBindingUnauthorized() public {
+        address wrongBoundManager = address(0xBEEF);
+        address wrongFactory = address(new DAOFactory(wrongBoundManager));
+        address newManagerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, wrongFactory));
+
+        vm.prank(zoraDAO);
+        manager.upgradeTo(newManagerImpl);
+
+        setMockFounderParams();
+        setMockTokenParams();
+        setMockAuctionParams();
+        setMockGovParams();
+
+        vm.expectRevert(IDAOFactory.UNAUTHORIZED.selector);
+        manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
     }
 
     function test_PredictDeterministicAddressesChangesWithSalt() public {
@@ -289,6 +323,47 @@ contract ManagerTest is NounsBuilderTest {
 
         vm.expectRevert();
         manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, DEFAULT_DEPLOY_SALT);
+    }
+
+    function test_PredictionConsistentBeforeAndAfterDeploy() public {
+        setMockFounderParams();
+        setMockTokenParams();
+        setMockAuctionParams();
+        setMockGovParams();
+
+        address deployer = address(this);
+        bytes32 salt = keccak256("PREDICTION_STABILITY_TEST");
+
+        // Predict addresses BEFORE deployment
+        (address predictedToken, address predictedMetadata, address predictedAuction, address predictedTreasury, address predictedGovernor) =
+            manager.predictDeterministicAddresses(deployer, salt);
+
+        // Deploy the DAO
+        (address token, address metadata, address auction, address treasury, address governor) =
+            manager.deployDeterministic(foundersArr, tokenParams, auctionParams, govParams, salt);
+
+        // Predict addresses AFTER deployment (should be the same)
+        (
+            address predictedTokenAfter,
+            address predictedMetadataAfter,
+            address predictedAuctionAfter,
+            address predictedTreasuryAfter,
+            address predictedGovernorAfter
+        ) = manager.predictDeterministicAddresses(deployer, salt);
+
+        // Verify predictions didn't change
+        assertEq(predictedToken, predictedTokenAfter, "Token prediction should not change after deployment");
+        assertEq(predictedMetadata, predictedMetadataAfter, "Metadata prediction should not change after deployment");
+        assertEq(predictedAuction, predictedAuctionAfter, "Auction prediction should not change after deployment");
+        assertEq(predictedTreasury, predictedTreasuryAfter, "Treasury prediction should not change after deployment");
+        assertEq(predictedGovernor, predictedGovernorAfter, "Governor prediction should not change after deployment");
+
+        // Verify deployed addresses match predictions
+        assertEq(token, predictedToken, "Deployed token should match prediction");
+        assertEq(metadata, predictedMetadata, "Deployed metadata should match prediction");
+        assertEq(auction, predictedAuction, "Deployed auction should match prediction");
+        assertEq(treasury, predictedTreasury, "Deployed treasury should match prediction");
+        assertEq(governor, predictedGovernor, "Deployed governor should match prediction");
     }
 
     function test_FundRecoveryScenario() public {

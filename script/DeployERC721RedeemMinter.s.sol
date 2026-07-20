@@ -5,10 +5,11 @@ import "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 import { DeployHelpers } from "./DeployHelpers.sol";
+import { DeployConstants } from "./DeployConstants.sol";
 import { Manager } from "../src/manager/Manager.sol";
 import { ERC721RedeemMinter } from "../src/minters/ERC721RedeemMinter.sol";
 
-contract DeployContracts is Script {
+contract DeployContracts is Script, DeployConstants {
     using Strings for uint256;
 
     string configFile;
@@ -46,9 +47,12 @@ contract DeployContracts is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        address redeemMinter = address(
-            new ERC721RedeemMinter{ salt: _deriveSalt(deploySalt, keccak256("ERC721_REDEEM_MINTER")) }(Manager(managerAddress), protocolRewards)
+        bytes32 redeemMinterSalt = _deriveSalt(deploySalt, ERC721_REDEEM_MINTER_SALT);
+        address predictedRedeemMinter = DeployHelpers.predictCreate3Address(redeemMinterSalt, deployerAddress);
+        address redeemMinter = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(ERC721RedeemMinter).creationCode, abi.encode(Manager(managerAddress), protocolRewards)), redeemMinterSalt
         );
+        require(redeemMinter == predictedRedeemMinter, "ERC721RedeemMinter address mismatch");
 
         vm.stopBroadcast();
 
@@ -63,9 +67,5 @@ contract DeployContracts is Script {
 
     function addressToString(address _addr) private pure returns (string memory) {
         return DeployHelpers.addressToString(_addr);
-    }
-
-    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
-        return keccak256(abi.encode(deploySalt, label));
     }
 }

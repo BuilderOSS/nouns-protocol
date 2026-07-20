@@ -97,6 +97,8 @@ No new fields are inserted into legacy `Proposal` storage layout.
 
 - `castVoteBySig` ABI changed from `(v, r, s)` to `(nonce, deadline, sig)`.
 - Integrations relying on the old selector must migrate to the new signature payload and calldata format.
+- **CRITICAL**: Old V2 signatures are cryptographically invalid and cannot be reused. The EIP-712 VOTE_TYPEHASH now includes the nonce parameter. All vote signatures must be regenerated using the new typehash.
+- **Rationale**: This change enables ERC-1271 smart wallet support and provides explicit replay protection through nonce management.
 
 ## Core Functions
 

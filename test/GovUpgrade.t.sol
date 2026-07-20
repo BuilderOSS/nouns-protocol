@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import { GovTest } from "./Gov.t.sol";
+import { DAOFactory } from "../src/factory/DAOFactory.sol";
 import { Governor } from "../src/governance/governor/Governor.sol";
 import { IGovernor } from "../src/governance/governor/IGovernor.sol";
 import { Manager } from "../src/manager/Manager.sol";
@@ -367,7 +368,8 @@ contract GovUpgrade is GovTest {
 
     function _deployMockWithLegacyGovernor() internal {
         governorImpl = address(new LegacyGovernorV2(address(manager)));
-        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, create3Factory));
+        address legacyDAOFactory = address(new DAOFactory(address(manager)));
+        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, legacyDAOFactory));
 
         vm.prank(zoraDAO);
         manager.upgradeTo(managerImpl);

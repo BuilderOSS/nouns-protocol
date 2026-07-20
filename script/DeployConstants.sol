@@ -26,10 +26,10 @@ abstract contract DeployConstants {
     bytes32 internal constant ERC721_REDEEM_MINTER_SALT = keccak256("ERC721_REDEEM_MINTER");
     bytes32 internal constant L2_MIGRATION_DEPLOYER_SALT = keccak256("L2_MIGRATION_DEPLOYER");
 
-    /// @notice Derives the final CREATE2 salt from deploy salt and label
+    /// @notice Derives the final deterministic deployment salt from deploy salt and label
     /// @param deploySalt The base deployment salt (from DEPLOY_SALT env var)
     /// @param label The contract-specific salt label
-    /// @return The derived salt for CREATE2 deployment
+    /// @return The derived salt for deterministic deployment
     function _deriveSalt(bytes32 deploySalt, bytes32 label) internal pure returns (bytes32) {
         return keccak256(abi.encode(deploySalt, label));
     }

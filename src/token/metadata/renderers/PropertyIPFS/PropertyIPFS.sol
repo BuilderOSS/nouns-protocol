@@ -45,7 +45,7 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
     ///                          STORAGE                         ///
     ///                                                          ///
 
-    function _getPropertyIPFSStorage() private pure returns (PropertyIPFSStorage storage $) {
+    function _getPropertyIPFSStorage() internal pure returns (PropertyIPFSStorage storage $) {
         assembly {
             $.slot := PropertyIPFSStorageLocation
         }
@@ -157,6 +157,12 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
             }
         }
 
+        // If adding new properties, ensure they will have items
+        // (Without items, properties would cause division by zero during minting)
+        if (numNewProperties > 0 && numNewItems == 0) {
+            revert PROPERTY_HAS_NO_ITEMS(numStoredProperties, _names[0]);
+        }
+
         unchecked {
             // Check if not too many items are stored
             if (numStoredProperties + numNewProperties > 15) {
@@ -209,6 +215,14 @@ contract PropertyIPFS is IPropertyIPFS, BaseMetadata, UUPS {
                 // Store the new item's name and reference slot
                 newItem.name = _items[i].name;
                 newItem.referenceSlot = uint16(dataLength);
+            }
+
+            // Validate all newly-added properties have at least one item
+            // This prevents division by zero during token minting (line 254: seed % numItems)
+            for (uint256 i = numStoredProperties; i < $._properties.length; ++i) {
+                if ($._properties[i].items.length == 0) {
+                    revert PROPERTY_HAS_NO_ITEMS(i, $._properties[i].name);
+                }
             }
         }
     }

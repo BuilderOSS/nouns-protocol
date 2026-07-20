@@ -5,9 +5,10 @@ import "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 import { DeployHelpers } from "./DeployHelpers.sol";
+import { DeployConstants } from "./DeployConstants.sol";
 import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
 
-contract DeployContracts is Script {
+contract DeployContracts is Script, DeployConstants {
     using Strings for uint256;
 
     string configFile;
@@ -45,8 +46,12 @@ contract DeployContracts is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        address merkleReserveMinter =
-            address(new MerkleReserveMinter{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_RESERVE_MINTER")) }(managerAddress, protocolRewards));
+        bytes32 merkleReserveMinterSalt = _deriveSalt(deploySalt, MERKLE_RESERVE_MINTER_SALT);
+        address predictedMerkleReserveMinter = DeployHelpers.predictCreate3Address(merkleReserveMinterSalt, deployerAddress);
+        address merkleReserveMinter = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(MerkleReserveMinter).creationCode, abi.encode(managerAddress, protocolRewards)), merkleReserveMinterSalt
+        );
+        require(merkleReserveMinter == predictedMerkleReserveMinter, "MerkleReserveMinter address mismatch");
 
         vm.stopBroadcast();
 
@@ -61,9 +66,5 @@ contract DeployContracts is Script {
 
     function addressToString(address _addr) private pure returns (string memory) {
         return DeployHelpers.addressToString(_addr);
-    }
-
-    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
-        return keccak256(abi.encode(deploySalt, label));
     }
 }

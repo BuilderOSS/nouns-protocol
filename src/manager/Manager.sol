@@ -33,6 +33,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
     error INVALID_IMPLEMENTATION();
     error DAO_FACTORY_NOT_DEPLOYED();
     error FACTORY_DEPLOYMENT_FAILED();
+    error INVALID_FACTORY_CONTRACT(address providedAddress);
+    error INVALID_FACTORY_BINDING(address factory, address expectedManager, address actualManager);
 
     ///                                                          ///
     ///                          IMMUTABLES                      ///
@@ -81,8 +83,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         address _builderRewardsRecipient,
         address _daoFactory
     ) payable initializer {
-        // Validate that DAOFactory is deployed
-        _validateDAOFactory(_daoFactory);
+        // Constructors run in the implementation context, so they can verify the factory contract but not proxy binding.
+        _validateDAOFactoryContract(_daoFactory);
 
         tokenImpl = _tokenImpl;
         metadataImpl = _metadataImpl;
@@ -149,9 +151,6 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         GovParams calldata _govParams,
         bytes32 _deploySalt
     ) external returns (address token, address metadata, address auction, address treasury, address governor) {
-        // Validate that DAOFactory is deployed
-        _validateDAOFactory(daoFactory);
-
         return _deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt);
     }
 
@@ -369,6 +368,7 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         AuctionParams calldata _auctionParams,
         GovParams calldata _govParams
     ) internal returns (address token, address metadata, address auction, address treasury, address governor) {
+        if (_founderParams.length == 0) revert FOUNDER_REQUIRED();
         address founder = _founderParams[0].wallet;
         if (founder == address(0)) revert FOUNDER_REQUIRED();
 
@@ -491,16 +491,39 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
         governor = _predictProxyAddress(_deriveSalt(_deployer, _deploySalt, GOVERNOR_SALT_LABEL));
     }
 
-    /// @notice Validates that the DAOFactory is deployed
-    /// @dev Ensures the factory exists before attempting deterministic deployments
-    ///      The factory must have bytecode at daoFactory address.
-    ///      Access control is enforced by the DAOFactory itself via its manager immutable.
+    /// @notice Validates that the DAOFactory is deployed and bound to this Manager proxy
+    /// @dev Constructors must use _validateDAOFactoryContract instead because address(this) is the implementation there.
     /// @param _daoFactory The DAOFactory address to validate
     // forge-lint: disable-next-line(mixed-case-function)
     function _validateDAOFactory(address _daoFactory) internal view {
+        _validateDAOFactoryContract(_daoFactory);
+
+        address boundManager = _getFactoryManager(_daoFactory);
+        if (boundManager != address(this)) {
+            revert INVALID_FACTORY_BINDING(_daoFactory, address(this), boundManager);
+        }
+    }
+
+    /// @dev Validates that a DAOFactory contract is deployed and exposes the expected interface.
+    /// @param _daoFactory The DAOFactory address to validate
+    function _validateDAOFactoryContract(address _daoFactory) private view {
         if (_daoFactory.code.length == 0) {
             revert DAO_FACTORY_NOT_DEPLOYED();
         }
+
+        _getFactoryManager(_daoFactory);
+    }
+
+    /// @dev Helper function to read factory binding and validate interface support.
+    /// @param _factory The factory address to check
+    function _getFactoryManager(address _factory) private view returns (address boundManager) {
+        (bool success, bytes memory data) = _factory.staticcall(abi.encodeWithSelector(IDAOFactory.manager.selector));
+
+        if (!success || data.length != 32) {
+            revert INVALID_FACTORY_CONTRACT(_factory);
+        }
+
+        boundManager = abi.decode(data, (address));
     }
 
     /// @notice Predicts the address of a CREATE3-deployed proxy via DAOFactory

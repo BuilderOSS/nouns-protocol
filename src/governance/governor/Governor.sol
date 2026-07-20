@@ -29,6 +29,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     ///                         IMMUTABLES                       ///
     ///                                                          ///
     /// @notice The EIP-712 typehash to vote with a signature
+    /// @dev BREAKING CHANGE V2→V3: Added nonce parameter for replay protection
+    /// Old V2 signatures using the previous typehash are cryptographically invalid
     bytes32 public immutable VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 proposalId,uint256 support,uint256 nonce,uint256 deadline)");
 
     /// @notice The EIP-712 typehash to sponsor proposal submission
@@ -181,11 +183,21 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     }
 
     /// @notice Creates a proposal backed by signer approvals
-    /// @param _proposerSignatures The proposer signatures
+    /// @dev IMPORTANT: Validate signers have voting power BEFORE calling to avoid gas waste
+    ///      All signatures are validated (~30k gas each) before the threshold check
+    ///      If combined votes don't meet threshold, the function reverts AFTER validation
+    /// @dev Requirements:
+    ///      - At least one signature required
+    ///      - Maximum 16 signers (MAX_PROPOSAL_SIGNERS)
+    ///      - Signatures MUST be sorted ascending by signer address
+    ///      - Proposer cannot also be a signer
+    ///      - Combined voting power (proposer + signers) must exceed proposal threshold
+    /// @param _proposerSignatures Array of signatures from token holders supporting the proposal
     /// @param _targets The target addresses to call
     /// @param _values The ETH values of each call
     /// @param _calldatas The calldata of each call
     /// @param _description The proposal description
+    /// @return proposalId The ID of the created proposal
     function proposeBySigs(
         ProposerSignature[] memory _proposerSignatures,
         address[] memory _targets,
@@ -272,13 +284,22 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     }
 
     /// @notice Updates a signed proposal with signer approvals
-    /// @param _proposalId The proposal ID
-    /// @param _proposerSignatures The proposer signatures
+    /// @dev IMPORTANT: Validate signers have voting power BEFORE calling to avoid gas waste
+    ///      All signatures are validated (~30k gas each) before the threshold check
+    ///      If combined votes don't meet threshold, the function reverts AFTER validation
+    /// @dev Requirements:
+    ///      - Maximum 16 signers (MAX_PROPOSAL_SIGNERS)
+    ///      - Signatures MUST be sorted ascending by signer address
+    ///      - Proposer cannot also be a signer
+    ///      - Combined voting power (proposer + signers) must exceed proposal threshold
+    /// @param _proposalId The proposal ID to update
+    /// @param _proposerSignatures Array of signatures from token holders supporting the update
     /// @param _targets The target addresses
     /// @param _values The ETH values
     /// @param _calldatas The calldatas
     /// @param _description The proposal description
     /// @param _updateMessage The message explaining the update
+    /// @return newProposalId The ID of the updated proposal
     function updateProposalBySigs(
         bytes32 _proposalId,
         ProposerSignature[] memory _proposerSignatures,
@@ -320,6 +341,23 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     }
 
     /// @notice Casts a signed vote
+    /// @dev BREAKING CHANGE (V2 → V3): Function signature AND EIP-712 typehash changed
+    ///
+    /// V2: castVoteBySig(voter, proposalId, support, deadline, v, r, s)
+    /// V3: castVoteBySig(voter, proposalId, support, nonce, deadline, sig)
+    ///
+    /// CRITICAL: Old V2 signatures are INVALID and cannot be reused
+    /// - V2 VOTE_TYPEHASH did not include nonce
+    /// - V3 VOTE_TYPEHASH includes nonce for replay protection
+    /// - Signers MUST create NEW signatures using the V3 typehash
+    ///
+    /// Migration: Users must re-sign votes with:
+    /// 1. Updated function signature (add nonce parameter, use bytes sig)
+    /// 2. Updated EIP-712 domain/typehash (includes nonce in struct)
+    /// 3. Fetch current nonce from nonces[voter] before signing
+    ///
+    /// Rationale: ERC-1271 smart wallet support, explicit replay protection
+    ///
     /// @param _voter The voter address
     /// @param _proposalId The proposal id
     /// @param _support The support value (0 = Against, 1 = For, 2 = Abstain)

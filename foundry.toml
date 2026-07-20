@@ -1,4 +1,5 @@
 [profile.default]
+# CI pins foundry-rs/foundry-toolchain to Foundry v1.5.1; keep this compiler config fixed with that toolchain.
 solc_version = '0.8.35'
 libs = ['lib']
 optimizer = true

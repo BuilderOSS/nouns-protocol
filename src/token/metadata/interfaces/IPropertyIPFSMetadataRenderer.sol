@@ -60,6 +60,9 @@ interface IPropertyIPFSMetadataRenderer is IBaseMetadata, MetadataRendererTypesV
     ///
     error TOO_MANY_PROPERTIES();
 
+    /// @dev Reverts if a property has no items (would cause division by zero during minting)
+    error PROPERTY_HAS_NO_ITEMS(uint256 propertyId, string propertyName);
+
     ///                                                          ///
     ///                           FUNCTIONS                      ///
     ///                                                          ///

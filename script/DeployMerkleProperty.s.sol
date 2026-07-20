@@ -5,9 +5,10 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 import { DeployHelpers } from "./DeployHelpers.sol";
+import { DeployConstants } from "./DeployConstants.sol";
 import { MerklePropertyIPFS } from "../src/token/metadata/renderers/MerklePropertyIPFS/MerklePropertyIPFS.sol";
 
-contract DeployMerkleProperty is Script {
+contract DeployMerkleProperty is Script, DeployConstants {
     using Strings for uint256;
 
     string configFile;
@@ -37,13 +38,18 @@ contract DeployMerkleProperty is Script {
 
         vm.startBroadcast(deployerAddress);
 
-        address merkleMetadataImpl =
-            address(new MerklePropertyIPFS{ salt: _deriveSalt(deploySalt, keccak256("MERKLE_PROPERTY_IPFS")) }(_getKey("Manager")));
+        bytes32 merklePropertySalt = _deriveSalt(deploySalt, MERKLE_PROPERTY_IPFS_SALT);
+        address predictedMerkleMetadataImpl = DeployHelpers.predictCreate3Address(merklePropertySalt, deployerAddress);
+        address merkleMetadataImpl = DeployHelpers.deployViaCreate3(
+            abi.encodePacked(type(MerklePropertyIPFS).creationCode, abi.encode(_getKey("Manager"))), merklePropertySalt
+        );
+        require(merkleMetadataImpl == predictedMerkleMetadataImpl, "MerkleProperty address mismatch");
 
         vm.stopBroadcast();
 
         string memory filePath = string(abi.encodePacked("deploys/", chainID.toString(), ".merkle_property.txt"));
 
+        vm.writeFile(filePath, "");
         vm.writeLine(filePath, string(abi.encodePacked("MerklePropertyImpl: ", addressToString(address(merkleMetadataImpl)))));
 
         console2.log("~~~~~~~~~~ MERKLE PROPERTY IMPL ~~~~~~~~~~~");
@@ -52,9 +58,5 @@ contract DeployMerkleProperty is Script {
 
     function addressToString(address _addr) private pure returns (string memory) {
         return DeployHelpers.addressToString(_addr);
-    }
-
-    function _deriveSalt(bytes32 deploySalt, bytes32 label) private pure returns (bytes32) {
-        return keccak256(abi.encode(deploySalt, label));
     }
 }

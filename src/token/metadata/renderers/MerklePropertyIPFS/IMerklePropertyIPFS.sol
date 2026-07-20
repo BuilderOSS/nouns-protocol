@@ -20,6 +20,15 @@ interface IMerklePropertyIPFS {
     }
 
     ///                                                          ///
+    ///                          EVENTS                          ///
+    ///                                                          ///
+
+    /// @notice Emitted when the attribute merkle root is updated
+    /// @param oldRoot The previous attribute merkle root
+    /// @param newRoot The new attribute merkle root
+    event AttributeMerkleRootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot);
+
+    ///                                                          ///
     ///                          ERRORs                          ///
     ///                                                          ///
 
@@ -28,6 +37,19 @@ interface IMerklePropertyIPFS {
     /// @param proof The merkle proof
     /// @param merkleRoot The merkle root
     error INVALID_MERKLE_PROOF(uint256 tokenId, bytes32[] proof, bytes32 merkleRoot);
+
+    /// @notice Invalid attribute property count
+    /// @param tokenId The token ID
+    /// @param claimedCount The claimed property count from attributes
+    /// @param actualCount The actual property count in the renderer
+    error INVALID_ATTRIBUTE_PROPERTY_COUNT(uint256 tokenId, uint256 claimedCount, uint256 actualCount);
+
+    /// @notice Invalid attribute item index
+    /// @param tokenId The token ID
+    /// @param propertyId The property ID
+    /// @param itemIndex The invalid item index
+    /// @param maxIndex The maximum valid index
+    error INVALID_ATTRIBUTE_ITEM_INDEX(uint256 tokenId, uint256 propertyId, uint256 itemIndex, uint256 maxIndex);
 
     ///                                                          ///
     ///                          FUNCTIONS                       ///

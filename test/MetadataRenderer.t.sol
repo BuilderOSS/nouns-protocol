@@ -372,4 +372,59 @@ contract PropertyMetadataTest is NounsBuilderTest, MetadataRendererTypesV1 {
             )
         );
     }
+
+    function testRevert_CannotAddPropertyWithoutItems() public {
+        // First, add an initial property with items (required for first property)
+        string[] memory names1 = new string[](1);
+        names1[0] = "initial-property";
+
+        ItemParam[] memory items1 = new ItemParam[](1);
+        items1[0] = ItemParam({ propertyId: 0, name: "initial-item", isNewProperty: true });
+
+        IPFSGroup memory ipfsGroup = IPFSGroup({ baseUri: "BASE_URI", extension: "EXTENSION" });
+
+        vm.prank(founder);
+        metadataRenderer.addProperties(names1, items1, ipfsGroup);
+
+        // Now try to add a second property WITHOUT any items
+        string[] memory names2 = new string[](1);
+        names2[0] = "property-without-items";
+
+        ItemParam[] memory items2 = new ItemParam[](0); // No items!
+
+        vm.prank(founder);
+        vm.expectRevert(abi.encodeWithSignature("PROPERTY_HAS_NO_ITEMS(uint256,string)", 1, "property-without-items"));
+        metadataRenderer.addProperties(names2, items2, ipfsGroup);
+    }
+
+    function testRevert_DeleteAndRecreateWithZeroItems() public {
+        // First, add an initial property with items
+        string[] memory names1 = new string[](1);
+        names1[0] = "initial-property";
+
+        ItemParam[] memory items1 = new ItemParam[](1);
+        items1[0] = ItemParam({ propertyId: 0, name: "initial-item", isNewProperty: true });
+
+        IPFSGroup memory ipfsGroup = IPFSGroup({ baseUri: "BASE_URI", extension: "EXTENSION" });
+
+        vm.prank(founder);
+        metadataRenderer.addProperties(names1, items1, ipfsGroup);
+
+        // Mint a token to verify things work
+        vm.prank(address(token));
+        bool response = metadataRenderer.onMinted(0);
+        assertTrue(response);
+
+        // Now try to delete and recreate with a property that has no items
+        // deleteAndRecreateProperties deletes everything, so numStoredProperties becomes 0
+        // This triggers the first validation check: ONE_PROPERTY_AND_ITEM_REQUIRED
+        string[] memory names2 = new string[](1);
+        names2[0] = "property-without-items";
+
+        ItemParam[] memory items2 = new ItemParam[](0); // No items!
+
+        vm.prank(founder);
+        vm.expectRevert(abi.encodeWithSignature("ONE_PROPERTY_AND_ITEM_REQUIRED()"));
+        metadataRenderer.deleteAndRecreateProperties(names2, items2, ipfsGroup);
+    }
 }

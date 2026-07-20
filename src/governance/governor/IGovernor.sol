@@ -293,6 +293,23 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     function castVoteWithReason(bytes32 proposalId, uint256 support, string memory reason) external returns (uint256);
 
     /// @notice Casts a signed vote
+    /// @dev BREAKING CHANGE (V2 → V3): Function signature AND EIP-712 typehash changed
+    ///
+    /// V2: castVoteBySig(voter, proposalId, support, deadline, v, r, s)
+    /// V3: castVoteBySig(voter, proposalId, support, nonce, deadline, sig)
+    ///
+    /// CRITICAL: Old V2 signatures are INVALID and cannot be reused
+    /// - V2 VOTE_TYPEHASH did not include nonce
+    /// - V3 VOTE_TYPEHASH includes nonce for replay protection
+    /// - Signers MUST create NEW signatures using the V3 typehash
+    ///
+    /// Migration: Users must re-sign votes with:
+    /// 1. Updated function signature (add nonce parameter, use bytes sig)
+    /// 2. Updated EIP-712 domain/typehash (includes nonce in struct)
+    /// 3. Fetch current nonce from nonces[voter] before signing
+    ///
+    /// Rationale: ERC-1271 smart wallet support, explicit replay protection
+    ///
     /// @param voter The voter address
     /// @param proposalId The proposal id
     /// @param support The support value (0 = Against, 1 = For, 2 = Abstain)

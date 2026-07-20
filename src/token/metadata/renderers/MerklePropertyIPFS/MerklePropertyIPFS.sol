@@ -59,7 +59,10 @@ contract MerklePropertyIPFS is IMerklePropertyIPFS, PropertyIPFS {
     /// @param attributeMerkleRoot_ The new attribute merkle root
     function setAttributeMerkleRoot(bytes32 attributeMerkleRoot_) external onlyOwner {
         MerkleStorage storage $ = _getMerkleStorage();
+        bytes32 oldRoot = $._attributeMerkleRoot;
         $._attributeMerkleRoot = attributeMerkleRoot_;
+
+        emit AttributeMerkleRootUpdated(oldRoot, attributeMerkleRoot_);
     }
 
     ///                                                          ///
@@ -87,13 +90,56 @@ contract MerklePropertyIPFS is IMerklePropertyIPFS, PropertyIPFS {
     function _setAttributesWithProof(SetAttributeParams calldata _params) private {
         MerkleStorage storage $ = _getMerkleStorage();
 
-        // Verify the attributes and tokenId are valid
+        // Step 1: Verify Merkle proof
         if (!MerkleProof.verify(_params.proof, $._attributeMerkleRoot, keccak256(abi.encodePacked(_params.tokenId, _params.attributes)))) {
             revert INVALID_MERKLE_PROOF(_params.tokenId, _params.proof, $._attributeMerkleRoot);
         }
 
-        // Set the attributes
+        // Step 2: Validate attributes are renderable
+        _validateAttributes(_params.tokenId, _params.attributes);
+
+        // Step 3: Set the attributes (now guaranteed to be valid)
         _setAttributes(_params.tokenId, _params.attributes);
+    }
+
+    /// @dev Validates that Merkle-proved attributes are renderable against current property configuration
+    /// @param _tokenId The token ID (for error messages)
+    /// @param _attributes The attributes to validate
+    function _validateAttributes(uint256 _tokenId, uint16[16] calldata _attributes) private view {
+        PropertyIPFSStorage storage $ = _getPropertyIPFSStorage();
+
+        // Get claimed property count from attributes[0]
+        uint256 claimedPropertyCount = _attributes[0];
+
+        // Get actual property count from renderer
+        uint256 actualPropertyCount = $._properties.length;
+
+        // Validate property count is non-zero
+        if (claimedPropertyCount == 0) {
+            revert INVALID_ATTRIBUTE_PROPERTY_COUNT(_tokenId, 0, actualPropertyCount);
+        }
+
+        // Validate property count is within bounds (max 15 properties) - check this before mismatch
+        if (claimedPropertyCount > 15) {
+            revert INVALID_ATTRIBUTE_PROPERTY_COUNT(_tokenId, claimedPropertyCount, 15);
+        }
+
+        // Validate property count matches current configuration
+        if (claimedPropertyCount != actualPropertyCount) {
+            revert INVALID_ATTRIBUTE_PROPERTY_COUNT(_tokenId, claimedPropertyCount, actualPropertyCount);
+        }
+
+        // Validate each item index is within bounds for its property
+        unchecked {
+            for (uint256 i = 0; i < claimedPropertyCount; ++i) {
+                uint256 itemIndex = _attributes[i + 1];
+                uint256 itemsLength = $._properties[i].items.length;
+
+                if (itemIndex >= itemsLength) {
+                    revert INVALID_ATTRIBUTE_ITEM_INDEX(_tokenId, i, itemIndex, itemsLength - 1);
+                }
+            }
+        }
     }
 
     /// @notice If the contract implements an interface
