@@ -3,7 +3,7 @@
 **Branch**: [`feat/updatable-proposals`](https://github.com/BuilderOSS/nouns-protocol/tree/feat/updatable-proposals)
 **Repository**: https://github.com/BuilderOSS/nouns-protocol
 **Date**: July 2026
-**Status**: ✅ **All Actionable Findings Resolved (15/15 = 100%)**
+**Status**: ✅ **All Actionable Findings Resolved (16/16 = 100%)**
 
 ---
 
@@ -18,24 +18,25 @@ This consolidated internal security audit represents the validation and resoluti
 
 ### Key Metrics
 
-- **Total Unique Findings:** 20 (after deduplication)
+- **Total Unique Findings:** 19 (after deduplication)
 - **Critical Severity:** 2 (both ✅ RESOLVED)
 - **High Severity:** 3 (all ✅ RESOLVED)
-- **Medium Severity:** 8 (all ✅ RESOLVED)
+- **Medium Severity:** 7 (all ✅ RESOLVED)
 - **Low Severity:** 4 (all ✅ RESOLVED)
-- **Informational:** 3 (deferred as known technical debt)
+- **Informational / Rejected:** 3 (1 deferred technical debt, 2 rejected findings)
 
-**Implementation Rate:** 17/17 actionable findings = **100% IMPLEMENTED** ✅
+**Implementation Rate:** 16/16 actionable findings = **100% IMPLEMENTED** ✅
 
 ### Current Risk Assessment
 
 - **Before Fixes:** High - Deployment blockers and metadata corruption risks
 - **After Fixes:** Low - All actionable findings resolved
-- **Production Readiness:** ✅ **100% READY**
+- **Production Readiness:** ✅ **Ready for staged production deployment**
 
 ### Ship Readiness Checklist
 
-- ✅ Fresh V3 deployment (all blockers resolved, 614 tests pass)
+- ✅ Fresh V3 deployment (all blockers resolved, 630 tests pass)
+- ✅ Fork testing (39 tests pass, 0 failures)
 - ✅ Metadata safety (comprehensive validation implemented)
 - ✅ Deterministic deployment (comprehensive tests, binding validation)
 - ✅ CI integrity (lockfile + pinning enforced)
@@ -47,7 +48,7 @@ This consolidated internal security audit represents the validation and resoluti
 
 1. [Critical Findings (2)](#critical-findings)
 2. [High Findings (3)](#high-findings)
-3. [Medium Findings (8)](#medium-findings)
+3. [Medium Findings (7)](#medium-findings)
 4. [Low Findings (4)](#low-findings)
 5. [Informational (3)](#informational--rejected-findings)
 6. [Appendix A: Commit Timeline](#appendix-a-commit-timeline)
@@ -120,7 +121,7 @@ function _validateDAOFactoryContract(address _daoFactory) private view {
 ```bash
 forge test --match-path 'test/DeployV3New.t.sol' -vvv
 yarn test:unit
-# Result: All tests pass (614 tests, 0 failures)
+# Result: All tests pass (630 tests, 0 failures)
 ```
 
 ---
@@ -365,6 +366,7 @@ forge test --match-path 'test/MetadataRenderer.t.sol' -vvv
 #### Description
 
 `DeployHelpers.deployViaCreate3()` used `msg.sender` internally to verify deployed addresses against predictions. However, in Foundry broadcast context:
+
 - `msg.sender` is the **script contract address** (the harness)
 - The actual deployer calling CREATE3Factory is the **broadcaster address** (from private key)
 
@@ -395,6 +397,7 @@ CREATE3 addresses depend on the actual deployer (broadcaster), NOT the script co
 #### Implementation Details
 
 **Before (Vulnerable):**
+
 ```solidity
 function deployViaCreate3(bytes memory creationCode, bytes32 salt) internal returns (address deployed) {
     deployed = ICREATE3Factory(CREATE3_FACTORY).deploy(salt, creationCode);
@@ -406,6 +409,7 @@ function deployViaCreate3(bytes memory creationCode, bytes32 salt) internal retu
 ```
 
 **After (Fixed):**
+
 ```solidity
 function deployViaCreate3(
     bytes memory creationCode,
@@ -422,6 +426,7 @@ function deployViaCreate3(
 ```
 
 **Simplified Prediction Function:**
+
 ```solidity
 // Before: Manual CREATE3 address calculation (error-prone, duplicated logic)
 function predictCreate3Address(bytes32 salt, address deployer) internal pure returns (address) {
@@ -442,6 +447,7 @@ function predictCreate3Address(bytes32 salt, address deployer) internal view ret
 #### Tests Added
 
 **1. `test_Create3BroadcastUsesCorrectDeployer()`**: Proves broadcast context behavior
+
 ```solidity
 // Test validates that during vm.startBroadcast(realDeployer):
 // - CREATE3Factory receives msg.sender = realDeployer (not harness)
@@ -450,6 +456,7 @@ function predictCreate3Address(bytes32 salt, address deployer) internal view ret
 ```
 
 **2. `test_DeployViaCreate3WithExplicitDeployer()`**: Tests wrapper with explicit parameter
+
 ```solidity
 // Test validates deployViaCreate3(creationCode, salt, deployer) correctly:
 // - Accepts explicit deployer parameter
@@ -458,6 +465,7 @@ function predictCreate3Address(bytes32 salt, address deployer) internal view ret
 ```
 
 **3. `test_DeployViaCreate3MultipleDeploymentsWithCorrectDeployer()`**: Validates multiple deployments
+
 ```solidity
 // Test validates multiple deployments with same deployer:
 // - All use consistent deployer namespace
@@ -468,6 +476,7 @@ function predictCreate3Address(bytes32 salt, address deployer) internal view ret
 #### Call Sites Updated
 
 **24 call sites updated across:**
+
 - `script/DeployERC721RedeemMinter.s.sol:52` - Added `deployerAddress`
 - `script/DeployMerkleProperty.s.sol:43` - Added `deployerAddress`
 - `script/DeployMerkleReserveMinter.s.sol:51` - Added `deployerAddress`
@@ -486,7 +495,7 @@ forge test --match-path 'test/DeployHelpers.t.sol' -vvv
 # Run all tests to ensure no regressions in call sites
 yarn test:unit
 
-# Result: All 669 tests pass, including 3 new regression tests
+# Result: All 630 tests pass, including 3 new regression tests
 ```
 
 ---
@@ -657,7 +666,7 @@ git diff --check
 
 #### Description
 
-`castVoteBySig` signature changed from V2 `(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)` to V3 `(uint256 proposalId, uint8 support, uint256 nonce, uint256 deadline, bytes signature)`.
+`castVoteBySig` signature changed from V2 `(address voter, bytes32 proposalId, uint256 support, uint256 deadline, uint8 v, bytes32 r, bytes32 s)` to V3 `(address voter, bytes32 proposalId, uint256 support, uint256 nonce, uint256 deadline, bytes signature)`.
 
 The EIP-712 VOTE_TYPEHASH also changed, making old signatures invalid. Existing clients, relayers, prepared calldata, or integrations using old selector will fail after upgrade.
 
@@ -681,7 +690,7 @@ The EIP-712 VOTE_TYPEHASH also changed, making old signatures invalid. Existing 
 
 #### Implementation Details
 
-**Rationale**: Backward compatibility would not preserve old signatures because they're bound to old EIP-712 typehash. Project chose explicit migration documentation over compatibility overloads.
+**Rationale**: Backward compatibility would not preserve old signatures because they're bound to the old EIP-712 typehash and lack the V3 nonce field. Project chose explicit migration documentation over compatibility overloads.
 
 #### Documentation Added
 
@@ -689,15 +698,15 @@ The EIP-712 VOTE_TYPEHASH also changed, making old signatures invalid. Existing 
 // VOTE_TYPEHASH documentation:
 /// @notice The EIP-712 typehash for voting signatures
 /// @dev Changed in V3 from V2 signature format:
-/// V2: VOTE_TYPEHASH = keccak256("Vote(uint256 proposalId,uint8 support)")
-/// V3: VOTE_TYPEHASH = keccak256("Vote(address voter,uint256 proposalId,uint8 support,uint256 nonce,uint256 deadline)")
+/// V2: VOTE_TYPEHASH did not include nonce
+/// V3: VOTE_TYPEHASH = keccak256("Vote(address voter,bytes32 proposalId,uint256 support,uint256 nonce,uint256 deadline)")
 /// This means V2 signatures are invalid in V3 and cannot be replayed
 
 // castVoteBySig NatSpec:
 /// @notice Cast a vote using a signature
 /// @dev Breaking change from V2: signature format and typehash changed
-/// V2: castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)
-/// V3: castVoteBySig(uint256 proposalId, uint8 support, uint256 nonce, uint256 deadline, bytes signature)
+/// V2: castVoteBySig(voter, proposalId, support, deadline, v, r, s)
+/// V3: castVoteBySig(voter, proposalId, support, nonce, deadline, sig)
 /// Old signatures cannot be used and must be regenerated with new typehash
 ```
 
@@ -912,7 +921,7 @@ forge test --match-path 'test/DeployV3New.t.sol' -vvv
 forge test --match-path 'test/DeployHelpers.t.sol' -vvv
 forge test --match-path 'test/Manager.t.sol' --match-test 'Deterministic' -vvv
 yarn test:unit
-# Result: 614 tests pass, 0 failures - includes full deterministic deployment coverage
+# Result: 630 tests pass, 0 failures - includes full deterministic deployment coverage
 ```
 
 #### Coverage
@@ -985,9 +994,9 @@ with:
   version: nightly
 
 # After:
-uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
-uses: foundry-rs/foundry-toolchain@e1e05d0e66622fce2e07ec55c9d8f8e1ba20063d # v1.2.0
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
 with:
   version: v1.5.1
 ```
@@ -1007,7 +1016,7 @@ forge --version
 # Output: forge 1.5.1-stable
 yarn test:unit
 git diff --check
-# Result: 614 tests pass, no whitespace issues
+# Result: 630 tests pass, no whitespace issues
 ```
 
 #### Residual Risk
@@ -1219,6 +1228,7 @@ yarn test:unit
 #### Original Concern
 
 `MerklePropertyIPFS.setAttributes()` allows setting attributes for tokens **before they are minted**. Since `PropertyIPFS.onMinted()` skips attribute generation when `tokenAttributes[0] != 0`, this could theoretically allow:
+
 - Setting attributes for nonexistent tokens
 - Creating valid `tokenURI()` responses for unminted tokens
 - Bypassing the normal minting flow
@@ -1228,17 +1238,20 @@ yarn test:unit
 After careful analysis, this is **required functionality**, not a security vulnerability. Here's why:
 
 **1. Reveal Mechanics Require Pre-Mint:**
+
 - Minting generates random attributes UNLESS attributes are already set
 - For reveal mechanics, attributes MUST be committed before mint
 - Otherwise, minting would overwrite reveal attributes with random values
 
 **2. Security Controls Are In Place:**
+
 - Only attributes in the **owner-controlled Merkle tree** can be set
 - Requires valid Merkle proof against `attributeMerkleRoot` (set by owner)
 - No arbitrary attribute setting possible
 - Owner controls which attribute combinations are valid
 
 **3. Legitimate Use Cases:**
+
 - **Merkle allowlists with predetermined traits**: "Wallet X can mint token with specific attributes"
 - **Reveal mechanics**: Commit attributes on-chain, then mint later
 - **Gas optimization**: Batch attribute setting separately from minting
@@ -1249,6 +1262,7 @@ After careful analysis, this is **required functionality**, not a security vulne
 **Original Assessment (if it were a bug):** Medium - Could enable unauthorized token metadata
 
 **Actual Assessment:** Low - Intentional design with proper security controls
+
 - Owner controls which attributes are valid (via Merkle root)
 - No state corruption or fund loss
 - Enables legitimate reveal workflows
@@ -1269,6 +1283,7 @@ After careful analysis, this is **required functionality**, not a security vulne
 No code changes were needed - the behavior is correct as designed. Added documentation to clarify intent:
 
 **MerklePropertyIPFS.setAttributes() NatSpec:**
+
 ```solidity
 /// @notice Sets the attributes for a token using a Merkle proof
 /// @param _params The parameters containing tokenId, attributes, and Merkle proof
@@ -1285,6 +1300,7 @@ function setAttributes(SetAttributeParams calldata _params) external {
 ```
 
 **PropertyIPFS.onMinted() Documentation:**
+
 ```solidity
 // If the attributes are already set from _setAttributes they don't need to be generated
 // IMPORTANT: This intentionally allows pre-mint attribute setting for Merkle-based reveal workflows.
@@ -1300,6 +1316,7 @@ if (tokenAttributes[0] != 0) return true;
 #### Tests Added
 
 **1. `test_SetAttributesBeforeMint_EnablesTokenURI()`:**
+
 ```solidity
 // Test validates that setting attributes before minting:
 // - Allows tokenURI() to render for unminted token
@@ -1308,6 +1325,7 @@ if (tokenAttributes[0] != 0) return true;
 ```
 
 **2. `test_MintingWithPreSetAttributes_PreservesAttributes()`:**
+
 ```solidity
 // Test validates that minting with pre-set attributes:
 // - onMinted() skips pseudorandom generation
@@ -1319,6 +1337,7 @@ if (tokenAttributes[0] != 0) return true;
 #### Code Evidence
 
 **Security Control (MerklePropertyIPFS.sol:90-103):**
+
 ```solidity
 function _setAttributesWithProof(SetAttributeParams calldata _params) private {
     // Step 1: Verify Merkle proof (SECURITY GATE)
@@ -1335,6 +1354,7 @@ function _setAttributesWithProof(SetAttributeParams calldata _params) private {
 ```
 
 **Attribute Preservation (PropertyIPFS.sol:244-254):**
+
 ```solidity
 function onMinted(uint256 _tokenId) external override returns (bool) {
     PropertyStorage storage $ = _getPropertyStorage();
@@ -1526,10 +1546,10 @@ This section documents the key commits that resolved audit findings in chronolog
 
 ### Phase 4: Post-Audit Security Hardening (July 2026)
 
-| Commit                                                                                                    | Date        | Summary                                                                                 |
-| --------------------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
-| [`846bdfc`](https://github.com/BuilderOSS/nouns-protocol/commit/846bdfcfe8094175b542435d1c2dc8ac1a48048d) | Jul 20 2026 | fix: CREATE3 deployment namespace verification with explicit deployer parameter         |
-| [`17650bd`](https://github.com/BuilderOSS/nouns-protocol/commit/17650bd731c76cef48763334509ff47b4513fb2e) | Jul 20 2026 | docs: document pre-mint attribute setting behavior in MerklePropertyIPFS                |
+| Commit                                                                                                    | Date        | Summary                                                                         |
+| --------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------- |
+| [`846bdfc`](https://github.com/BuilderOSS/nouns-protocol/commit/846bdfcfe8094175b542435d1c2dc8ac1a48048d) | Jul 20 2026 | fix: CREATE3 deployment namespace verification with explicit deployer parameter |
+| [`17650bd`](https://github.com/BuilderOSS/nouns-protocol/commit/17650bd731c76cef48763334509ff47b4513fb2e) | Jul 20 2026 | docs: document pre-mint attribute setting behavior in MerklePropertyIPFS        |
 
 **Findings Resolved:**
 
@@ -1545,7 +1565,7 @@ This section documents the key commits that resolved audit findings in chronolog
 ```bash
 # Run complete unit test suite
 yarn test:unit
-# Expected: 614 tests passed, 0 failed
+# Expected: 630 tests passed, 0 failed
 
 # Alternative: Run with Forge directly
 forge test
@@ -1637,10 +1657,9 @@ node --version
 
 ```bash
 # Run storage layout verification
-yarn test:storage
+yarn storage-inspect:check
 
-# Or with Forge directly
-forge test --match-path 'test/storage/*.t.sol' -vvv
+# The storage inspection script compares generated layouts for Manager, Auction, Governor, Treasury, and Token.
 ```
 
 ### Gas Report
@@ -1658,7 +1677,7 @@ forge test --gas-report --match-contract 'Governor'
 
 ## Conclusion
 
-This internal security audit represents a comprehensive validation of 8 audit iterations and over 600 test cases. The protocol has successfully addressed **all 15 actionable findings** with robust implementations and comprehensive test coverage.
+This internal security audit represents a comprehensive validation of 8 audit iterations and over 600 test cases. The protocol has successfully addressed **all 16 actionable findings** with robust implementations and comprehensive test coverage.
 
 ### Key Achievements
 
@@ -1670,9 +1689,10 @@ This internal security audit represents a comprehensive validation of 8 audit it
 
 ### Production Readiness
 
-**Ship Readiness: 100%** ✅
+**Ship Readiness:** ✅ **Ready for staged production deployment**
 
-- Fresh V3 deployment: ✅ READY (all blockers resolved, 614 tests pass)
+- Fresh V3 deployment: ✅ READY (all blockers resolved, 630 tests pass)
+- Fork testing: ✅ READY (39 tests pass, 0 failures)
 - Metadata safety: ✅ READY (comprehensive validation implemented)
 - Deterministic deployment: ✅ READY (comprehensive tests, binding validation)
 - CI integrity: ✅ READY (lockfile + pinning enforced)
@@ -1685,28 +1705,30 @@ This internal security audit represents a comprehensive validation of 8 audit it
 
 ### Recommended Next Steps
 
-Before production deployment on mainnet, consider:
+Before production deployment on mainnet, proceed through:
 
-1. **Fork Testing**: Run fork tests on target chains to validate:
-   - CREATE3Factory availability at expected address
-   - Actual vs predicted addresses match
-   - Chain-specific gas/behavior assumptions
-   - DAOFactory binding on real deployments
-
-2. **Integration Testing**: Test with external integrators:
-   - Update SDK documentation for V3 breaking changes
-   - Provide migration guide for `castVoteBySig` changes
-   - Verify signature ordering documentation is clear
-
-3. **Final Review**: Conduct final review of:
+1. **Final Review**: Conduct final review of:
    - Deployment scripts and procedures
    - Upgrade procedures documentation
    - Emergency response procedures
+   - SDK and integrator migration documentation for V3 breaking changes
+
+2. **Testnet Deployments**: Deploy and validate on target testnets:
+   - Actual vs predicted addresses match
+   - DAOFactory binding on real deployments
+   - `castVoteBySig` migration behavior works end-to-end
+   - Signature ordering documentation is clear for integrators
+
+3. **Mainnet Deployments**: Execute staged mainnet deployments:
+   - Confirm deployment artifacts match reviewed outputs
+   - Verify contract ownership and upgrade registrations
+   - Run post-deployment smoke checks and monitoring
 
 ---
 
 **Report Version**: V4 Consolidated → Internal Security Audit
 **Generated**: July 20, 2026
-**Test Results**: 614 tests passed, 0 failed
-**Implementation Rate**: 15/15 actionable findings = 100% ✅
-**Status**: ✅ **Ready for fork testing and staged production deployment**
+**Test Results**: 630 tests passed, 0 failed
+**Fork Test Results**: 39 tests passed, 0 failed
+**Implementation Rate**: 16/16 actionable findings = 100% ✅
+**Status**: ✅ **Ready for staged production deployment**
