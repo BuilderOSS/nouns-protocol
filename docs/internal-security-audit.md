@@ -27,10 +27,23 @@ This consolidated internal security audit represents the validation and resoluti
 
 **Implementation Rate:** 16/16 actionable findings = **100% IMPLEMENTED** ✅
 
+### Post-Audit Changes
+
+**Date:** July 21, 2026
+**Change:** Made `proposalUpdatablePeriod` configurable during DAO deployment
+
+- Added `proposalUpdatablePeriod` parameter to `GovParams` struct (previously hardcoded to 1 day)
+- New DAOs can configure this value during deployment (default: 1 day, range: 0-24 weeks)
+- Upgraded DAOs start with value = 0 (disabled), can enable via governance
+- **Risk Assessment:** Low - Non-breaking change, adds deployment flexibility
+- **Testing:** All 669 tests pass (630 unit + 39 fork tests)
+- **Commit:** `0342c83` - feat: make proposalUpdatablePeriod configurable during DAO deployment
+
 ### Current Risk Assessment
 
 - **Before Fixes:** High - Deployment blockers and metadata corruption risks
 - **After Fixes:** Low - All actionable findings resolved
+- **Post-Audit Changes:** Low risk - Deployment parameter configurability added
 - **Production Readiness:** ✅ **Ready for staged production deployment**
 
 ### Ship Readiness Checklist

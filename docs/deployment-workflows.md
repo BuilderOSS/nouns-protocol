@@ -76,6 +76,14 @@ Common env variables used by those sections:
   - Deterministic addresses depend on: deployer address, `DEPLOY_SALT`, and Manager's immutable implementation addresses.
   - Legacy `Manager.deploy(...)` remains for backward compatibility, but new integrations should use deterministic deploy.
   - Intended for controlled deployment/testing flows.
+  - **Governance Parameters:** Configured in the script via `GovParams` struct:
+    - `timelockDelay`: Time delay to execute queued transactions (default: 2 days)
+    - `votingDelay`: Time delay before voting starts (default: 1 day)
+    - `votingPeriod`: Duration of voting period (default: 1 week)
+    - `proposalThresholdBps`: Basis points of supply required to create proposals (default: 50 = 0.5%)
+    - `quorumThresholdBps`: Basis points of supply required for quorum (default: 1000 = 10%)
+    - `vetoer`: Address authorized to veto proposals (default: address(0) = no vetoer)
+    - `proposalUpdatablePeriod`: Time proposals are editable after creation (default: 1 day, range: 0-24 weeks)
 
 ## Cross-Chain Deterministic Deployments
 

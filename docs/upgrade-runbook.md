@@ -145,9 +145,10 @@ See:
 
 ### New DAOs (fresh deploy via Manager)
 
-- New governor proxies run `initialize` during `Manager.deploy`.
-- Governor defaults `_proposalUpdatablePeriod` to `1 day` at initialization.
-- If your deployment policy differs, include a follow-up governance/owner action to update `proposalUpdatablePeriod` after deploy.
+- New governor proxies run `initialize` during `Manager.deploy` or `Manager.deployDeterministic`.
+- `_proposalUpdatablePeriod` is configurable via `GovParams.proposalUpdatablePeriod` during deployment (default in scripts: `1 day`).
+- Valid range: `0` (disabled) to `MAX_PROPOSAL_UPDATABLE_PERIOD` (24 weeks).
+- If deployment uses a different value, it can be updated later via `updateProposalUpdatablePeriod()` governance proposal.
 
 ## Verification Checklist
 

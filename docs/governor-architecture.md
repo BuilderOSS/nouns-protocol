@@ -35,10 +35,12 @@ State transitions:
 
 Updates are disallowed once proposal is `Active`.
 
-Default on fresh governor initialization:
+Governor initialization (V3):
 
-- `proposalUpdatablePeriod = 1 day`
-- existing upgraded DAOs retain prior stored value unless explicitly updated
+- `proposalUpdatablePeriod` is now configurable during DAO deployment via `GovParams.proposalUpdatablePeriod`
+- Default value in deployment scripts: `1 day`
+- Valid range: `0` (disabled) to `MAX_PROPOSAL_UPDATABLE_PERIOD` (24 weeks)
+- Upgraded DAOs (V1/V2 → V3): Start with `proposalUpdatablePeriod = 0` (disabled), can enable via `updateProposalUpdatablePeriod()` governance proposal
 
 ## Signature Model
 
