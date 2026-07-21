@@ -294,7 +294,8 @@ contract CrossChainDeterminism is ViaIRTestHelper {
             votingPeriod: 1 weeks,
             proposalThresholdBps: 50,
             quorumThresholdBps: 1000,
-            vetoer: address(0)
+            vetoer: address(0),
+            proposalUpdatablePeriod: 1 days
         });
 
         // Actually deploy the DAO deterministically

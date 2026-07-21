@@ -350,7 +350,8 @@ contract Manager is IManager, VersionedContract, UUPS, Ownable, ManagerStorageV1
                 votingDelay: _govParams.votingDelay,
                 votingPeriod: _govParams.votingPeriod,
                 proposalThresholdBps: _govParams.proposalThresholdBps,
-                quorumThresholdBps: _govParams.quorumThresholdBps
+                quorumThresholdBps: _govParams.quorumThresholdBps,
+                proposalUpdatablePeriod: _govParams.proposalUpdatablePeriod
             });
 
         emit DAODeployed({ token: token, metadata: metadata, auction: auction, treasury: treasury, governor: governor });

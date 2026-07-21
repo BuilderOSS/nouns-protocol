@@ -45,7 +45,13 @@ contract SetupDaoScript is Script {
             IManager.AuctionParams({ duration: 24 hours, reservePrice: 0.01 ether, founderRewardRecipent: address(0xB0B), founderRewardBps: 20 });
 
         IManager.GovParams memory govParams = IManager.GovParams({
-            votingDelay: 2 days, votingPeriod: 2 days, proposalThresholdBps: 50, quorumThresholdBps: 1000, vetoer: address(0), timelockDelay: 2 days
+            votingDelay: 2 days,
+            votingPeriod: 2 days,
+            proposalThresholdBps: 50,
+            quorumThresholdBps: 1000,
+            vetoer: address(0),
+            timelockDelay: 2 days,
+            proposalUpdatablePeriod: 1 days // Standard default for new DAOs
         });
 
         IManager.FounderParams[] memory founders = new IManager.FounderParams[](1);

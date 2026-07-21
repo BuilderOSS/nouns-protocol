@@ -214,6 +214,7 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
     /// @param votingPeriod The voting period
     /// @param proposalThresholdBps The proposal threshold basis points
     /// @param quorumThresholdBps The quorum threshold basis points
+    /// @param proposalUpdatablePeriod The proposal updatable period
     function initialize(
         address treasury,
         address token,
@@ -221,7 +222,8 @@ interface IGovernor is IUUPS, IOwnable, IEIP712, GovernorTypesV1 {
         uint256 votingDelay,
         uint256 votingPeriod,
         uint256 proposalThresholdBps,
-        uint256 quorumThresholdBps
+        uint256 quorumThresholdBps,
+        uint256 proposalUpdatablePeriod
     ) external;
 
     /// @notice Creates a proposal

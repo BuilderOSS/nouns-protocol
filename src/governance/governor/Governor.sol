@@ -64,11 +64,11 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @notice The maximum voting period setting
     uint256 public immutable MAX_VOTING_PERIOD = 24 weeks;
 
+    /// @notice The minimum proposal updatable period setting
+    uint256 public immutable MIN_PROPOSAL_UPDATABLE_PERIOD = 0;
+
     /// @notice The maximum proposal updatable period setting
     uint256 public immutable MAX_PROPOSAL_UPDATABLE_PERIOD = 24 weeks;
-
-    /// @notice The default period a newly-created proposal is editable
-    uint256 public immutable DEFAULT_PROPOSAL_UPDATABLE_PERIOD = 1 days;
 
     /// @notice The maximum number of signer sponsors allowed per proposal
     uint256 public immutable MAX_PROPOSAL_SIGNERS = 16;
@@ -104,6 +104,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
     /// @param _votingPeriod The voting period
     /// @param _proposalThresholdBps The proposal threshold basis points
     /// @param _quorumThresholdBps The quorum threshold basis points
+    /// @param _proposalUpdatablePeriod The proposal updatable period
     function initialize(
         address _treasury,
         address _token,
@@ -111,7 +112,8 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         uint256 _votingDelay,
         uint256 _votingPeriod,
         uint256 _proposalThresholdBps,
-        uint256 _quorumThresholdBps
+        uint256 _quorumThresholdBps,
+        uint256 _proposalUpdatablePeriod
     ) external initializer {
         // Ensure the caller is the contract manager
         if (msg.sender != address(manager)) revert ONLY_MANAGER();
@@ -131,6 +133,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         if (_proposalThresholdBps >= _quorumThresholdBps) revert INVALID_PROPOSAL_THRESHOLD_BPS();
         if (_votingDelay < MIN_VOTING_DELAY || _votingDelay > MAX_VOTING_DELAY) revert INVALID_VOTING_DELAY();
         if (_votingPeriod < MIN_VOTING_PERIOD || _votingPeriod > MAX_VOTING_PERIOD) revert INVALID_VOTING_PERIOD();
+        if (_proposalUpdatablePeriod > MAX_PROPOSAL_UPDATABLE_PERIOD) revert INVALID_PROPOSAL_UPDATABLE_PERIOD();
 
         // Store the governor settings
         settings.treasury = Treasury(payable(_treasury));
@@ -139,7 +142,7 @@ contract Governor is IGovernor, VersionedContract, UUPS, Ownable, EIP712, Propos
         settings.votingPeriod = SafeCast.toUint48(_votingPeriod);
         settings.proposalThresholdBps = SafeCast.toUint16(_proposalThresholdBps);
         settings.quorumThresholdBps = SafeCast.toUint16(_quorumThresholdBps);
-        _proposalUpdatablePeriod = uint48(DEFAULT_PROPOSAL_UPDATABLE_PERIOD);
+        GovernorStorageV3._proposalUpdatablePeriod = uint48(_proposalUpdatablePeriod);
 
         // Initialize EIP-712 support
         __EIP712_init(string.concat(settings.token.symbol(), " GOV"), "1");

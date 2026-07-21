@@ -14,6 +14,25 @@ import { IManager } from "../../../src/manager/IManager.sol";
 import { ProposalHasher } from "../../../src/governance/governor/ProposalHasher.sol";
 
 /// @notice Test-only Governor fixture matching the pre-updatable-proposals storage shape.
+/// @dev IMPORTANT TESTING NOTE:
+///      This is a TEST MOCK simulating a V2 Governor, NOT the actual historical V2 implementation.
+///
+///      Why this mock accepts 8 parameters while real V2 only accepted 7:
+///      - Real V2 Governors were deployed using V2 Manager (7-parameter initialize)
+///      - Real V2 Governors will NEVER be deployed with V3 Manager during initial deployment
+///      - This mock exists to test UPGRADE scenarios: V2 → V3
+///      - For testing purposes, we deploy this mock using V3 Manager (8 parameters)
+///      - This allows us to test the upgrade path without maintaining old Manager code
+///
+///      Real-world scenario:
+///      - Existing V2 DAOs: Already initialized with 7 params (unaffected by V3 changes)
+///      - New V3 DAOs: Deployed with V3 Manager using 8 params (Governor.sol)
+///      - Upgrade path: V2 Governor → upgrade() → V3 Governor (storage preserved)
+///
+///      This mock simulates V2 by:
+///      - Only using GovernorStorageV1 and V2 (not V3)
+///      - Ignoring the proposalUpdatablePeriod parameter (returns 0)
+///      - Not implementing updatable proposal features
 contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStorageV1, GovernorStorageV2 {
     event ProposalCreated(
         bytes32 proposalId, address[] targets, uint256[] values, bytes[] calldatas, string description, bytes32 descriptionHash, Proposal proposal
@@ -51,6 +70,10 @@ contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStor
         manager = IManager(_manager);
     }
 
+    /// @notice Initialize the Governor (V2 simulation)
+    /// @dev Accepts 8 parameters for Manager V3 compatibility, but only uses first 7
+    ///      The 8th parameter (proposalUpdatablePeriod) is accepted but ignored because
+    ///      V2 Governors don't support updatable proposals. See contract-level docs for details.
     function initialize(
         address _treasury,
         address _token,
@@ -58,7 +81,8 @@ contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStor
         uint256 _votingDelay,
         uint256 _votingPeriod,
         uint256 _proposalThresholdBps,
-        uint256 _quorumThresholdBps
+        uint256 _quorumThresholdBps,
+        uint256 /* _proposalUpdatablePeriod */ // V3 Manager compatibility - not used in V2
     ) external initializer {
         if (msg.sender != address(manager)) revert ONLY_MANAGER();
         if (_treasury == address(0) || _token == address(0)) revert ADDRESS_ZERO();
@@ -198,6 +222,14 @@ contract LegacyGovernorV2 is UUPS, Ownable, EIP712, ProposalHasher, GovernorStor
 
     function treasury() external view returns (address) {
         return address(settings.treasury);
+    }
+
+    /// @notice Returns the proposal updatable period
+    /// @dev Always returns 0 for V2 Governors (updatable proposals not supported in V2)
+    ///      This getter is added for compatibility with V3 tests that check this value.
+    ///      Real V2 Governors don't have this method - it's added to this test mock only.
+    function proposalUpdatablePeriod() external pure returns (uint256) {
+        return 0;
     }
 
     function updateProposalThresholdBps(uint256 _newProposalThresholdBps) external onlyOwner {

@@ -211,7 +211,7 @@ contract NounsBuilderTest is Test {
     }
 
     function setMockGovParams() internal virtual {
-        setGovParams(2 days, 1 seconds, 1 weeks, 50, 1000, founder);
+        setGovParams(2 days, 1 seconds, 1 weeks, 50, 1000, founder, 1 days);
     }
 
     function setGovParams(
@@ -220,7 +220,8 @@ contract NounsBuilderTest is Test {
         uint256 _votingPeriod,
         uint256 _proposalThresholdBps,
         uint256 _quorumThresholdBps,
-        address _vetoer
+        address _vetoer,
+        uint256 _proposalUpdatablePeriod
     ) internal virtual {
         govParams = IManager.GovParams({
             timelockDelay: _timelockDelay,
@@ -228,7 +229,8 @@ contract NounsBuilderTest is Test {
             votingPeriod: _votingPeriod,
             proposalThresholdBps: _proposalThresholdBps,
             quorumThresholdBps: _quorumThresholdBps,
-            vetoer: _vetoer
+            vetoer: _vetoer,
+            proposalUpdatablePeriod: _proposalUpdatablePeriod
         });
     }
 

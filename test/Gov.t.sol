@@ -52,7 +52,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         setAuctionParams(0, 1 days, address(0), 0);
 
-        setGovParams(2 days, 1 days, 1 weeks, 25, 1000, founder);
+        setGovParams(2 days, 1 days, 1 weeks, 25, 1000, founder, 1 days);
 
         deploy(foundersArr, tokenParams, auctionParams, govParams);
 
@@ -79,7 +79,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         setAuctionParams(0, 1 days, address(0), 0);
 
-        setGovParams(2 days, 1 days, 1 weeks, 100, 1000, founder);
+        setGovParams(2 days, 1 days, 1 weeks, 100, 1000, founder, 1 days);
 
         deploy(foundersArr, tokenParams, auctionParams, govParams);
 
@@ -106,7 +106,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
 
         setAuctionParams(0, 1 days, address(0), 0);
 
-        setGovParams(2 days, 1 days, 1 weeks, 25, 1000, founder);
+        setGovParams(2 days, 1 days, 1 weeks, 25, 1000, founder, 1 days);
 
         deploy(foundersArr, tokenParams, auctionParams, govParams);
 
@@ -439,7 +439,7 @@ contract GovTest is NounsBuilderTest, GovernorTypesV1 {
         deployMock();
 
         vm.expectRevert(abi.encodeWithSignature("ALREADY_INITIALIZED()"));
-        governor.initialize(address(this), address(this), address(this), 0, 0, 0, 0);
+        governor.initialize(address(this), address(this), address(this), 0, 0, 0, 0, 0);
     }
 
     function testRevert_CannotReinitializeTreasury() public {
