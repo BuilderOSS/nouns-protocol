@@ -15,3 +15,4 @@
 ## Audit & Security
 
 - [`v3-audit-readiness`](./v3-audit-readiness.md): Comprehensive V3 audit checklist covering Governor enhancements, CREATE2/CREATE3 deterministic deployments, security invariants, test coverage, breaking changes, and operational rollout procedures.
+- [`internal-security-audit`](./internal-security-audit.md): Internal security audit findings, resolutions, and implementation tracking (100% finding implementation rate).

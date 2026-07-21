@@ -78,8 +78,8 @@ Common env variables used by those sections:
   - Intended for controlled deployment/testing flows.
   - **Governance Parameters:** Configured in the script via `GovParams` struct:
     - `timelockDelay`: Time delay to execute queued transactions (default: 2 days)
-    - `votingDelay`: Time delay before voting starts (default: 1 day)
-    - `votingPeriod`: Duration of voting period (default: 1 week)
+    - `votingDelay`: Time delay before voting starts (default: 2 days)
+    - `votingPeriod`: Duration of voting period (default: 2 days)
     - `proposalThresholdBps`: Basis points of supply required to create proposals (default: 50 = 0.5%)
     - `quorumThresholdBps`: Basis points of supply required for quorum (default: 1000 = 10%)
     - `vetoer`: Address authorized to veto proposals (default: address(0) = no vetoer)
