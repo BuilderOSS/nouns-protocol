@@ -5,7 +5,7 @@
   "ProtocolRewards": "0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B",
   "Manager": "0x9c51aa40551b35ab16d410adef9659ed3bcd8bd6",
   "ManagerImpl": "0xc05dafcc35f5087963ce2cb99ce2b6a5f116ab0b",
-  "WETH": "0x7b79995e5f793a07bc00c21412e50ecae098e7f9",
+  "WETH": "0x4200000000000000000000000000000000000006",
   "Auction": "0x6a6ec19cdb30e74ea19a9e269d6ca0dbad92d4d1",
   "Token": "0x0e7bbc0123f5a9d6526c44d58273a8889d6f35b0",
   "MetadataRenderer": "0x3c383f54a0024e840eb479f15926164d8f00e0a4",
