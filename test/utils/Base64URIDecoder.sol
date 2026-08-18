@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.35;
 
 /**
  * @dev Encode and decode base64 url
@@ -7,16 +7,14 @@ pragma solidity ^0.8.0;
  */
 library Base64URIDecoder {
     /**
-        @dev fast way to calculate this index table in python:
-               encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-               table = [None] * 256
-               for i in range(len(encode_table)): # len = 64
-                   table[ord(encode_table[i])] = bytes([i]).hex()
+     *     @dev fast way to calculate this index table in python:
+     *            encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+     * 256
+     *            for i in range(len(encode_table)): # len = 64
+     *                table[ord(encode_table[i])] = bytes([i]).hex()
      */
-    bytes internal constant DECODING_TABLE =
-        hex"0000000000000000000000000000000000000000000000000000000000000000"
-        hex"00000000000000000000003e0000003f3435363738393a3b3c3d000000000000"
-        hex"00000102030405060708090a0b0c0d0e0f101112131415161718190000000000"
+    bytes internal constant DECODING_TABLE = hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000003e0000003f3435363738393a3b3c3d000000000000" hex"00000102030405060708090a0b0c0d0e0f101112131415161718190000000000"
         hex"001a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000";
 
     function decodeURI(bytes memory expectedPrefix, string memory base64Url) internal pure returns (string memory) {
@@ -77,21 +75,20 @@ library Base64URIDecoder {
             for {
                 let dataPtr := data
                 let endPtr := add(data, mload(data))
-            } lt(dataPtr, endPtr) {
-
-            } {
+            } lt(dataPtr, endPtr) { } {
                 // Advance 4 bytes
                 dataPtr := add(dataPtr, 4)
                 let input := mload(dataPtr)
 
                 // write 3 bytes
-                let output := add(
+                let output :=
                     add(
-                        shl(18, and(mload(add(tablePtr, and(shr(24, input), 0xFF))), 0xFF)),
-                        shl(12, and(mload(add(tablePtr, and(shr(16, input), 0xFF))), 0xFF))
-                    ),
-                    add(shl(6, and(mload(add(tablePtr, and(shr(8, input), 0xFF))), 0xFF)), and(mload(add(tablePtr, and(input, 0xFF))), 0xFF))
-                )
+                        add(
+                            shl(18, and(mload(add(tablePtr, and(shr(24, input), 0xFF))), 0xFF)),
+                            shl(12, and(mload(add(tablePtr, and(shr(16, input), 0xFF))), 0xFF))
+                        ),
+                        add(shl(6, and(mload(add(tablePtr, and(shr(8, input), 0xFF))), 0xFF)), and(mload(add(tablePtr, and(input, 0xFF))), 0xFF))
+                    )
                 mstore(resultPtr, shl(232, output))
                 resultPtr := add(resultPtr, 3)
             }

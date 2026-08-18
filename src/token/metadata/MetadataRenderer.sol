@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
-import { Base64 } from "@openzeppelin/contracts/utils/Base64.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { UriEncode } from "sol-uriencode/src/UriEncode.sol";
 import { MetadataBuilder } from "micro-onchain-metadata-utils/MetadataBuilder.sol";
@@ -14,7 +13,6 @@ import { ERC721 } from "../../lib/token/ERC721.sol";
 
 import { MetadataRendererStorageV1 } from "./storage/MetadataRendererStorageV1.sol";
 import { MetadataRendererStorageV2 } from "./storage/MetadataRendererStorageV2.sol";
-import { IToken } from "../../token/IToken.sol";
 import { IPropertyIPFSMetadataRenderer } from "./interfaces/IPropertyIPFSMetadataRenderer.sol";
 import { IManager } from "../../manager/IManager.sol";
 import { VersionedContract } from "../../VersionedContract.sol";
@@ -22,7 +20,7 @@ import { VersionedContract } from "../../VersionedContract.sol";
 /// @title Metadata Renderer
 /// @author Iain Nash & Rohan Kulkarni
 /// @notice A DAO's artwork generator and renderer
-/// @custom:repo github.com/ourzora/nouns-protocol 
+/// @custom:repo github.com/ourzora/nouns-protocol
 contract MetadataRenderer is
     IPropertyIPFSMetadataRenderer,
     VersionedContract,
@@ -34,7 +32,6 @@ contract MetadataRenderer is
     ///                                                          ///
     ///                          IMMUTABLES                      ///
     ///                                                          ///
-
     /// @notice The contract upgrade manager
     IManager private immutable manager;
 
@@ -55,6 +52,7 @@ contract MetadataRenderer is
     ///                          CONSTRUCTOR                     ///
     ///                                                          ///
 
+    /// @notice Initializes the metadata renderer with the manager address
     /// @param _manager The contract upgrade manager address
     constructor(address _manager) payable initializer {
         manager = IManager(_manager);
@@ -74,10 +72,8 @@ contract MetadataRenderer is
         }
 
         // Decode the token initialization strings
-        (, , string memory _description, string memory _contractImage, string memory _projectURI, string memory _rendererBase) = abi.decode(
-            _initStrings,
-            (string, string, string, string, string, string)
-        );
+        (,, string memory _description, string memory _contractImage, string memory _projectURI, string memory _rendererBase) =
+            abi.decode(_initStrings, (string, string, string, string, string, string));
 
         // Store the renderer settings
         settings.projectURI = _projectURI;
@@ -113,6 +109,7 @@ contract MetadataRenderer is
 
     /// @notice Updates the additional token properties associated with the metadata.
     /// @dev Be careful to not conflict with already used keys such as "name", "description", "properties",
+    /// @param _additionalTokenProperties The array of additional token properties to set
     function setAdditionalTokenProperties(AdditionalTokenProperty[] memory _additionalTokenProperties) external onlyOwner {
         delete additionalTokenProperties;
         for (uint256 i = 0; i < _additionalTokenProperties.length; i++) {
@@ -126,11 +123,7 @@ contract MetadataRenderer is
     /// @param _names The names of the properties to add
     /// @param _items The items to add to each property
     /// @param _ipfsGroup The IPFS base URI and extension
-    function addProperties(
-        string[] calldata _names,
-        ItemParam[] calldata _items,
-        IPFSGroup calldata _ipfsGroup
-    ) external onlyOwner {
+    function addProperties(string[] calldata _names, ItemParam[] calldata _items, IPFSGroup calldata _ipfsGroup) external onlyOwner {
         _addProperties(_names, _items, _ipfsGroup);
     }
 
@@ -139,21 +132,14 @@ contract MetadataRenderer is
     /// @param _names The names of the properties to add
     /// @param _items The items to add to each property
     /// @param _ipfsGroup The IPFS base URI and extension
-    function deleteAndRecreateProperties(
-        string[] calldata _names,
-        ItemParam[] calldata _items,
-        IPFSGroup calldata _ipfsGroup
-    ) external onlyOwner {
+    function deleteAndRecreateProperties(string[] calldata _names, ItemParam[] calldata _items, IPFSGroup calldata _ipfsGroup) external onlyOwner {
         delete ipfsData;
         delete properties;
         _addProperties(_names, _items, _ipfsGroup);
     }
 
-    function _addProperties(
-        string[] calldata _names,
-        ItemParam[] calldata _items,
-        IPFSGroup calldata _ipfsGroup
-    ) internal {
+    // solhint-disable-next-line function-max-lines
+    function _addProperties(string[] calldata _names, ItemParam[] calldata _items, IPFSGroup calldata _ipfsGroup) internal {
         // Cache the existing amount of IPFS data stored
         uint256 dataLength = ipfsData.length;
 
@@ -175,6 +161,12 @@ contract MetadataRenderer is
             if (numNewProperties == 0 || numNewItems == 0) {
                 revert ONE_PROPERTY_AND_ITEM_REQUIRED();
             }
+        }
+
+        // If adding new properties, ensure they will have items
+        // (Without items, properties would cause division by zero during minting)
+        if (numNewProperties > 0 && numNewItems == 0) {
+            revert PROPERTY_HAS_NO_ITEMS(numStoredProperties, _names[0]);
         }
 
         unchecked {
@@ -230,6 +222,14 @@ contract MetadataRenderer is
                 newItem.name = _items[i].name;
                 newItem.referenceSlot = uint16(dataLength);
             }
+
+            // Validate all newly-added properties have at least one item
+            // This prevents division by zero during token minting (line 254: seed % numItems)
+            for (uint256 i = numStoredProperties; i < properties.length; ++i) {
+                if (properties[i].items.length == 0) {
+                    revert PROPERTY_HAS_NO_ITEMS(i, properties[i].name);
+                }
+            }
         }
     }
 
@@ -278,14 +278,12 @@ contract MetadataRenderer is
 
     /// @notice The properties and query string for a generated token
     /// @param _tokenId The ERC-721 token id
+    /// @return resultAttributes The JSON string of token attributes
+    /// @return queryString The query string for the token
     function getAttributes(uint256 _tokenId) public view returns (string memory resultAttributes, string memory queryString) {
         // Get the token's query string
-        queryString = string.concat(
-            "?contractAddress=",
-            Strings.toHexString(uint256(uint160(address(this))), 20),
-            "&tokenId=",
-            Strings.toString(_tokenId)
-        );
+        queryString =
+            string.concat("?contractAddress=", Strings.toHexString(uint256(uint160(address(this))), 20), "&tokenId=", Strings.toString(_tokenId));
 
         // Get the token's generated attributes
         uint16[16] memory tokenAttributes = attributes[_tokenId];
@@ -327,17 +325,14 @@ contract MetadataRenderer is
 
     /// @dev Generates a psuedo-random seed for a token id
     function _generateSeed(uint256 _tokenId) private view returns (uint256) {
-        return uint256(keccak256(abi.encode(_tokenId, blockhash(block.number), block.coinbase, block.timestamp)));
+        return uint256(keccak256(abi.encode(_tokenId, blockhash(block.number - 1), block.prevrandao, block.timestamp)));
     }
 
     /// @dev Encodes the reference URI of an item
     function _getItemImage(Item memory _item, string memory _propertyName) private view returns (string memory) {
-        return
-            UriEncode.uriEncode(
-                string(
-                    abi.encodePacked(ipfsData[_item.referenceSlot].baseUri, _propertyName, "/", _item.name, ipfsData[_item.referenceSlot].extension)
-                )
-            );
+        return UriEncode.uriEncode(
+            string(abi.encodePacked(ipfsData[_item.referenceSlot].baseUri, _propertyName, "/", _item.name, ipfsData[_item.referenceSlot].extension))
+        );
     }
 
     ///                                                          ///
@@ -368,17 +363,10 @@ contract MetadataRenderer is
 
         MetadataBuilder.JSONItem[] memory items = new MetadataBuilder.JSONItem[](4 + additionalTokenProperties.length);
 
-        items[0] = MetadataBuilder.JSONItem({
-            key: MetadataJSONKeys.keyName,
-            value: string.concat(_name(), " #", Strings.toString(_tokenId)),
-            quote: true
-        });
+        items[0] =
+            MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyName, value: string.concat(_name(), " #", Strings.toString(_tokenId)), quote: true });
         items[1] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyDescription, value: settings.description, quote: true });
-        items[2] = MetadataBuilder.JSONItem({
-            key: MetadataJSONKeys.keyImage,
-            value: string.concat(settings.rendererBase, queryString),
-            quote: true
-        });
+        items[2] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyImage, value: string.concat(settings.rendererBase, queryString), quote: true });
         items[3] = MetadataBuilder.JSONItem({ key: MetadataJSONKeys.keyProperties, value: _attributes, quote: false });
 
         for (uint256 i = 0; i < additionalTokenProperties.length; i++) {
@@ -451,6 +439,8 @@ contract MetadataRenderer is
         settings.description = _newDescription;
     }
 
+    /// @notice Updates the project URI
+    /// @param _newProjectURI The new project URI
     function updateProjectURI(string memory _newProjectURI) external onlyOwner {
         emit WebsiteURIUpdated(settings.projectURI, _newProjectURI);
 

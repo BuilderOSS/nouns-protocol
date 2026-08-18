@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
 import { MockERC721 } from "./utils/mocks/MockERC721.sol";
@@ -51,10 +51,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function test_MintFlow() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -77,10 +74,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function test_MintFlowMutliple() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -103,10 +97,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function testRevert_NotMinted() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -120,10 +111,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function test_MintFlowWithValue() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.01 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.01 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -147,10 +135,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function test_MintFlowWithValueMultiple() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.01 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.01 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -180,10 +165,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function testRevert_MintFlowInvalidValue() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.01 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.01 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -224,10 +206,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function testRevert_MintEnded() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: uint64(block.timestamp),
-            mintEnd: uint64(block.timestamp + 100),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: uint64(block.timestamp), mintEnd: uint64(block.timestamp + 100), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -246,10 +225,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
 
     function test_ResetMint() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: uint64(0),
-            mintEnd: uint64(block.timestamp + 100),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: uint64(0), mintEnd: uint64(block.timestamp + 100), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -269,10 +245,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
     /// @notice Test that duplicate redemption is prevented
     function testRevert_DuplicateRedemption() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -294,10 +267,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
     /// @notice Test that duplicate IDs in same call are prevented
     function testRevert_DuplicateIdsInSameCall() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -316,10 +286,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
     /// @notice Test that exact payment is required (overpayment rejected)
     function testRevert_Overpayment() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.01 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.01 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -379,7 +346,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
             mintEnd: uint64(block.timestamp + 1000),
             pricePerToken: 0 ether,
             redeemToken: address(0) // Zero address
-         });
+        });
 
         vm.prank(founder);
         vm.expectRevert(abi.encodeWithSignature("INVALID_SETTINGS()"));
@@ -395,7 +362,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
             mintEnd: uint64(block.timestamp + 1000),
             pricePerToken: 0 ether,
             redeemToken: address(token) // Self reference
-         });
+        });
 
         vm.prank(founder);
         vm.expectRevert(abi.encodeWithSignature("INVALID_SETTINGS()"));
@@ -405,10 +372,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
     /// @notice Test that redeemed mapping is correctly set
     function test_RedeemedMappingSet() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);
@@ -437,10 +401,7 @@ contract ERC721RedeemMinterTest is NounsBuilderTest {
     /// @notice Test exact payment with multiple tokens
     function test_ExactPaymentMultipleTokens() public {
         ERC721RedeemMinter.RedeemSettings memory settings = ERC721RedeemMinter.RedeemSettings({
-            mintStart: 0,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.01 ether,
-            redeemToken: address(redeemToken)
+            mintStart: 0, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.01 ether, redeemToken: address(redeemToken)
         });
 
         deployAltMockAndSetMinter(20, address(minter), settings);

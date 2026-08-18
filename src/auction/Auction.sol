@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { UUPS } from "../lib/proxy/UUPS.sol";
 import { Ownable } from "../lib/utils/Ownable.sol";
@@ -28,13 +28,13 @@ contract Auction is IAuction, VersionedContract, UUPS, Ownable, ReentrancyGuard,
     ///                                                          ///
     ///                          CONSTANTS                       ///
     ///                                                          ///
-
     /// @notice The basis points for 100%
     uint256 private constant BPS_PER_100_PERCENT = 10_000;
 
     /// @notice The maximum rewards percentage
     uint256 private constant MAX_FOUNDER_REWARD_BPS = 5_000;
 
+    /// @notice Identifier for rewards distribution reason
     bytes4 public constant REWARDS_REASON = bytes4(0x0B411DE6);
 
     ///                                                          ///
@@ -66,16 +66,13 @@ contract Auction is IAuction, VersionedContract, UUPS, Ownable, ReentrancyGuard,
     ///                          CONSTRUCTOR                     ///
     ///                                                          ///
 
+    /// @notice Initializes the auction contract
     /// @param _manager The contract upgrade manager address
     /// @param _rewardsManager The protocol rewards manager address
     /// @param _weth The address of WETH
-    constructor(
-        address _manager,
-        address _rewardsManager,
-        address _weth,
-        uint16 _builderRewardsBPS,
-        uint16 _referralRewardsBPS
-    ) payable initializer {
+    /// @param _builderRewardsBPS The builder reward in basis points
+    /// @param _referralRewardsBPS The referral reward in basis points
+    constructor(address _manager, address _rewardsManager, address _weth, uint16 _builderRewardsBPS, uint16 _referralRewardsBPS) payable initializer {
         manager = Manager(_manager);
         rewardsManager = IProtocolRewards(_rewardsManager);
         WETH = _weth;
@@ -143,6 +140,7 @@ contract Auction is IAuction, VersionedContract, UUPS, Ownable, ReentrancyGuard,
 
     /// @notice Creates a bid for the current token
     /// @param _tokenId The ERC-721 token id
+    /// @param _referral The referral address
     function createBidWithReferral(uint256 _tokenId, address _referral) external payable nonReentrant {
         currentBidReferral = _referral;
         _createBid(_tokenId);
@@ -470,11 +468,12 @@ contract Auction is IAuction, VersionedContract, UUPS, Ownable, ReentrancyGuard,
     /// @param _currentBidRefferal The referral for the current bid
     /// @param _finalBidAmount The final bid amount
     /// @param _founderRewardBps The reward to be paid to the founder in BPS
-    function _computeTotalRewards(
-        address _currentBidRefferal,
-        uint256 _finalBidAmount,
-        uint256 _founderRewardBps
-    ) internal view returns (RewardSplits memory split) {
+    /// @return split The reward splits for all parties
+    function _computeTotalRewards(address _currentBidRefferal, uint256 _finalBidAmount, uint256 _founderRewardBps)
+        internal
+        view
+        returns (RewardSplits memory split)
+    {
         // Get global builder recipient from manager
         address builderRecipient = manager.builderRewardsRecipient();
 

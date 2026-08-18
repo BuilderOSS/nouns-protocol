@@ -1,6 +1,29 @@
 {
-  "plugins": ["prettier"],
+  "extends": "solhint:recommended",
   "rules": {
-    "prettier/prettier": "error"
-  }
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
+    "immutable-vars-naming": "off",
+    "var-name-mixedcase": "off",
+    "const-name-snakecase": "off",
+    "interface-starts-with-i": "off",
+    "function-max-lines": ["warn", 80],
+    "no-empty-blocks": "off",
+    "no-inline-assembly": "off",
+    "avoid-low-level-calls": "off",
+    "import-path-check": "off",
+    "no-global-import": "off",
+    "quotes": "off",
+    "func-name-mixedcase": "off",
+    "no-console": "off",
+    "state-visibility": "off",
+    "one-contract-per-file": "off",
+    "no-unused-import": "off",
+    "compiler-version": "off",
+    "gas-indexed-events": "off",
+    "gas-increment-by-one": "off",
+    "gas-strict-inequalities": "off",
+    "gas-calldata-parameters": "off",
+    "gas-small-strings": "off"
+  },
+  "excludedFiles": ["src/lib/**/*.sol"]
 }

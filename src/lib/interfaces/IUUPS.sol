@@ -11,7 +11,6 @@ interface IUUPS is IERC1967Upgrade, IERC1822Proxiable {
     ///                                                          ///
     ///                            ERRORS                        ///
     ///                                                          ///
-
     /// @dev Reverts if not called directly
     error ONLY_CALL();
 

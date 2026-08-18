@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IUUPS } from "../lib/interfaces/IUUPS.sol";
 import { IERC721Votes } from "../lib/interfaces/IERC721Votes.sol";
@@ -15,7 +15,6 @@ interface IToken is IUUPS, IERC721Votes, TokenTypesV1, TokenTypesV2 {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a token is scheduled to be allocated
     /// @param baseTokenId The
     /// @param founderId The founder's id
@@ -41,6 +40,8 @@ interface IToken is IUUPS, IERC721Votes, TokenTypesV1, TokenTypesV2 {
     /// @param renderer new metadata renderer address
     event MetadataRendererUpdated(address renderer);
 
+    /// @notice Event emitted when the reserved token ID is updated
+    /// @param reservedUntilTokenId The new reserved until token ID
     event ReservedUntilTokenIDUpdated(uint256 reservedUntilTokenId);
 
     ///                                                          ///
@@ -95,12 +96,18 @@ interface IToken is IUUPS, IERC721Votes, TokenTypesV1, TokenTypesV2 {
     ) external;
 
     /// @notice Mints tokens to the caller and handles founder vesting
+    /// @return tokenId The ID of the minted token
     function mint() external returns (uint256 tokenId);
 
     /// @notice Mints tokens to the recipient and handles founder vesting
+    /// @param recipient The address to mint tokens to
+    /// @return tokenId The ID of the minted token
     function mintTo(address recipient) external returns (uint256 tokenId);
 
     /// @notice Mints the specified amount of tokens to the recipient and handles founder vesting
+    /// @param amount The number of tokens to mint
+    /// @param recipient The address to mint tokens to
+    /// @return tokenIds The IDs of the minted tokens
     function mintBatchTo(uint256 amount, address recipient) external returns (uint256[] memory tokenIds);
 
     /// @notice Burns a token owned by the caller
@@ -152,6 +159,8 @@ interface IToken is IUUPS, IERC721Votes, TokenTypesV1, TokenTypesV2 {
     function owner() external view returns (address);
 
     /// @notice Mints tokens from the reserve to the recipient
+    /// @param recipient The address to mint tokens to
+    /// @param tokenId The token ID to mint
     function mintFromReserveTo(address recipient, uint256 tokenId) external;
 
     /// @notice Update minters

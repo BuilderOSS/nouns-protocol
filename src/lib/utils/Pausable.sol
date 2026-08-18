@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IPausable } from "../interfaces/IPausable.sol";
 import { Initializable } from "../utils/Initializable.sol";
@@ -10,7 +10,6 @@ abstract contract Pausable is IPausable, Initializable {
     ///                                                          ///
     ///                            STORAGE                       ///
     ///                                                          ///
-
     /// @dev If the contract is paused
     bool internal _paused;
 

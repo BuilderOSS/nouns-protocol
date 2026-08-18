@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IERC721 } from "../interfaces/IERC721.sol";
 import { Initializable } from "../utils/Initializable.sol";
@@ -14,7 +14,6 @@ abstract contract ERC721 is IERC721, Initializable {
     ///                                                          ///
     ///                            STORAGE                       ///
     ///                                                          ///
-
     /// @notice The token name
     string public name;
 
@@ -51,18 +50,17 @@ abstract contract ERC721 is IERC721, Initializable {
 
     /// @notice The token URI
     /// @param _tokenId The ERC-721 token id
-    function tokenURI(uint256 _tokenId) public view virtual returns (string memory) {}
+    function tokenURI(uint256 _tokenId) public view virtual returns (string memory) { }
 
     /// @notice The contract URI
-    function contractURI() public view virtual returns (string memory) {}
+    function contractURI() public view virtual returns (string memory) { }
 
     /// @notice If the contract implements an interface
     /// @param _interfaceId The interface id
     function supportsInterface(bytes4 _interfaceId) external pure returns (bool) {
-        return
-            _interfaceId == 0x01ffc9a7 || // ERC165 Interface ID
-            _interfaceId == 0x80ac58cd || // ERC721 Interface ID
-            _interfaceId == 0x5b5e139f; // ERC721Metadata Interface ID
+        return _interfaceId == 0x01ffc9a7 // ERC165 Interface ID
+            || _interfaceId == 0x80ac58cd // ERC721 Interface ID
+            || _interfaceId == 0x5b5e139f; // ERC721Metadata Interface ID
     }
 
     /// @notice The account approved to manage a token
@@ -122,11 +120,7 @@ abstract contract ERC721 is IERC721, Initializable {
     /// @param _from The sender address
     /// @param _to The recipient address
     /// @param _tokenId The ERC-721 token id
-    function transferFrom(
-        address _from,
-        address _to,
-        uint256 _tokenId
-    ) public {
+    function transferFrom(address _from, address _to, uint256 _tokenId) public {
         if (_from != owners[_tokenId]) revert INVALID_OWNER();
 
         if (_to == address(0)) revert ADDRESS_ZERO();
@@ -154,16 +148,12 @@ abstract contract ERC721 is IERC721, Initializable {
     /// @param _from The sender address
     /// @param _to The recipient address
     /// @param _tokenId The ERC-721 token id
-    function safeTransferFrom(
-        address _from,
-        address _to,
-        uint256 _tokenId
-    ) external {
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId) external {
         transferFrom(_from, _to, _tokenId);
 
         if (
-            Address.isContract(_to) &&
-            ERC721TokenReceiver(_to).onERC721Received(msg.sender, _from, _tokenId, "") != ERC721TokenReceiver.onERC721Received.selector
+            Address.isContract(_to)
+                && ERC721TokenReceiver(_to).onERC721Received(msg.sender, _from, _tokenId, "") != ERC721TokenReceiver.onERC721Received.selector
         ) revert INVALID_RECIPIENT();
     }
 
@@ -171,17 +161,12 @@ abstract contract ERC721 is IERC721, Initializable {
     /// @param _from The sender address
     /// @param _to The recipient address
     /// @param _tokenId The ERC-721 token id
-    function safeTransferFrom(
-        address _from,
-        address _to,
-        uint256 _tokenId,
-        bytes calldata _data
-    ) external {
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes calldata _data) external {
         transferFrom(_from, _to, _tokenId);
 
         if (
-            Address.isContract(_to) &&
-            ERC721TokenReceiver(_to).onERC721Received(msg.sender, _from, _tokenId, _data) != ERC721TokenReceiver.onERC721Received.selector
+            Address.isContract(_to)
+                && ERC721TokenReceiver(_to).onERC721Received(msg.sender, _from, _tokenId, _data) != ERC721TokenReceiver.onERC721Received.selector
         ) revert INVALID_RECIPIENT();
     }
 
@@ -232,19 +217,11 @@ abstract contract ERC721 is IERC721, Initializable {
     /// @param _from The sender address
     /// @param _to The recipient address
     /// @param _tokenId The ERC-721 token id
-    function _beforeTokenTransfer(
-        address _from,
-        address _to,
-        uint256 _tokenId
-    ) internal virtual {}
+    function _beforeTokenTransfer(address _from, address _to, uint256 _tokenId) internal virtual { }
 
     /// @dev Hook called after a token transfer
     /// @param _from The sender address
     /// @param _to The recipient address
     /// @param _tokenId The ERC-721 token id
-    function _afterTokenTransfer(
-        address _from,
-        address _to,
-        uint256 _tokenId
-    ) internal virtual {}
+    function _afterTokenTransfer(address _from, address _to, uint256 _tokenId) internal virtual { }
 }

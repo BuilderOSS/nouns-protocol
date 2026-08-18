@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title IPausable
 /// @author Rohan Kulkarni
@@ -8,7 +8,6 @@ interface IPausable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when the contract is paused
     /// @param user The address that paused the contract
     event Paused(address user);

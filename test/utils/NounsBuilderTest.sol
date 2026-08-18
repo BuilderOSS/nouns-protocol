@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { Test } from "forge-std/Test.sol";
 
 import { IManager, Manager } from "../../src/manager/Manager.sol";
-import { IToken, Token } from "../../src/token/Token.sol";
-import { IAuction, Auction } from "../../src/auction/Auction.sol";
-import { IGovernor, Governor } from "../../src/governance/governor/Governor.sol";
-import { ITreasury, Treasury } from "../../src/governance/treasury/Treasury.sol";
+import { Token } from "../../src/token/Token.sol";
+import { Auction } from "../../src/auction/Auction.sol";
+import { Governor } from "../../src/governance/governor/Governor.sol";
+import { Treasury } from "../../src/governance/treasury/Treasury.sol";
 import { MetadataRenderer } from "../../src/token/metadata/MetadataRenderer.sol";
 import { MetadataRendererTypesV1 } from "../../src/token/metadata/types/MetadataRendererTypesV1.sol";
 
@@ -16,22 +16,29 @@ import { MockERC721 } from "../utils/mocks/MockERC721.sol";
 import { MockERC1155 } from "../utils/mocks/MockERC1155.sol";
 import { WETH } from ".././utils/mocks/WETH.sol";
 import { MockProtocolRewards } from ".././utils/mocks/MockProtocolRewards.sol";
+import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
+import { DAOFactory } from "../../src/factory/DAOFactory.sol";
 
 contract NounsBuilderTest is Test {
+    bytes32 internal constant DEFAULT_DEPLOY_SALT = keccak256("DEFAULT_DEPLOY_SALT");
+
     ///                                                          ///
     ///                          BASE SETUP                      ///
     ///                                                          ///
-
     Manager internal manager;
     address internal rewards;
 
-    address internal managerImpl0;
     address internal managerImpl;
     address internal tokenImpl;
     address internal metadataRendererImpl;
     address internal auctionImpl;
     address internal treasuryImpl;
     address internal governorImpl;
+    address internal create3Factory;
+    address internal daoFactory;
+
+    // Nonce for CREATE3 deployments to avoid collisions
+    uint256 internal deployNonce;
 
     address internal nounsDAO;
     address internal zoraDAO;
@@ -60,20 +67,42 @@ contract NounsBuilderTest is Test {
         vm.label(founder, "FOUNDER");
         vm.label(founder2, "FOUNDER_2");
 
-        managerImpl0 = address(new Manager(address(0), address(0), address(0), address(0), address(0), address(0)));
-        manager = Manager(address(new ERC1967Proxy(managerImpl0, abi.encodeWithSignature("initialize(address)", zoraDAO))));
+        // Deploy CREATE3Factory for testing
+        CREATE3Factory factory = new CREATE3Factory();
+        create3Factory = address(factory);
+
         rewards = address(new MockProtocolRewards());
 
-        tokenImpl = address(new Token(address(manager)));
-        metadataRendererImpl = address(new MetadataRenderer(address(manager)));
-        auctionImpl = address(new Auction(address(manager), address(rewards), weth, 0, 0));
-        treasuryImpl = address(new Treasury(address(manager)));
-        governorImpl = address(new Governor(address(manager)));
+        // Predict Manager proxy address using CREATE3
+        // Use a unique salt for the base test setup to avoid conflicts with test deployments
+        bytes32 managerProxySalt = keccak256("TEST_SETUP_MANAGER_PROXY");
+        address predictedManagerProxy = factory.getDeployed(address(this), managerProxySalt);
 
-        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO));
+        // Deploy DAOFactory using CREATE3Factory, bound to the predicted Manager address
+        // This ensures bidirectional authorization between Manager and DAOFactory
+        bytes32 daoFactorySalt = keccak256("TEST_SETUP_DAO_FACTORY");
+        bytes memory daoFactoryCreationCode = abi.encodePacked(type(DAOFactory).creationCode, abi.encode(predictedManagerProxy));
+        daoFactory = factory.deploy(daoFactorySalt, daoFactoryCreationCode);
 
-        vm.prank(zoraDAO);
-        manager.upgradeTo(managerImpl);
+        // Deploy implementations - they reference the predicted manager proxy address
+        tokenImpl = address(new Token(predictedManagerProxy));
+        metadataRendererImpl = address(new MetadataRenderer(predictedManagerProxy));
+        auctionImpl = address(new Auction(predictedManagerProxy, address(rewards), weth, 0, 0));
+        treasuryImpl = address(new Treasury(predictedManagerProxy));
+        governorImpl = address(new Governor(predictedManagerProxy));
+
+        // Deploy Manager implementation with all the real implementations and DAOFactory
+        managerImpl = address(new Manager(tokenImpl, metadataRendererImpl, auctionImpl, treasuryImpl, governorImpl, zoraDAO, daoFactory));
+
+        // Deploy Manager proxy via CREATE3 to the predicted address
+        bytes memory proxyCreationCode =
+            abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(managerImpl, abi.encodeWithSignature("initialize(address)", zoraDAO)));
+        address deployedProxy = factory.deploy(managerProxySalt, proxyCreationCode);
+
+        require(deployedProxy == predictedManagerProxy, "Manager proxy address mismatch");
+        manager = Manager(deployedProxy);
+
+        // No need for managerImpl0 or upgradeTo - we deploy with the correct impl from the start
     }
 
     ///                                                          ///
@@ -102,11 +131,7 @@ contract NounsBuilderTest is Test {
         setFounderParams(wallets, percents, vestingEnds);
     }
 
-    function setFounderParams(
-        address[] memory _wallets,
-        uint256[] memory _percents,
-        uint256[] memory _vestingEnds
-    ) internal virtual {
+    function setFounderParams(address[] memory _wallets, uint256[] memory _percents, uint256[] memory _vestingEnds) internal virtual {
         uint256 numFounders = _wallets.length;
 
         require(numFounders == _percents.length && numFounders == _vestingEnds.length);
@@ -171,33 +196,22 @@ contract NounsBuilderTest is Test {
     ) internal virtual {
         bytes memory initStrings = abi.encode(_name, _symbol, _description, _contractImage, _contractURI, _rendererBase);
 
-        tokenParams = IManager.TokenParams({
-            initStrings: initStrings,
-            metadataRenderer: _metadataRenderer,
-            reservedUntilTokenId: _reservedUntilTokenId
-        });
+        tokenParams =
+            IManager.TokenParams({ initStrings: initStrings, metadataRenderer: _metadataRenderer, reservedUntilTokenId: _reservedUntilTokenId });
     }
 
     function setMockAuctionParams() internal virtual {
         setAuctionParams(0.01 ether, 10 minutes, address(0), 0);
     }
 
-    function setAuctionParams(
-        uint256 _reservePrice,
-        uint256 _duration,
-        address _founderRewardRecipent,
-        uint16 _founderRewardBps
-    ) internal virtual {
+    function setAuctionParams(uint256 _reservePrice, uint256 _duration, address _founderRewardRecipent, uint16 _founderRewardBps) internal virtual {
         auctionParams = IManager.AuctionParams({
-            reservePrice: _reservePrice,
-            duration: _duration,
-            founderRewardRecipent: _founderRewardRecipent,
-            founderRewardBps: _founderRewardBps
+            reservePrice: _reservePrice, duration: _duration, founderRewardRecipent: _founderRewardRecipent, founderRewardBps: _founderRewardBps
         });
     }
 
     function setMockGovParams() internal virtual {
-        setGovParams(2 days, 1 seconds, 1 weeks, 50, 1000, founder);
+        setGovParams(2 days, 1 seconds, 1 weeks, 50, 1000, founder, 1 days);
     }
 
     function setGovParams(
@@ -206,7 +220,8 @@ contract NounsBuilderTest is Test {
         uint256 _votingPeriod,
         uint256 _proposalThresholdBps,
         uint256 _quorumThresholdBps,
-        address _vetoer
+        address _vetoer,
+        uint256 _proposalUpdatablePeriod
     ) internal virtual {
         govParams = IManager.GovParams({
             timelockDelay: _timelockDelay,
@@ -214,7 +229,8 @@ contract NounsBuilderTest is Test {
             votingPeriod: _votingPeriod,
             proposalThresholdBps: _proposalThresholdBps,
             quorumThresholdBps: _quorumThresholdBps,
-            vetoer: _vetoer
+            vetoer: _vetoer,
+            proposalUpdatablePeriod: _proposalUpdatablePeriod
         });
     }
 
@@ -256,11 +272,7 @@ contract NounsBuilderTest is Test {
         setMockMetadata();
     }
 
-    function deployWithCustomFounders(
-        address[] memory _wallets,
-        uint256[] memory _percents,
-        uint256[] memory _vestExpirys
-    ) internal virtual {
+    function deployWithCustomFounders(address[] memory _wallets, uint256[] memory _percents, uint256[] memory _vestExpirys) internal virtual {
         setFounderParams(_wallets, _percents, _vestExpirys);
 
         setMockTokenParams();
@@ -313,12 +325,31 @@ contract NounsBuilderTest is Test {
         IManager.AuctionParams memory _auctionParams,
         IManager.GovParams memory _govParams
     ) internal virtual {
-        (address _token, address _metadata, address _auction, address _treasury, address _governor) = manager.deploy(
-            _founderParams,
-            _tokenParams,
-            _auctionParams,
-            _govParams
-        );
+        (address _token, address _metadata, address _auction, address _treasury, address _governor) =
+            manager.deploy(_founderParams, _tokenParams, _auctionParams, _govParams);
+
+        token = Token(_token);
+        metadataRenderer = MetadataRenderer(_metadata);
+        auction = Auction(_auction);
+        treasury = Treasury(payable(_treasury));
+        governor = Governor(_governor);
+
+        vm.label(address(token), "TOKEN");
+        vm.label(address(metadataRenderer), "METADATA_RENDERER");
+        vm.label(address(auction), "AUCTION");
+        vm.label(address(treasury), "TREASURY");
+        vm.label(address(governor), "GOVERNOR");
+    }
+
+    function deployDeterministic(
+        IManager.FounderParams[] memory _founderParams,
+        IManager.TokenParams memory _tokenParams,
+        IManager.AuctionParams memory _auctionParams,
+        IManager.GovParams memory _govParams,
+        bytes32 _deploySalt
+    ) internal virtual {
+        (address _token, address _metadata, address _auction, address _treasury, address _governor) =
+            manager.deployDeterministic(_founderParams, _tokenParams, _auctionParams, _govParams, _deploySalt);
 
         token = Token(_token);
         metadataRenderer = MetadataRenderer(_metadata);
@@ -363,7 +394,7 @@ contract NounsBuilderTest is Test {
 
         unchecked {
             for (uint256 i; i < _numTokens; ++i) {
-                (uint256 tokenId, , , , , ) = auction.auction();
+                (uint256 tokenId,,,,,) = auction.auction();
 
                 vm.prank(otherUsers[i]);
                 auction.createBid{ value: reservePrice }(tokenId);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title WETH
 /// @notice FOR TEST PURPOSES ONLY.
@@ -32,7 +32,8 @@ contract WETH {
     function withdraw(uint256 wad) public {
         require(balanceOf[msg.sender] >= wad);
         balanceOf[msg.sender] -= wad;
-        payable(msg.sender).transfer(wad);
+        (bool success,) = payable(msg.sender).call{ value: wad }("");
+        require(success, "WETH: ETH transfer failed");
         emit Withdrawal(msg.sender, wad);
     }
 
@@ -50,11 +51,7 @@ contract WETH {
         return transferFrom(msg.sender, dst, wad);
     }
 
-    function transferFrom(
-        address src,
-        address dst,
-        uint256 wad
-    ) public returns (bool) {
+    function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
         require(balanceOf[src] >= wad);
 
         if (src != msg.sender && allowance[src][msg.sender] != type(uint128).max) {

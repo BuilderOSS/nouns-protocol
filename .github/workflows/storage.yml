@@ -1,22 +1,30 @@
 name: Check Contract Storage Layout
 on: [pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   inspect-storage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          node-version: "16.13.2"
-      - run: npm install
+          submodules: recursive
+
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.22.1"
+          cache: "yarn"
+
+      - run: yarn install --frozen-lockfile
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
         with:
-          version: nightly
-  
+          version: v1.5.1
+
       - name: "Inspect Storage Layout"
         continue-on-error: false
         id: storage-inspect-check

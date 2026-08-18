@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IERC721 } from "./IERC721.sol";
 import { IEIP712 } from "./IEIP712.sol";
@@ -11,7 +11,6 @@ interface IERC721Votes is IERC721, IEIP712 {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when an account changes their delegate
     event DelegateChanged(address indexed delegator, address indexed from, address indexed to);
 
@@ -65,12 +64,5 @@ interface IERC721Votes is IERC721, IEIP712 {
     /// @param v The 129th byte and chain id of the signature
     /// @param r The first 64 bytes of the signature
     /// @param s Bytes 64-128 of the signature
-    function delegateBySig(
-        address from,
-        address to,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function delegateBySig(address from, address to, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 }

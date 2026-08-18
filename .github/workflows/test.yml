@@ -1,19 +1,28 @@
 name: Run Tests
 on: [push]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Test
     runs-on: ubuntu-latest
     environment: Test
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: recursive
-      - uses: actions/setup-node@v2
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "16"
-      - run: npm install
-      - uses: onbjerg/foundry-toolchain@v1
+          node-version: "22.22.1"
+          cache: "yarn"
+
+      - run: yarn install --frozen-lockfile
+
+      - uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
         with:
-          version: nightly
-      - run: ETH_RPC_MAINNET=${{secrets.ETH_RPC_MAINNET}} npm run test
+          version: v1.5.1
+
+      - run: yarn test:unit

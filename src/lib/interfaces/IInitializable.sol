@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title IInitializable
 /// @author Rohan Kulkarni
@@ -8,7 +8,6 @@ interface IInitializable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when the contract has been initialized or reinitialized
     event Initialized(uint256 version);
 

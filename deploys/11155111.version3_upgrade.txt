@@ -1,0 +1,4 @@
+Old Governor implementation: 0x4b518201bda0ce0df7ca6cc9572d941390bc91a0
+New Governor implementation: 0xb9d74524bfc6a2458209d707804c52df61675579
+Old Manager implementation: 0x6ac5e821e2c13d58df5b14fd4270901cabc72ad1
+New Manager implementation: 0xd53daf44d6a23f0d5ea200bd078b234a4c7a7a15

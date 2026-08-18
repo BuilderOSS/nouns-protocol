@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.35;
 
 library Constants {
     uint16 internal constant REWARD_BUILDER_BPS = 250;

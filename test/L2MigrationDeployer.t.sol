@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { NounsBuilderTest } from "./utils/NounsBuilderTest.sol";
 import { MetadataRendererTypesV1 } from "../src/token/metadata/types/MetadataRendererTypesV1.sol";
@@ -9,9 +9,9 @@ import { MockCrossDomainMessenger } from "./utils/mocks/MockCrossDomainMessenger
 
 import { IToken, Token } from "../src/token/Token.sol";
 import { MetadataRenderer } from "../src/token/metadata/MetadataRenderer.sol";
-import { IAuction, Auction } from "../src/auction/Auction.sol";
-import { IGovernor, Governor } from "../src/governance/governor/Governor.sol";
-import { ITreasury, Treasury } from "../src/governance/treasury/Treasury.sol";
+import { Auction } from "../src/auction/Auction.sol";
+import { Governor } from "../src/governance/governor/Governor.sol";
+import { Treasury } from "../src/governance/treasury/Treasury.sol";
 
 contract L2MigrationDeployerTest is NounsBuilderTest {
     MockCrossDomainMessenger xDomainMessenger;
@@ -128,10 +128,7 @@ contract L2MigrationDeployerTest is NounsBuilderTest {
 
     function setMinterParams() internal {
         minterParams = MerkleReserveMinter.MerkleMinterSettings({
-            mintStart: 200,
-            mintEnd: uint64(block.timestamp + 1000),
-            pricePerToken: 0.1 ether,
-            merkleRoot: hex"00"
+            mintStart: 200, mintEnd: uint64(block.timestamp + 1000), pricePerToken: 0.1 ether, merkleRoot: hex"00"
         });
     }
 
@@ -194,14 +191,14 @@ contract L2MigrationDeployerTest is NounsBuilderTest {
     function test_ResetDeployment() external {
         deploy();
 
-        (address token, , ) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
+        (address token,,) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
 
         assertEq(token, address(token));
 
         vm.prank(address(xDomainMessenger));
         deployer.resetDeployment();
 
-        (address newToken, , ) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
+        (address newToken,,) = deployer.crossDomainDeployerToMigration(xDomainMessenger.xDomainMessageSender());
 
         assertEq(newToken, address(0));
     }

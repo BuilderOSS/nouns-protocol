@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.35;
 
-import "forge-std/Script.sol";
-import "forge-std/console2.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 
-import { OPAddressAliasHelper } from "../src/lib/utils/OPAddressAliasHelper.sol";
-import { IBaseMetadata } from "../src/token/metadata/interfaces/IBaseMetadata.sol";
 import { IPropertyIPFSMetadataRenderer } from "../src/token/metadata/interfaces/IPropertyIPFSMetadataRenderer.sol";
-import { IToken, Token } from "../src/token/Token.sol";
 import { MerkleReserveMinter } from "../src/minters/MerkleReserveMinter.sol";
 
 contract GetInterfaceIds is Script {

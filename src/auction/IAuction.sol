@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { IUUPS } from "../lib/interfaces/IUUPS.sol";
 import { IOwnable } from "../lib/interfaces/IOwnable.sol";
@@ -13,7 +13,6 @@ interface IAuction is IUUPS, IOwnable, IPausable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when a bid is placed
     /// @param tokenId The ERC-721 token id
     /// @param bidder The address of the bidder
@@ -131,6 +130,8 @@ interface IAuction is IUUPS, IOwnable, IPausable {
     /// @param treasury The treasury address where ETH will be sent
     /// @param duration The duration of each auction
     /// @param reservePrice The reserve price of each auction
+    /// @param founderRewardRecipent The address to receive founder rewards
+    /// @param founderRewardBps The founder reward in basis points
     function initialize(
         address token,
         address founder,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 /// @title IOwnable
 /// @author Rohan Kulkarni
@@ -8,7 +8,6 @@ interface IOwnable {
     ///                                                          ///
     ///                            EVENTS                        ///
     ///                                                          ///
-
     /// @notice Emitted when ownership has been updated
     /// @param prevOwner The previous owner address
     /// @param newOwner The new owner address

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.35;
 
 import { Initializable } from "../utils/Initializable.sol";
 
@@ -9,7 +9,6 @@ abstract contract ReentrancyGuard is Initializable {
     ///                                                          ///
     ///                            STORAGE                       ///
     ///                                                          ///
-
     /// @dev Indicates a function has not been entered
     uint256 internal constant _NOT_ENTERED = 1;
 
