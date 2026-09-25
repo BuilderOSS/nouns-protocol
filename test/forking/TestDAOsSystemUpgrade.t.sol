@@ -8,6 +8,7 @@ import { MetadataRenderer } from "../../src/token/metadata/MetadataRenderer.sol"
 import { Auction } from "../../src/auction/Auction.sol";
 import { Treasury } from "../../src/governance/treasury/Treasury.sol";
 import { Governor } from "../../src/governance/governor/Governor.sol";
+import { GovernorTypesV1 } from "../../src/governance/governor/types/GovernorTypesV1.sol";
 
 interface VmEnvOr {
     function envOr(string calldata name, string calldata defaultValue) external view returns (string memory);
@@ -25,6 +26,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
     bytes32 internal constant ERC1967_IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     string internal constant DAO_CONFIG_PATH = "test/forking/top-daos.json";
     uint256 internal constant TOKEN_URI_SAMPLE_SIZE = 10;
+    address internal constant BASE_MAINNET_MERKLE_PROPERTY_IPFS_IMPL = 0x83A9B0aaC8d38A7C8cCbbE8Ee8B103610BD8A790;
     VmEnvOr internal constant ENV = VmEnvOr(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
     error UpgradePreflightFailed();
@@ -133,7 +135,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             if (!_daoSelected(daos[i].rank, daoCount, rankSelection)) continue;
 
             Implementations memory current = _currentImplementations(daos[i]);
-            Implementations memory expected = implementations;
+            Implementations memory expected = _expectedImplementations(chainName, current, implementations);
             bool fullyUpgraded = true;
 
             emit log_named_string("Chain", chainName);
@@ -204,7 +206,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             if (!_daoSelected(daos[i].rank, daoCount, rankSelection)) continue;
 
             Implementations memory current = _currentImplementations(daos[i]);
-            Implementations memory expected = implementations;
+            Implementations memory expected = _expectedImplementations(chainName, current, implementations);
             bool fullyUpgraded = true;
             for (uint256 j; j < 5; ++j) {
                 if (_implementationAt(current, j) != _implementationAt(expected, j)) fullyUpgraded = false;
@@ -215,6 +217,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             DAOState memory before = _recordState(daos[i]);
             _executeUpgrade(chainName, daos[i], manager, current, expected);
             _assertStatePreserved(daos[i], before, expected);
+            _exerciseGovernance(daos[i], before);
         }
     }
 
@@ -257,6 +260,74 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(Auction(payable(dao.auction)).owner(), dao.treasury, "Auction owner is not Treasury");
         assertEq(Treasury(payable(dao.treasury)).owner(), dao.governor, "Treasury owner is not Governor");
         assertEq(Governor(dao.governor).owner(), dao.treasury, "Governor owner is not Treasury");
+    }
+
+    function _exerciseGovernance(DAOConfig memory dao, DAOState memory before) internal {
+        Governor governor = Governor(dao.governor);
+        Treasury treasury = Treasury(payable(dao.treasury));
+        address proposer = before.tokenOwners[0];
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        targets[0] = address(governor);
+        uint256 executedProposalUpdatablePeriod = 2 days;
+        calldatas[0] = abi.encodeWithSignature("updateProposalUpdatablePeriod(uint256)", executedProposalUpdatablePeriod);
+
+        vm.startPrank(dao.treasury);
+        governor.updateProposalThresholdBps(1);
+        governor.updateQuorumThresholdBps(1000);
+        governor.updateProposalUpdatablePeriod(1 days);
+        vm.stopPrank();
+
+        string memory description = "Fork upgrade proposal";
+        vm.prank(proposer);
+        bytes32 proposalId = governor.propose(targets, values, calldatas, description);
+        assertEq(uint256(governor.state(proposalId)), uint256(GovernorTypesV1.ProposalState.Updatable), "Proposal is not updatable");
+
+        string memory updatedDescription = "Updated fork upgrade proposal";
+        vm.prank(proposer);
+        bytes32 updatedProposalId =
+            governor.updateProposal(proposalId, targets, values, calldatas, updatedDescription, "Verify proposal update after upgrade");
+        assertEq(governor.proposalIdReplacedBy(proposalId), updatedProposalId, "Proposal replacement was not recorded");
+        assertEq(uint256(governor.state(proposalId)), uint256(GovernorTypesV1.ProposalState.Replaced), "Original proposal was not replaced");
+
+        vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay() + 1);
+        vm.prank(proposer);
+        governor.castVote(updatedProposalId, 1);
+        for (uint256 i = 1; i < before.tokenOwners.length; ++i) {
+            bool alreadyVoted;
+            for (uint256 j; j < i; ++j) {
+                if (before.tokenOwners[i] == before.tokenOwners[j]) alreadyVoted = true;
+            }
+            if (alreadyVoted || before.tokenOwners[i] == proposer) continue;
+            vm.prank(before.tokenOwners[i]);
+            governor.castVote(updatedProposalId, 1);
+        }
+        vm.warp(block.timestamp + governor.votingPeriod() + 1);
+        assertEq(uint256(governor.state(updatedProposalId)), uint256(GovernorTypesV1.ProposalState.Succeeded), "Updated proposal did not succeed");
+
+        governor.queue(updatedProposalId);
+        vm.warp(block.timestamp + treasury.delay() + 1);
+        governor.execute(targets, values, calldatas, keccak256(bytes(updatedDescription)), proposer);
+        assertEq(governor.proposalUpdatablePeriod(), executedProposalUpdatablePeriod, "Proposal execution did not update Governor");
+
+        vm.prank(dao.treasury);
+        governor.updateProposalThresholdBps(before.proposalThresholdBps);
+        vm.prank(dao.treasury);
+        governor.updateQuorumThresholdBps(before.quorumThresholdBps);
+        vm.prank(dao.treasury);
+        governor.updateProposalUpdatablePeriod(0);
+    }
+
+    function _expectedImplementations(string memory chainName, Implementations memory current, Implementations memory latest)
+        internal
+        pure
+        returns (Implementations memory expected)
+    {
+        expected = latest;
+        if (keccak256(bytes(chainName)) == keccak256("base-mainnet") && current.metadata == BASE_MAINNET_MERKLE_PROPERTY_IPFS_IMPL) {
+            expected.metadata = current.metadata;
+        }
     }
 
     function _recordState(DAOConfig memory dao) internal returns (DAOState memory state) {
