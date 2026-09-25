@@ -12,6 +12,7 @@ import { Governor } from "../../src/governance/governor/Governor.sol";
 interface VmEnvOr {
     function envOr(string calldata name, string calldata defaultValue) external view returns (string memory);
     function envOr(string calldata name, uint256 defaultValue) external view returns (uint256);
+    function envOr(string calldata name, bool defaultValue) external view returns (bool);
 }
 
 /// @title TestDAOsSystemUpgrade
@@ -75,22 +76,27 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         string contractImage;
         string rendererBase;
         uint256 propertiesCount;
+        uint256[] tokenIds;
+        address[] tokenOwners;
+        string[] tokenURIs;
     }
 
     function test_AllSelectedDAOs_UpgradeFlowAndStatePreserved() public {
         string memory chainSelection = _envStringOr("DAO_CHAINS", "all");
         uint256 daoCount = _envUintOr("DAO_COUNT", 1);
         string memory rankSelection = _envStringOr("DAO_RANKS", "");
+        bool registerMissing = _envBoolOr("REGISTER_MISSING", false);
 
         string[3] memory chainNames = ["base-mainnet", "ethereum-mainnet", "optimism-mainnet"];
         string[3] memory rpcAliases = ["base", "mainnet", "optimism"];
+        string[3] memory forkBlockKeys = ["BASE", "ETHEREUM", "OPTIMISM"];
         uint256[3] memory chainIds = [uint256(8453), uint256(1), uint256(10)];
         bool preflightPassed = true;
 
         for (uint256 i; i < chainNames.length; ++i) {
             if (!_chainSelected(chainSelection, chainNames[i])) continue;
 
-            uint256 fork = vm.createFork(rpcAliases[i]);
+            uint256 fork = _createFork(rpcAliases[i], forkBlockKeys[i]);
             vm.selectFork(fork);
             initTime();
 
@@ -100,24 +106,16 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             Implementations memory implementations = _loadImplementations(chainIds[i]);
             IManager manager = IManager(_loadAddress(chainIds[i], ".Manager"));
 
-            if (!_preflightDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection)) {
+            if (!_preflightDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection, registerMissing)) {
                 preflightPassed = false;
+            }
+
+            if (registerMissing) {
+                _upgradeSelectedDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection);
             }
         }
 
-        if (!preflightPassed) revert UpgradePreflightFailed();
-
-        for (uint256 i; i < chainNames.length; ++i) {
-            if (!_chainSelected(chainSelection, chainNames[i])) continue;
-
-            uint256 fork = vm.createFork(rpcAliases[i]);
-            vm.selectFork(fork);
-            string memory config = vm.readFile(DAO_CONFIG_PATH);
-            DAOConfig[] memory daos = _loadDAOs(config, string.concat(".networks.", chainNames[i]));
-            Implementations memory implementations = _loadImplementations(chainIds[i]);
-            IManager manager = IManager(_loadAddress(chainIds[i], ".Manager"));
-            _upgradeSelectedDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection);
-        }
+        if (!registerMissing && !preflightPassed) revert UpgradePreflightFailed();
     }
 
     function _preflightDAOs(
@@ -126,7 +124,8 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         IManager manager,
         Implementations memory implementations,
         uint256 daoCount,
-        string memory rankSelection
+        string memory rankSelection,
+        bool registerMissing
     ) internal returns (bool passed) {
         passed = true;
         for (uint256 i; i < daos.length; ++i) {
@@ -151,7 +150,13 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
                     bool registered = manager.isRegisteredUpgrade(currentImplementation, expectedImplementation);
                     emit log_named_string(string.concat(_componentName(j), " registration"), registered ? "registered" : "missing");
                     if (!registered) {
-                        passed = false;
+                        if (registerMissing) {
+                            vm.prank(manager.owner());
+                            manager.registerUpgrade(currentImplementation, expectedImplementation);
+                            assertTrue(manager.isRegisteredUpgrade(currentImplementation, expectedImplementation), "Fork registration failed");
+                        } else {
+                            passed = false;
+                        }
                     }
                 }
             }
@@ -250,7 +255,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         Governor(dao.governor).updateProposalUpdatablePeriod(0);
     }
 
-    function _recordState(DAOConfig memory dao) internal view returns (DAOState memory state) {
+    function _recordState(DAOConfig memory dao) internal returns (DAOState memory state) {
         Token token = Token(dao.token);
         Auction auction = Auction(payable(dao.auction));
         Governor governor = Governor(dao.governor);
@@ -286,6 +291,19 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         state.contractImage = metadata.contractImage();
         state.rendererBase = metadata.rendererBase();
         state.propertiesCount = metadata.propertiesCount();
+        state.tokenIds = new uint256[](state.totalSupply);
+        state.tokenOwners = new address[](state.totalSupply);
+        state.tokenURIs = new string[](state.totalSupply);
+        uint256 foundTokens;
+        for (uint256 i; i <= state.auctionTokenId && foundTokens < state.totalSupply; ++i) {
+            try token.ownerOf(i) returns (address owner) {
+                state.tokenIds[foundTokens] = i;
+                state.tokenOwners[foundTokens] = owner;
+                state.tokenURIs[foundTokens] = token.tokenURI(i);
+                ++foundTokens;
+            } catch { }
+        }
+        assertEq(foundTokens, state.totalSupply, "Could not discover all existing token IDs");
     }
 
     function _assertStatePreserved(DAOConfig memory dao, DAOState memory before, Implementations memory expected) internal {
@@ -328,6 +346,11 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(metadata.contractImage(), before.contractImage, "Contract image changed");
         assertEq(metadata.rendererBase(), before.rendererBase, "Renderer base changed");
         assertEq(metadata.propertiesCount(), before.propertiesCount, "Metadata properties changed");
+        assertEq(token.totalSupply(), before.tokenIds.length, "Token supply changed during token checks");
+        for (uint256 i; i < before.tokenOwners.length; ++i) {
+            assertEq(token.ownerOf(before.tokenIds[i]), before.tokenOwners[i], "Existing token owner changed");
+            assertEq(token.tokenURI(before.tokenIds[i]), before.tokenURIs[i], "Existing token URI changed");
+        }
         assertEq(governor.proposalUpdatablePeriod(), 0, "Proposal updatable period was not disabled");
     }
 
@@ -426,6 +449,16 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
 
     function _envUintOr(string memory name, uint256 defaultValue) internal view returns (uint256) {
         return ENV.envOr(name, defaultValue);
+    }
+
+    function _envBoolOr(string memory name, bool defaultValue) internal view returns (bool) {
+        return ENV.envOr(name, defaultValue);
+    }
+
+    function _createFork(string memory rpcAlias, string memory chainKey) internal returns (uint256) {
+        uint256 blockNumber = _envUintOr(string.concat("FORK_BLOCK_", chainKey), _envUintOr("FORK_BLOCK", 0));
+        if (blockNumber == 0) return vm.createFork(rpcAlias);
+        return vm.createFork(rpcAlias, blockNumber);
     }
 
     function _uintToString(uint256 value) internal pure returns (string memory) {
