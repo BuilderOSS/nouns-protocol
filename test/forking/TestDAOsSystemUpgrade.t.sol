@@ -324,7 +324,11 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         pure
         returns (Implementations memory expected)
     {
-        expected = latest;
+        expected.token = latest.token;
+        expected.metadata = latest.metadata;
+        expected.auction = latest.auction;
+        expected.treasury = latest.treasury;
+        expected.governor = latest.governor;
         if (keccak256(bytes(chainName)) == keccak256("base-mainnet") && current.metadata == BASE_MAINNET_MERKLE_PROPERTY_IPFS_IMPL) {
             expected.metadata = current.metadata;
         }
