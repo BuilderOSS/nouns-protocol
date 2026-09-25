@@ -78,7 +78,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         uint256 propertiesCount;
         uint256[] tokenIds;
         address[] tokenOwners;
-        string[] tokenURIs;
+        bytes32[] tokenURIHashes;
     }
 
     function test_AllSelectedDAOs_UpgradeFlowAndStatePreserved() public {
@@ -293,13 +293,13 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         state.propertiesCount = metadata.propertiesCount();
         state.tokenIds = new uint256[](state.totalSupply);
         state.tokenOwners = new address[](state.totalSupply);
-        state.tokenURIs = new string[](state.totalSupply);
+        state.tokenURIHashes = new bytes32[](state.totalSupply);
         uint256 foundTokens;
         for (uint256 i; i <= state.auctionTokenId && foundTokens < state.totalSupply; ++i) {
             try token.ownerOf(i) returns (address owner) {
                 state.tokenIds[foundTokens] = i;
                 state.tokenOwners[foundTokens] = owner;
-                state.tokenURIs[foundTokens] = token.tokenURI(i);
+                state.tokenURIHashes[foundTokens] = keccak256(bytes(token.tokenURI(i)));
                 ++foundTokens;
             } catch { }
         }
@@ -317,16 +317,24 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         for (uint256 i; i < 5; ++i) {
             assertEq(_implementationAt(afterImplementations, i), _implementationAt(expected, i), "Unexpected final implementation");
         }
-        assertEq(token.totalSupply(), before.totalSupply, "Token supply changed");
+        uint256 expectedSupply = before.totalSupply + (before.auctionSettled ? 1 : 0);
+        assertEq(token.totalSupply(), expectedSupply, "Unexpected token supply change");
         assertEq(token.auction(), before.tokenAuction, "Token auction changed");
         assertEq(token.metadataRenderer(), before.tokenMetadata, "Token metadata renderer changed");
         (uint256 tokenId, uint256 highestBid, address highestBidder, uint40 startTime, uint40 endTime, bool settled) = auction.auction();
-        assertEq(tokenId, before.auctionTokenId, "Auction token changed");
-        assertEq(highestBid, before.auctionHighestBid, "Auction bid changed");
-        assertEq(highestBidder, before.auctionHighestBidder, "Auction bidder changed");
-        assertEq(startTime, before.auctionStartTime, "Auction start changed");
-        assertEq(endTime, before.auctionEndTime, "Auction end changed");
-        assertEq(settled, before.auctionSettled, "Auction settled state changed");
+        if (before.auctionSettled) {
+            assertEq(tokenId, before.auctionTokenId + 1, "Next auction token was not created");
+            assertEq(highestBid, 0, "New auction has a bid");
+            assertEq(highestBidder, address(0), "New auction has a bidder");
+            assertFalse(settled, "New auction is already settled");
+        } else {
+            assertEq(tokenId, before.auctionTokenId, "Auction token changed");
+            assertEq(highestBid, before.auctionHighestBid, "Auction bid changed");
+            assertEq(highestBidder, before.auctionHighestBidder, "Auction bidder changed");
+            assertEq(startTime, before.auctionStartTime, "Auction start changed");
+            assertEq(endTime, before.auctionEndTime, "Auction end changed");
+            assertEq(settled, before.auctionSettled, "Auction settled state changed");
+        }
         assertEq(auction.duration(), before.auctionDuration, "Auction duration changed");
         assertEq(auction.reservePrice(), before.auctionReservePrice, "Auction reserve changed");
         assertEq(auction.timeBuffer(), before.auctionTimeBuffer, "Auction time buffer changed");
@@ -346,10 +354,10 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(metadata.contractImage(), before.contractImage, "Contract image changed");
         assertEq(metadata.rendererBase(), before.rendererBase, "Renderer base changed");
         assertEq(metadata.propertiesCount(), before.propertiesCount, "Metadata properties changed");
-        assertEq(token.totalSupply(), before.tokenIds.length, "Token supply changed during token checks");
+        assertEq(token.totalSupply(), expectedSupply, "Token supply changed during token checks");
         for (uint256 i; i < before.tokenOwners.length; ++i) {
             assertEq(token.ownerOf(before.tokenIds[i]), before.tokenOwners[i], "Existing token owner changed");
-            assertEq(token.tokenURI(before.tokenIds[i]), before.tokenURIs[i], "Existing token URI changed");
+            assertEq(keccak256(bytes(token.tokenURI(before.tokenIds[i]))), before.tokenURIHashes[i], "Existing token URI changed");
         }
         assertEq(governor.proposalUpdatablePeriod(), 0, "Proposal updatable period was not disabled");
     }
