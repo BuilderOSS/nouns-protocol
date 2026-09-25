@@ -255,7 +255,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(Token(dao.token).owner(), dao.treasury, "Token owner is not Treasury");
         assertEq(MetadataRenderer(dao.metadata).owner(), dao.treasury, "Metadata owner is not Treasury");
         assertEq(Auction(payable(dao.auction)).owner(), dao.treasury, "Auction owner is not Treasury");
-        assertEq(Treasury(payable(dao.treasury)).owner(), dao.treasury, "Treasury owner is not self");
+        assertEq(Treasury(payable(dao.treasury)).owner(), dao.governor, "Treasury owner is not Governor");
         assertEq(Governor(dao.governor).owner(), dao.treasury, "Governor owner is not Treasury");
     }
 
@@ -297,23 +297,27 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         state.propertiesCount = metadata.propertiesCount();
         uint256[] memory candidateTokenIds = new uint256[](state.totalSupply);
         address[] memory candidateTokenOwners = new address[](state.totalSupply);
-        uint256 foundTokens;
-        for (uint256 i; i <= state.auctionTokenId && foundTokens < state.totalSupply; ++i) {
+        uint256 mintedTokens;
+        uint256 readableTokens;
+        for (uint256 i; i <= state.auctionTokenId && mintedTokens < state.totalSupply; ++i) {
             try token.ownerOf(i) returns (address owner) {
-                candidateTokenIds[foundTokens] = i;
-                candidateTokenOwners[foundTokens] = owner;
-                ++foundTokens;
+                ++mintedTokens;
+                try token.tokenURI(i) returns (string memory) {
+                    candidateTokenIds[readableTokens] = i;
+                    candidateTokenOwners[readableTokens] = owner;
+                    ++readableTokens;
+                } catch { }
             } catch { }
         }
-        assertEq(foundTokens, state.totalSupply, "Could not discover all existing token IDs");
+        assertEq(mintedTokens, state.totalSupply, "Could not discover all existing token IDs");
 
-        uint256 sampleSize = state.totalSupply < TOKEN_URI_SAMPLE_SIZE ? state.totalSupply : TOKEN_URI_SAMPLE_SIZE;
+        uint256 sampleSize = readableTokens < TOKEN_URI_SAMPLE_SIZE ? readableTokens : TOKEN_URI_SAMPLE_SIZE;
         state.tokenIds = new uint256[](sampleSize);
         state.tokenOwners = new address[](sampleSize);
         state.tokenURIHashes = new bytes32[](sampleSize);
         uint256 randomSeed = uint256(keccak256(abi.encode(dao.token, state.totalSupply, state.auctionTokenId)));
         for (uint256 i; i < sampleSize; ++i) {
-            uint256 offset = uint256(keccak256(abi.encode(randomSeed, i))) % (foundTokens - i);
+            uint256 offset = uint256(keccak256(abi.encode(randomSeed, i))) % (readableTokens - i);
             uint256 selectedIndex = i + offset;
             (candidateTokenIds[i], candidateTokenIds[selectedIndex]) = (candidateTokenIds[selectedIndex], candidateTokenIds[i]);
             (candidateTokenOwners[i], candidateTokenOwners[selectedIndex]) = (candidateTokenOwners[selectedIndex], candidateTokenOwners[i]);
