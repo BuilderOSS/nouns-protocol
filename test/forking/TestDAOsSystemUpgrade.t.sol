@@ -25,7 +25,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
     string internal constant DAO_CONFIG_PATH = "test/forking/top-daos.json";
     VmEnvOr internal constant ENV = VmEnvOr(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
-    error MissingUpgradeRegistration(string chain, string dao, string component, address currentImpl, address expectedImpl);
+    error UpgradePreflightFailed();
 
     struct DAOConfig {
         uint256 rank;
@@ -85,6 +85,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         string[3] memory chainNames = ["base-mainnet", "ethereum-mainnet", "optimism-mainnet"];
         string[3] memory rpcAliases = ["base", "mainnet", "optimism"];
         uint256[3] memory chainIds = [uint256(8453), uint256(1), uint256(10)];
+        bool preflightPassed = true;
 
         for (uint256 i; i < chainNames.length; ++i) {
             if (!_chainSelected(chainSelection, chainNames[i])) continue;
@@ -99,7 +100,22 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             Implementations memory implementations = _loadImplementations(chainIds[i]);
             IManager manager = IManager(_loadAddress(chainIds[i], ".Manager"));
 
-            _preflightDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection);
+            if (!_preflightDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection)) {
+                preflightPassed = false;
+            }
+        }
+
+        if (!preflightPassed) revert UpgradePreflightFailed();
+
+        for (uint256 i; i < chainNames.length; ++i) {
+            if (!_chainSelected(chainSelection, chainNames[i])) continue;
+
+            uint256 fork = vm.createFork(rpcAliases[i]);
+            vm.selectFork(fork);
+            string memory config = vm.readFile(DAO_CONFIG_PATH);
+            DAOConfig[] memory daos = _loadDAOs(config, string.concat(".networks.", chainNames[i]));
+            Implementations memory implementations = _loadImplementations(chainIds[i]);
+            IManager manager = IManager(_loadAddress(chainIds[i], ".Manager"));
             _upgradeSelectedDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection);
         }
     }
@@ -111,7 +127,8 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         Implementations memory implementations,
         uint256 daoCount,
         string memory rankSelection
-    ) internal {
+    ) internal returns (bool passed) {
+        passed = true;
         for (uint256 i; i < daos.length; ++i) {
             if (!_daoSelected(daos[i].rank, daoCount, rankSelection)) continue;
 
@@ -134,7 +151,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
                     bool registered = manager.isRegisteredUpgrade(currentImplementation, expectedImplementation);
                     emit log_named_string(string.concat(_componentName(j), " registration"), registered ? "registered" : "missing");
                     if (!registered) {
-                        revert MissingUpgradeRegistration(chainName, daos[i].name, _componentName(j), currentImplementation, expectedImplementation);
+                        passed = false;
                     }
                 }
             }
