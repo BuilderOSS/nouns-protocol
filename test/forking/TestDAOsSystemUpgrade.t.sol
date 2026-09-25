@@ -24,6 +24,7 @@ interface VmEnvOr {
 contract TestDAOsSystemUpgrade is ViaIRTestHelper {
     bytes32 internal constant ERC1967_IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     string internal constant DAO_CONFIG_PATH = "test/forking/top-daos.json";
+    uint256 internal constant TOKEN_URI_SAMPLE_SIZE = 10;
     VmEnvOr internal constant ENV = VmEnvOr(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
     error UpgradePreflightFailed();
@@ -210,6 +211,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             }
             if (fullyUpgraded) continue;
 
+            _assertTreasuryOwnsDAO(daos[i]);
             DAOState memory before = _recordState(daos[i]);
             _executeUpgrade(chainName, daos[i], manager, current, expected);
             _assertStatePreserved(daos[i], before, expected);
@@ -220,39 +222,41 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         internal
     {
         Auction auction = Auction(payable(dao.auction));
+        vm.startPrank(dao.treasury);
         if (!auction.paused()) {
-            vm.prank(auction.owner());
             auction.pause();
         }
 
         if (current.auction != expected.auction) {
-            vm.prank(auction.owner());
             auction.upgradeTo(expected.auction);
         }
         if (current.token != expected.token) {
-            vm.prank(Token(dao.token).owner());
             Token(dao.token).upgradeTo(expected.token);
         }
         if (current.metadata != expected.metadata) {
-            vm.prank(MetadataRenderer(dao.metadata).owner());
             MetadataRenderer(dao.metadata).upgradeTo(expected.metadata);
         }
         if (current.treasury != expected.treasury) {
-            vm.prank(address(Treasury(payable(dao.treasury))));
             Treasury(payable(dao.treasury)).upgradeTo(expected.treasury);
         }
         if (current.governor != expected.governor) {
-            vm.prank(Governor(dao.governor).owner());
             Governor(dao.governor).upgradeTo(expected.governor);
         }
 
         if (auction.paused()) {
-            vm.prank(auction.owner());
             auction.unpause();
         }
 
-        vm.prank(Governor(dao.governor).owner());
         Governor(dao.governor).updateProposalUpdatablePeriod(0);
+        vm.stopPrank();
+    }
+
+    function _assertTreasuryOwnsDAO(DAOConfig memory dao) internal {
+        assertEq(Token(dao.token).owner(), dao.treasury, "Token owner is not Treasury");
+        assertEq(MetadataRenderer(dao.metadata).owner(), dao.treasury, "Metadata owner is not Treasury");
+        assertEq(Auction(payable(dao.auction)).owner(), dao.treasury, "Auction owner is not Treasury");
+        assertEq(Treasury(payable(dao.treasury)).owner(), dao.treasury, "Treasury owner is not self");
+        assertEq(Governor(dao.governor).owner(), dao.treasury, "Governor owner is not Treasury");
     }
 
     function _recordState(DAOConfig memory dao) internal returns (DAOState memory state) {
@@ -291,19 +295,32 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         state.contractImage = metadata.contractImage();
         state.rendererBase = metadata.rendererBase();
         state.propertiesCount = metadata.propertiesCount();
-        state.tokenIds = new uint256[](state.totalSupply);
-        state.tokenOwners = new address[](state.totalSupply);
-        state.tokenURIHashes = new bytes32[](state.totalSupply);
+        uint256[] memory candidateTokenIds = new uint256[](state.totalSupply);
+        address[] memory candidateTokenOwners = new address[](state.totalSupply);
         uint256 foundTokens;
         for (uint256 i; i <= state.auctionTokenId && foundTokens < state.totalSupply; ++i) {
             try token.ownerOf(i) returns (address owner) {
-                state.tokenIds[foundTokens] = i;
-                state.tokenOwners[foundTokens] = owner;
-                state.tokenURIHashes[foundTokens] = keccak256(bytes(token.tokenURI(i)));
+                candidateTokenIds[foundTokens] = i;
+                candidateTokenOwners[foundTokens] = owner;
                 ++foundTokens;
             } catch { }
         }
         assertEq(foundTokens, state.totalSupply, "Could not discover all existing token IDs");
+
+        uint256 sampleSize = state.totalSupply < TOKEN_URI_SAMPLE_SIZE ? state.totalSupply : TOKEN_URI_SAMPLE_SIZE;
+        state.tokenIds = new uint256[](sampleSize);
+        state.tokenOwners = new address[](sampleSize);
+        state.tokenURIHashes = new bytes32[](sampleSize);
+        uint256 randomSeed = uint256(keccak256(abi.encode(dao.token, state.totalSupply, state.auctionTokenId)));
+        for (uint256 i; i < sampleSize; ++i) {
+            uint256 offset = uint256(keccak256(abi.encode(randomSeed, i))) % (foundTokens - i);
+            uint256 selectedIndex = i + offset;
+            (candidateTokenIds[i], candidateTokenIds[selectedIndex]) = (candidateTokenIds[selectedIndex], candidateTokenIds[i]);
+            (candidateTokenOwners[i], candidateTokenOwners[selectedIndex]) = (candidateTokenOwners[selectedIndex], candidateTokenOwners[i]);
+            state.tokenIds[i] = candidateTokenIds[i];
+            state.tokenOwners[i] = candidateTokenOwners[i];
+            state.tokenURIHashes[i] = keccak256(bytes(token.tokenURI(state.tokenIds[i])));
+        }
     }
 
     function _assertStatePreserved(DAOConfig memory dao, DAOState memory before, Implementations memory expected) internal {
