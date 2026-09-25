@@ -22,7 +22,8 @@ The test validates:
 - Proposal creation, proposal replacement, voting, queueing, execution, and a
   non-zero `proposalUpdatablePeriod` update.
 
-Ten deterministic minted-token samples are used instead of scanning every URI.
+Ten deterministic random token IDs are sampled. The test checks `ownerOf()` and
+`tokenURI()` only for those candidates and never enumerates the full token set.
 
 ## Expected Implementations
 
@@ -58,7 +59,7 @@ the rank 7 upgrade and governance flow passed.
 | Rank | DAO | Result |
 | ---: | --- | --- |
 | 1 | Collective Nouns | Pass |
-| 2 | Gnars | Fail: OutOfGas |
+| 2 | Gnars | Pass |
 | 3 | Purple | Pass |
 | 4 | member | Pass |
 | 5 | BASED DAO | Fail: proposal unsuccessful |
@@ -67,7 +68,7 @@ the rank 7 upgrade and governance flow passed.
 | 8 | OUNCE | Pass |
 | 9 | Based Fellas | Pass |
 | 10 | the park dao | Pass |
-| 11 | City Nouns | Fail: token discovery/supply mismatch |
+| 11 | City Nouns | Fail: token supply/auction transition mismatch |
 | 12 | NounsDAO Africa | Pass |
 | 13 | Lil Toadz DAO | Pass |
 | 14 | MAD BANANA DAO on BASE | Pass |
@@ -80,7 +81,7 @@ the rank 7 upgrade and governance flow passed.
 
 ## Failure Details
 
-### Rank 2: Gnars
+### Rank 11: City Nouns
 
 The upgrade flow reached the following implementation pairs before failing:
 
@@ -92,28 +93,18 @@ The upgrade flow reached the following implementation pairs before failing:
 | Treasury | `0xaf75199b91AEDBe2B99476899782C5Bb507393E0` | `0x5eF26412F6b3EA35099F53BA9a032Ec15a4B77A4` |
 | Governor | `0x9Af9f31BAE469c13528B458E007A7EA965BD14bB` | `0x04515024ad1F9bD097Db4983914A23A6dcB65751` |
 
-Failure: `EvmError: OutOfGas`.
+Failure details:
+
+- Expected token supply: `58`; actual token supply: `59`.
+- Expected next auction token ID: `66`; actual token ID: `71`.
+- The failure occurs during the settled-auction transition check.
 
 ### Rank 5: BASED DAO
 
 The implementation pairs were the same as rank 2. Upgrade state checks passed,
-but the added governance flow failed because the updated proposal did not reach
-the `Succeeded` state.
-
-### Rank 11: City Nouns
-
-The implementation pairs were the same as rank 2. The failure occurred while
-discovering existing token IDs:
-
-```text
-Could not discover all existing token IDs
-Unexpected token supply change
-Next auction token was not created
-Token supply changed during token checks
-```
-
-This indicates that the token's reported supply and the enumerable IDs found by
-the test do not match the assumptions in the current fork-state scanner.
+but the added governance flow ended in state `Defeated` (`3`) instead of
+`Succeeded` (`4`). The sampled holders did not provide enough voting power for
+this DAO's quorum.
 
 ### Rank 19: Kendama DAO
 
@@ -144,3 +135,9 @@ one DAO changed the expected metadata implementation for subsequent DAOs.
 The helper now copies each implementation field explicitly. Rank 20 was rerun
 after this correction and passed with the proper target
 `0x63D1...d6CE`.
+
+The earlier Gnars `OutOfGas` result had a separate cause: the scanner called
+`tokenURI()` for all 6,006 minted Gnars tokens before selecting its samples.
+Gnars has auction token ID `7085`, so the scan exhausted the fork gas limit.
+Random sampling reduced the Gnars run from an out-of-gas failure to a passing
+run in `7.78s`.
