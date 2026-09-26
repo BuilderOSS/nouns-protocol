@@ -22,9 +22,9 @@ No upgrade transactions were executed because preflight found missing registrati
 | Network | DAOs scanned | DAOs with missing registrations | Missing pairs |
 | --- | ---: | ---: | ---: |
 | Base | 20 | 6 | 10 |
-| Ethereum | 20 | 20 | 64 |
+| Ethereum | 20 | 20 | 66 |
 | Optimism | 20 | 11 | 25 |
-| **Total** | **60** | **37** | **99** |
+| **Total** | **60** | **37** | **101** |
 
 Already-upgraded DAOs are treated as successful. The scan did not find any fully upgraded DAO among this selection.
 
