@@ -31,6 +31,8 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
     VmEnvOr internal constant ENV = VmEnvOr(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
     error UpgradePreflightFailed();
+    error NoDAOsSelected(string chainSelection, uint256 daoCount, string rankSelection);
+    error GovernanceExecutionNotValidated(uint256 availableVotes, uint256 quorumVotes);
 
     struct DAOConfig {
         uint256 rank;
@@ -62,6 +64,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         uint40 auctionStartTime;
         uint40 auctionEndTime;
         bool auctionSettled;
+        bool auctionPaused;
         uint256 auctionDuration;
         uint256 auctionReservePrice;
         uint256 auctionTimeBuffer;
@@ -70,6 +73,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         uint256 votingPeriod;
         uint256 proposalThresholdBps;
         uint256 quorumThresholdBps;
+        uint256 proposalUpdatablePeriod;
         address vetoer;
         address governorToken;
         address governorTreasury;
@@ -96,6 +100,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         string[3] memory forkBlockKeys = ["BASE", "ETHEREUM", "OPTIMISM"];
         uint256[3] memory chainIds = [uint256(8453), uint256(1), uint256(10)];
         bool preflightPassed = true;
+        uint256 selectedDAOs;
 
         for (uint256 i; i < chainNames.length; ++i) {
             if (!_chainSelected(chainSelection, chainNames[i])) continue;
@@ -110,15 +115,19 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             Implementations memory implementations = _loadImplementations(chainIds[i]);
             IManager manager = IManager(_loadAddress(chainIds[i], ".Manager"));
 
-            if (!_preflightDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection, registerMissing)) {
+            (bool chainPreflightPassed, uint256 chainSelectedDAOs) =
+                _preflightDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection, registerMissing);
+            selectedDAOs += chainSelectedDAOs;
+            if (!chainPreflightPassed) {
                 preflightPassed = false;
             }
 
-            if (registerMissing) {
+            if (registerMissing || chainPreflightPassed) {
                 _upgradeSelectedDAOs(chainNames[i], daos, manager, implementations, daoCount, rankSelection);
             }
         }
 
+        if (selectedDAOs == 0) revert NoDAOsSelected(chainSelection, daoCount, rankSelection);
         if (!registerMissing && !preflightPassed) revert UpgradePreflightFailed();
     }
 
@@ -130,10 +139,11 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         uint256 daoCount,
         string memory rankSelection,
         bool registerMissing
-    ) internal returns (bool passed) {
+    ) internal returns (bool passed, uint256 selectedDAOs) {
         passed = true;
         for (uint256 i; i < daos.length; ++i) {
             if (!_daoSelected(daos[i].rank, daoCount, rankSelection)) continue;
+            ++selectedDAOs;
 
             Implementations memory current = _currentImplementations(daos[i]);
             Implementations memory expected = _expectedImplementations(chainName, current, implementations);
@@ -216,18 +226,23 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
 
             _assertTreasuryOwnsDAO(daos[i]);
             DAOState memory before = _recordState(daos[i]);
-            _executeUpgrade(chainName, daos[i], manager, current, expected);
-            _assertStatePreserved(daos[i], before, expected);
+            _executeUpgrade(chainName, daos[i], manager, current, expected, before.auctionPaused);
             _exerciseGovernance(daos[i], before);
+            _assertStatePreserved(daos[i], before, expected);
         }
     }
 
-    function _executeUpgrade(string memory, DAOConfig memory dao, IManager, Implementations memory current, Implementations memory expected)
-        internal
-    {
+    function _executeUpgrade(
+        string memory,
+        DAOConfig memory dao,
+        IManager,
+        Implementations memory current,
+        Implementations memory expected,
+        bool wasAuctionPaused
+    ) internal {
         Auction auction = Auction(payable(dao.auction));
         vm.startPrank(dao.treasury);
-        if (!auction.paused()) {
+        if (!wasAuctionPaused) {
             auction.pause();
         }
 
@@ -247,7 +262,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             Governor(dao.governor).upgradeTo(expected.governor);
         }
 
-        if (auction.paused()) {
+        if (!wasAuctionPaused) {
             auction.unpause();
         }
 
@@ -276,7 +291,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
 
         vm.startPrank(dao.treasury);
         governor.updateProposalThresholdBps(1);
-        governor.updateQuorumThresholdBps(1000);
+        governor.updateQuorumThresholdBps(200);
         governor.updateProposalUpdatablePeriod(1 days);
         vm.stopPrank();
 
@@ -292,7 +307,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             vm.prank(dao.treasury);
             governor.updateQuorumThresholdBps(before.quorumThresholdBps);
             vm.prank(dao.treasury);
-            governor.updateProposalUpdatablePeriod(0);
+            governor.updateProposalUpdatablePeriod(before.proposalUpdatablePeriod);
             return;
         }
         assertEq(uint256(governor.state(proposalId)), uint256(GovernorTypesV1.ProposalState.Updatable), "Proposal is not updatable");
@@ -304,7 +319,9 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(governor.proposalIdReplacedBy(proposalId), updatedProposalId, "Proposal replacement was not recorded");
         assertEq(uint256(governor.state(proposalId)), uint256(GovernorTypesV1.ProposalState.Replaced), "Original proposal was not replaced");
 
-        vm.warp(block.timestamp + governor.proposalUpdatablePeriod() + governor.votingDelay() + 1);
+        advanceTime(governor.proposalUpdatablePeriod() + governor.votingDelay() + 1);
+        uint256 voteTimestamp = getCurrentTime() - 1;
+        uint256 availableVotes = governor.getVotes(proposer, voteTimestamp);
         vm.prank(proposer);
         governor.castVote(updatedProposalId, 1);
         for (uint256 i = 1; i < before.tokenOwners.length; ++i) {
@@ -313,23 +330,17 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
                 if (before.tokenOwners[i] == before.tokenOwners[j]) alreadyVoted = true;
             }
             if (alreadyVoted || before.tokenOwners[i] == proposer) continue;
+            availableVotes += governor.getVotes(before.tokenOwners[i], voteTimestamp);
             vm.prank(before.tokenOwners[i]);
             governor.castVote(updatedProposalId, 1);
         }
-        vm.warp(block.timestamp + governor.votingPeriod() + 1);
-        if (uint256(governor.state(updatedProposalId)) == uint256(GovernorTypesV1.ProposalState.Defeated)) {
-            vm.prank(dao.treasury);
-            governor.updateProposalThresholdBps(before.proposalThresholdBps);
-            vm.prank(dao.treasury);
-            governor.updateQuorumThresholdBps(before.quorumThresholdBps);
-            vm.prank(dao.treasury);
-            governor.updateProposalUpdatablePeriod(0);
-            return;
-        }
+        if (availableVotes < governor.quorum()) revert GovernanceExecutionNotValidated(availableVotes, governor.quorum());
+
+        advanceTime(governor.votingPeriod() + 1);
         assertEq(uint256(governor.state(updatedProposalId)), uint256(GovernorTypesV1.ProposalState.Succeeded), "Updated proposal did not succeed");
 
         governor.queue(updatedProposalId);
-        vm.warp(block.timestamp + treasury.delay() + 1);
+        advanceTime(treasury.delay() + 1);
         governor.execute(targets, values, calldatas, keccak256(bytes(updatedDescription)), proposer);
         assertEq(governor.proposalUpdatablePeriod(), executedProposalUpdatablePeriod, "Proposal execution did not update Governor");
 
@@ -338,7 +349,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         vm.prank(dao.treasury);
         governor.updateQuorumThresholdBps(before.quorumThresholdBps);
         vm.prank(dao.treasury);
-        governor.updateProposalUpdatablePeriod(0);
+        governor.updateProposalUpdatablePeriod(before.proposalUpdatablePeriod);
     }
 
     function _expectedImplementations(string memory chainName, Implementations memory current, Implementations memory latest)
@@ -378,10 +389,12 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         state.auctionReservePrice = auction.reservePrice();
         state.auctionTimeBuffer = auction.timeBuffer();
         state.auctionMinBidIncrement = auction.minBidIncrement();
+        state.auctionPaused = auction.paused();
         state.votingDelay = governor.votingDelay();
         state.votingPeriod = governor.votingPeriod();
         state.proposalThresholdBps = governor.proposalThresholdBps();
         state.quorumThresholdBps = governor.quorumThresholdBps();
+        state.proposalUpdatablePeriod = _proposalUpdatablePeriod(governor);
         state.vetoer = governor.vetoer();
         state.governorToken = governor.token();
         state.governorTreasury = governor.treasury();
@@ -398,9 +411,11 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         state.tokenURIHashes = new bytes32[](sampleSize);
         uint256 randomSeed = uint256(keccak256(abi.encode(dao.token, state.totalSupply, state.auctionTokenId)));
         uint256 sampledTokens;
-        uint256 maxAttempts = sampleSize * 50;
-        for (uint256 i; i < maxAttempts && sampledTokens < sampleSize; ++i) {
-            uint256 tokenId = uint256(keccak256(abi.encode(randomSeed, i))) % (state.auctionTokenId + 1);
+        uint256 candidateCount = state.auctionTokenId + 1;
+        uint256 startTokenId = randomSeed % candidateCount;
+        for (uint256 offset; offset < candidateCount && sampledTokens < sampleSize; ++offset) {
+            uint256 tokenId = startTokenId + offset;
+            if (tokenId >= candidateCount) tokenId -= candidateCount;
             bool duplicate;
             for (uint256 j; j < sampledTokens; ++j) {
                 if (state.tokenIds[j] == tokenId) duplicate = true;
@@ -433,7 +448,15 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(token.auction(), before.tokenAuction, "Token auction changed");
         assertEq(token.metadataRenderer(), before.tokenMetadata, "Token metadata renderer changed");
         (uint256 tokenId, uint256 highestBid, address highestBidder, uint40 startTime, uint40 endTime, bool settled) = auction.auction();
-        if (before.auctionSettled) {
+        if (before.auctionPaused) {
+            assertEq(token.totalSupply(), before.totalSupply, "Unexpected token supply change");
+            assertEq(tokenId, before.auctionTokenId, "Auction token changed");
+            assertEq(highestBid, before.auctionHighestBid, "Auction bid changed");
+            assertEq(highestBidder, before.auctionHighestBidder, "Auction bidder changed");
+            assertEq(startTime, before.auctionStartTime, "Auction start changed");
+            assertEq(endTime, before.auctionEndTime, "Auction end changed");
+            assertEq(settled, before.auctionSettled, "Auction settled state changed");
+        } else if (before.auctionSettled) {
             assertGt(token.totalSupply(), before.totalSupply, "Unexpected token supply change");
             assertGt(tokenId, before.auctionTokenId, "Next auction token was not created");
             assertEq(token.ownerOf(tokenId), address(auction), "New auction token owner is incorrect");
@@ -453,7 +476,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         assertEq(auction.reservePrice(), before.auctionReservePrice, "Auction reserve changed");
         assertEq(auction.timeBuffer(), before.auctionTimeBuffer, "Auction time buffer changed");
         assertEq(auction.minBidIncrement(), before.auctionMinBidIncrement, "Auction increment changed");
-        assertFalse(auction.paused(), "Auction was not unpaused");
+        assertEq(auction.paused(), before.auctionPaused, "Auction paused state changed");
         assertEq(governor.votingDelay(), before.votingDelay, "Voting delay changed");
         assertEq(governor.votingPeriod(), before.votingPeriod, "Voting period changed");
         assertEq(governor.proposalThresholdBps(), before.proposalThresholdBps, "Proposal threshold changed");
@@ -472,7 +495,7 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
             assertEq(token.ownerOf(before.tokenIds[i]), before.tokenOwners[i], "Existing token owner changed");
             assertEq(keccak256(bytes(token.tokenURI(before.tokenIds[i]))), before.tokenURIHashes[i], "Existing token URI changed");
         }
-        assertEq(governor.proposalUpdatablePeriod(), 0, "Proposal updatable period was not disabled");
+        assertEq(governor.proposalUpdatablePeriod(), before.proposalUpdatablePeriod, "Proposal updatable period changed");
     }
 
     function _currentImplementations(DAOConfig memory dao) internal view returns (Implementations memory implementations) {
@@ -481,6 +504,14 @@ contract TestDAOsSystemUpgrade is ViaIRTestHelper {
         implementations.auction = _implementation(dao.auction);
         implementations.treasury = _implementation(dao.treasury);
         implementations.governor = _implementation(dao.governor);
+    }
+
+    function _proposalUpdatablePeriod(Governor governor) internal view returns (uint256 period) {
+        try governor.proposalUpdatablePeriod() returns (uint256 currentPeriod) {
+            period = currentPeriod;
+        } catch {
+            period = 0;
+        }
     }
 
     function _implementationAt(Implementations memory implementations, uint256 index) internal pure returns (address) {
