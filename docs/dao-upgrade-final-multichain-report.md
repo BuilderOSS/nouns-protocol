@@ -2,13 +2,6 @@
 
 ## Scope and Method
 
-## Source Reports
-
-- [Base Mainnet validation report](base-mainnet-dao-upgrade-validation-report.md)
-- [Ethereum Mainnet registration report](dao-upgrade-registration-report.md#ethereum-mainnet)
-- [Optimism Mainnet registration report](dao-upgrade-registration-report.md#optimism-mainnet)
-- [Original combined fork validation report](dao-upgrade-fork-validation-report.md)
-
 The fork suite was run against the 20 configured DAOs on Base Mainnet,
 Ethereum Mainnet, and Optimism Mainnet. Fork blocks:
 
@@ -25,6 +18,17 @@ The test checks implementation slots, ownership, metadata state, auction state,
 sampled token owners and URIs, and the Governor proposal lifecycle. Token
 checks use 10 deterministic random token IDs. The test does not enumerate every
 token or call `tokenURI()` for every supply item.
+
+`REGISTER_MISSING=true` registers missing Manager upgrade pairs only on the local
+fork. No live chain state is changed. Already-upgraded DAOs are included in the
+results when their implementation and state checks pass.
+
+## Sources of Truth
+
+- DAO addresses and ranks: `test/forking/top-daos.json`
+- Upgrade and exception behavior: `test/forking/TestDAOsSystemUpgrade.t.sol`
+- V3 implementation addresses: `addresses/1.json`, `addresses/10.json`, and
+  `addresses/8453.json`
 
 ## Common V3 Targets
 
